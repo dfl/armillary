@@ -20,7 +20,7 @@
 <body>
 
 <div id="ui">
-  Latitude: <input type="range" id="latSlider" min="-66" max="66" value="22" step="1">
+  Latitude: <input type="range" id="latSlider" min="-66" max="66" value="0" step="1">
   <span id="latValue">0°</span>
   <br>
   Time: <input type="range" id="timeSlider" min="0" max="1439" value="720" step="1">
@@ -238,8 +238,14 @@ function addSphere(name, pos, color, addToCelestialGroup = true, radius = 0.12, 
 
 // ASC/DSC are where the ecliptic intersects the horizon (y=0) at east/west
 // They will be calculated dynamically as the ecliptic rotates
-addSphere("ASC", new THREE.Vector3(0, 0, 0), 0xffff00, false);  // Placeholder, updated dynamically
-addSphere("DSC", new THREE.Vector3(0, 0, 0), 0xffff00, false); // Placeholder, updated dynamically
+addSphere("ASC", new THREE.Vector3(0, 0, 0), 0xff0000, false, 0.08);  // Placeholder, updated dynamically
+addSphere("DSC", new THREE.Vector3(0, 0, 0), 0xff0000, false, 0.08); // Placeholder, updated dynamically
+
+// Make ASC/DSC spheres transparent
+spheres["ASC"].material.transparent = true;
+spheres["ASC"].material.opacity = 0.6;
+spheres["DSC"].material.transparent = true;
+spheres["DSC"].material.opacity = 0.6;
 
 // Compass rosette in the center of the horizon plane
 function createCompassRosette() {
@@ -357,8 +363,14 @@ addHorizonLabel("W", new THREE.Vector3(-compassRadius, 0.01, 0), Math.PI/2);  //
 // MC/IC are where the meridian intersects the ecliptic
 // They are FIXED on the meridian (not rotating with ecliptic)
 // They will be calculated dynamically as the ecliptic rotates
-addSphere("MC", new THREE.Vector3(0, 0, 0), 0xff00ff, false);  // Placeholder, updated dynamically
-addSphere("IC", new THREE.Vector3(0, 0, 0), 0xff00ff, false);  // Placeholder, updated dynamically
+addSphere("MC", new THREE.Vector3(0, 0, 0), 0xff0000, false, 0.08);  // Placeholder, updated dynamically
+addSphere("IC", new THREE.Vector3(0, 0, 0), 0xff0000, false, 0.08);  // Placeholder, updated dynamically
+
+// Make MC/IC spheres transparent
+spheres["MC"].material.transparent = true;
+spheres["MC"].material.opacity = 0.6;
+spheres["IC"].material.transparent = true;
+spheres["IC"].material.opacity = 0.6;
 
 // Celestial Poles - perpendicular to celestial equator, rotate with celestial sphere
 // Draw as lines extending outward along the polar axis
@@ -528,6 +540,30 @@ const cancerCapricornLine = new THREE.Line(
 );
 eclipticLabelGroup.add(cancerCapricornLine);
 
+// ------------------- Sun -------------------
+// The Sun's position depends on TWO calculations:
+// 1. Day of year - determines ecliptic longitude (which zodiac sign)
+// 2. Hour of day - determines position in sky (rising/setting via celestialGroup rotation)
+// Add to eclipticLabelGroup so it's on the tilted ecliptic plane
+const sunMesh = new THREE.Mesh(
+  new THREE.SphereGeometry(0.15, 32, 32),
+  new THREE.MeshBasicMaterial({
+    color: 0xffff88
+  })
+);
+eclipticLabelGroup.add(sunMesh);
+
+// Add sun glow effect
+const sunGlowMesh = new THREE.Mesh(
+  new THREE.SphereGeometry(0.25, 32, 32),
+  new THREE.MeshBasicMaterial({
+    color: 0xffff00,
+    transparent: true,
+    opacity: 0.3
+  })
+);
+eclipticLabelGroup.add(sunGlowMesh);
+
 // ------------------- Update celestial sphere -------------------
 let currentLatitude = 0;
 let currentTimeMinutes = 720; // 12:00 noon
@@ -537,27 +573,50 @@ function updateCelestialSphere(){
   const latRad = THREE.MathUtils.degToRad(currentLatitude);
 
   // Horizon stays FIXED (horizontal)
-  // Apply rotations in correct order:
+  // The celestial sphere rotates around the POLAR AXIS, which is tilted by latitude
 
-  // Set rotation order to apply hour angle first, then latitude tilt
-  celestialGroup.rotation.order = 'YXZ';
-
-  // 1. Rotate by time of day around the polar axis (Y-axis in celestial coordinates)
-  //    This simulates Earth's rotation, changing which part of ecliptic rises (ascendant)
+  // 1. Calculate hourAngle - Earth's rotation
   //    360° in 24 hours = 15° per hour = 0.25° per minute
   const hourAngle = (currentTimeMinutes / 1440) * Math.PI * 2; // 1440 minutes in a day
 
   // Add yearly rotation offset - Earth's orbit causes ~1° shift per day
-  // On Jan 1 (day 1), the Sun is at ~280° ecliptic longitude (in Capricorn)
-  // We want the Sun to be "behind" the observer at noon, so we rotate the sphere accordingly
   const yearAngle = ((currentDayOfYear - 1) / 365) * Math.PI * 2; // 365 days in a year
 
-  celestialGroup.rotation.y = hourAngle + yearAngle;
+  // 2. The polar axis direction depends on latitude
+  //    At equator (lat=0): polar axis is horizontal, pointing north (0, 0, 1)
+  //    At north pole (lat=90°): polar axis is vertical (0, 1, 0)
+  //    General: polar axis = (0, sin(lat), cos(lat))
+  const polarAxisY = Math.sin(latRad);
+  const polarAxisZ = Math.cos(latRad);
 
-  // 2. Tilt by latitude around the east-west axis (X-axis)
-  //    At equator (0°): celestial equator is vertical, poles on horizon
-  //    At pole (90°): celestial equator is horizontal, pole at zenith
-  celestialGroup.rotation.x = latRad;
+  // Reset rotation and apply rotation around the tilted polar axis
+  // Negative angle for correct rotation direction (celestial objects move east to west)
+  celestialGroup.rotation.set(0, 0, 0);
+  celestialGroup.rotateOnAxis(
+    new THREE.Vector3(0, polarAxisY, polarAxisZ).normalize(),
+    -(hourAngle + yearAngle)
+  );
+
+  // Update Sun position using TWO calculations:
+  // 1. DAY calculation - Sun's ecliptic longitude based on day of year (approx for year 2000):
+  //    Jan 1 (day 1): 280° (Capricorn)
+  //    March 20 (day ~79): 0° (Aries - Spring Equinox)
+  //    June 21 (day ~172): 90° (Cancer - Summer Solstice)
+  //    Sept 23 (day ~266): 180° (Libra - Autumn Equinox)
+  //    Dec 21 (day ~355): 270° (Capricorn - Winter Solstice)
+  // This is a simple approximation - real ephemeris would be more accurate
+  const sunDistance = 3;
+  const sunEclipticLongitude = (280 + (currentDayOfYear - 1) * (360/365)) % 360;
+  const sunEclipticLongitudeRad = sunEclipticLongitude * Math.PI / 180;
+
+  // Position in eclipticLabelGroup's local XY plane (no manual tilt needed)
+  // 2. HOUR calculation happens automatically via celestialGroup rotation
+  sunMesh.position.set(
+    sunDistance * Math.cos(sunEclipticLongitudeRad),
+    sunDistance * Math.sin(sunEclipticLongitudeRad),
+    0
+  );
+  sunGlowMesh.position.copy(sunMesh.position);
 
   // 3. Calculate MC/IC and ASC/DSC positions
   const eclipticRadius = 3;
@@ -659,7 +718,7 @@ timeSlider.addEventListener('input', ()=>{
 
 daySlider.addEventListener('input', ()=>{
   currentDayOfYear = parseFloat(daySlider.value);
-  dayValue.textContent = dayOfYearToDate(currentDayOfYear);
+  dayValue.textContent = `Day ${currentDayOfYear}: ${dayOfYearToDate(currentDayOfYear)}`;
   updateCelestialSphere();
 });
 
@@ -667,6 +726,11 @@ daySlider.addEventListener('input', ()=>{
 currentLatitude = parseFloat(latSlider.value);
 currentTimeMinutes = parseFloat(timeSlider.value);
 currentDayOfYear = parseFloat(daySlider.value);
+latValue.textContent = currentLatitude.toFixed(1) + "°";
+const hours = Math.floor(currentTimeMinutes / 60);
+const minutes = currentTimeMinutes % 60;
+timeValue.textContent = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+dayValue.textContent = `Day ${currentDayOfYear}: ${dayOfYearToDate(currentDayOfYear)}`;
 updateCelestialSphere();
 
 // ------------------- Animate -------------------
