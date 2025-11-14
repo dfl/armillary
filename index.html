@@ -415,7 +415,8 @@ function updateSphere(){
   }
 
   // Position Sun on ecliptic (in zodiacGroup's coordinate system)
-  sun.position.set(CE_RADIUS*Math.cos(sunLonRad), CE_RADIUS*Math.sin(sunLonRad), 0);
+  // Offset slightly above ecliptic plane (positive Z) to avoid being blocked by ecliptic fill
+  sun.position.set(CE_RADIUS*Math.cos(sunLonRad), CE_RADIUS*Math.sin(sunLonRad), 0.05);
   sunGlow.position.copy(sun.position);
 
   // ------------------- Analytic Angles: MC, IC, AC, DSC -------------------
