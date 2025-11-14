@@ -20,8 +20,14 @@
 <body>
 
 <div id="ui">
-  Latitude: <input type="range" id="latSlider" min="-66" max="66" value="0" step="1">
+  Latitude: <input type="range" id="latSlider" min="-66" max="66" value="22" step="1">
   <span id="latValue">0°</span>
+  <br>
+  Time: <input type="range" id="timeSlider" min="0" max="1439" value="720" step="1">
+  <span id="timeValue">12:00</span>
+  <br>
+  Day of Year: <input type="range" id="daySlider" min="1" max="365" value="1" step="1">
+  <span id="dayValue">Jan 1</span>
 </div>
 
 <script type="importmap">
@@ -42,7 +48,7 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x111111);
 
 const camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 1000);
-camera.position.set(8,8,8);
+camera.position.set(4,4,4);
 
 const renderer = new THREE.WebGLRenderer({antialias:true});
 renderer.setSize(window.innerWidth, window.innerHeight);
@@ -56,44 +62,63 @@ const planeOpts = { side: THREE.DoubleSide, transparent: true, opacity: 0.1 };
 
 const OBLIQUITY = 23.44 * Math.PI/180;
 
-// Horizon circle (blue) - FIXED HORIZONTAL - this is our reference plane
+// Horizon circle (green) - FIXED HORIZONTAL - this is our reference plane
 const horizonPlane = new THREE.Mesh(
   new THREE.CircleGeometry(3, 64),
-  new THREE.MeshBasicMaterial({ color: 0x0000ff, ...planeOpts })
+  new THREE.MeshBasicMaterial({ color: 0x00ff00, ...planeOpts })
 );
 horizonPlane.rotation.x = -Math.PI/2; // Horizontal (XZ plane)
 scene.add(horizonPlane);
 
-// Create a group for celestial sphere elements that rotate with latitude
-const celestialGroup = new THREE.Group();
-scene.add(celestialGroup);
-
-// Celestial Equator (cyan) - will rotate with latitude
-const celestialEquatorPlane = new THREE.Mesh(
-  new THREE.CircleGeometry(3, 64),
-  new THREE.MeshBasicMaterial({ color: 0x00ffff, ...planeOpts })
+// Horizon circle outline (green) - visible ring around the horizon
+const horizonOutlinePoints = [];
+const horizonRadius = 3;
+const horizonSegments = 64;
+for (let i = 0; i <= horizonSegments; i++) {
+  const angle = (i / horizonSegments) * Math.PI * 2;
+  horizonOutlinePoints.push(new THREE.Vector3(
+    horizonRadius * Math.cos(angle),
+    horizonRadius * Math.sin(angle),
+    0
+  ));
+}
+const horizonOutlineGeometry = new THREE.BufferGeometry().setFromPoints(horizonOutlinePoints);
+const horizonOutline = new THREE.Line(
+  horizonOutlineGeometry,
+  new THREE.LineBasicMaterial({ color: 0x00ff00, opacity: 0.5, transparent: true, linewidth: 2 })
 );
-celestialEquatorPlane.rotation.x = -Math.PI/2;
-celestialGroup.add(celestialEquatorPlane);
+horizonOutline.rotation.x = -Math.PI/2;
+scene.add(horizonOutline);
 
-// Meridian circle (green) - vertical N-S plane
+// Meridian circle (gray) - FIXED vertical N-S plane, perpendicular to horizon
 const meridianPlane = new THREE.Mesh(
   new THREE.CircleGeometry(3, 64),
-  new THREE.MeshBasicMaterial({ color: 0x00ff00, ...planeOpts })
+  new THREE.MeshBasicMaterial({ color: 0x808080, ...planeOpts })
 );
 meridianPlane.rotation.y = Math.PI/2; // Make it vertical in YZ plane
-celestialGroup.add(meridianPlane);
+scene.add(meridianPlane);
 
-// Ecliptic circle (red) - tilted by obliquity from celestial equator
-const eclipticPlane = new THREE.Mesh(
-  new THREE.CircleGeometry(3, 64),
-  new THREE.MeshBasicMaterial({ color: 0xff0000, ...planeOpts })
+// Meridian circle outline (green) - visible ring around the meridian
+const meridianOutlinePoints = [];
+const meridianRadius = 3;
+const meridianSegments = 64;
+for (let i = 0; i <= meridianSegments; i++) {
+  const angle = (i / meridianSegments) * Math.PI * 2;
+  meridianOutlinePoints.push(new THREE.Vector3(
+    meridianRadius * Math.cos(angle),
+    meridianRadius * Math.sin(angle),
+    0
+  ));
+}
+const meridianOutlineGeometry = new THREE.BufferGeometry().setFromPoints(meridianOutlinePoints);
+const meridianOutline = new THREE.Line(
+  meridianOutlineGeometry,
+  new THREE.LineBasicMaterial({ color: 0x00ff00, opacity: 0.5, transparent: true, linewidth: 2 })
 );
-eclipticPlane.rotation.x = -Math.PI/2;
-eclipticPlane.rotation.z = OBLIQUITY;
-celestialGroup.add(eclipticPlane);
+meridianOutline.rotation.y = Math.PI/2;
+scene.add(meridianOutline);
 
-// Prime Vertical circle (hollow outline) - vertical E-W plane
+// Prime Vertical circle (green outline) - FIXED vertical E-W plane, perpendicular to horizon
 const primeVerticalPoints = [];
 const pvRadius = 3;
 const pvSegments = 64;
@@ -108,15 +133,76 @@ for (let i = 0; i <= pvSegments; i++) {
 const primeVerticalGeometry = new THREE.BufferGeometry().setFromPoints(primeVerticalPoints);
 const primeVerticalLine = new THREE.Line(
   primeVerticalGeometry,
-  new THREE.LineBasicMaterial({ color: 0xff00ff, linewidth: 2 })
+  new THREE.LineBasicMaterial({ color: 0x00ff00, opacity: 0.5, transparent: true, linewidth: 2 })
 );
-celestialGroup.add(primeVerticalLine);
+scene.add(primeVerticalLine);
+
+// Create a group for celestial sphere elements that rotate with time and latitude
+const celestialGroup = new THREE.Group();
+scene.add(celestialGroup);
+
+// Celestial Equator circle outline (cyan) - dashed line with large dashes
+const celestialEquatorOutlinePoints = [];
+const ceqRadius = 3;
+const ceqSegments = 128; // More segments for smoother dashed line
+for (let i = 0; i <= ceqSegments; i++) {
+  const angle = (i / ceqSegments) * Math.PI * 2;
+  celestialEquatorOutlinePoints.push(new THREE.Vector3(
+    ceqRadius * Math.cos(angle),
+    ceqRadius * Math.sin(angle),
+    0
+  ));
+}
+const celestialEquatorOutlineGeometry = new THREE.BufferGeometry().setFromPoints(celestialEquatorOutlinePoints);
+const celestialEquatorOutline = new THREE.Line(
+  celestialEquatorOutlineGeometry,
+  new THREE.LineDashedMaterial({
+    color: 0x00ffff,
+    opacity: 0.6,
+    transparent: true,
+    linewidth: 2,
+    dashSize: 0.5,  // Large dashes
+    gapSize: 0.3    // Large gaps
+  })
+);
+celestialEquatorOutline.computeLineDistances(); // Required for dashed lines - call on Line object
+celestialEquatorOutline.rotation.x = -Math.PI/2;
+celestialGroup.add(celestialEquatorOutline);
+
+// Ecliptic circle (gray) - rotates with celestial sphere, tilted by obliquity from celestial equator
+// The obliquity tilts around the equinox line (X-axis), so we combine the rotations
+const eclipticPlane = new THREE.Mesh(
+  new THREE.CircleGeometry(3, 64),
+  new THREE.MeshBasicMaterial({ color: 0x888888, ...planeOpts })
+);
+eclipticPlane.rotation.x = -Math.PI/2 - OBLIQUITY; // Tilt by obliquity around X-axis
+celestialGroup.add(eclipticPlane);
+
+// Ecliptic circle outline (red) - visible ring around the ecliptic
+const eclipticOutlinePoints = [];
+const eclipticRadius = 3;
+const eclipticSegments = 64;
+for (let i = 0; i <= eclipticSegments; i++) {
+  const angle = (i / eclipticSegments) * Math.PI * 2;
+  eclipticOutlinePoints.push(new THREE.Vector3(
+    eclipticRadius * Math.cos(angle),
+    eclipticRadius * Math.sin(angle),
+    0
+  ));
+}
+const eclipticOutlineGeometry = new THREE.BufferGeometry().setFromPoints(eclipticOutlinePoints);
+const eclipticOutline = new THREE.Line(
+  eclipticOutlineGeometry,
+  new THREE.LineBasicMaterial({ color: 0xff0000, opacity: 0.3, transparent: true, linewidth: 2 })
+);
+eclipticOutline.rotation.x = -Math.PI/2 - OBLIQUITY; // Tilt by obliquity around X-axis
+celestialGroup.add(eclipticOutline);
 
 // ------------------- Spheres -------------------
 const spheres = {};
-function addSphere(name, pos, color, addToCelestialGroup = true){
+function addSphere(name, pos, color, addToCelestialGroup = true, radius = 0.12, centerLabel = false){
   const mesh = new THREE.Mesh(
-    new THREE.SphereGeometry(0.12,16,16),
+    new THREE.SphereGeometry(radius,16,16),
     new THREE.MeshBasicMaterial({color})
   );
   mesh.position.copy(pos);
@@ -141,7 +227,8 @@ function addSphere(name, pos, color, addToCelestialGroup = true){
   });
   const sprite = new THREE.Sprite(spriteMaterial);
   sprite.scale.set(1,0.5,1);
-  sprite.position.copy(pos).add(new THREE.Vector3(0,0.2,0));
+  // Center label or offset above sphere
+  sprite.position.copy(pos).add(new THREE.Vector3(0, centerLabel ? 0 : 0.2, 0));
   if (addToCelestialGroup) {
     celestialGroup.add(sprite);
   } else {
@@ -149,133 +236,434 @@ function addSphere(name, pos, color, addToCelestialGroup = true){
   }
 }
 
-// ASC/DSC are on the horizon at east/west points
-addSphere("ASC", new THREE.Vector3(3,0,0), 0xffff00);
-addSphere("DSC", new THREE.Vector3(-3,0,0), 0xffff00);
+// ASC/DSC are where the ecliptic intersects the horizon (y=0) at east/west
+// They will be calculated dynamically as the ecliptic rotates
+addSphere("ASC", new THREE.Vector3(0, 0, 0), 0xffff00, false);  // Placeholder, updated dynamically
+addSphere("DSC", new THREE.Vector3(0, 0, 0), 0xffff00, false); // Placeholder, updated dynamically
+
+// Compass rosette in the center of the horizon plane
+function createCompassRosette() {
+  const canvas = document.createElement('canvas');
+  const size = 512;
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+
+  const centerX = size / 2;
+  const centerY = size / 2;
+  const outerRadius = size * 0.45;
+  const innerRadius = size * 0.15;
+
+  // Clear background
+  ctx.fillStyle = 'transparent';
+  ctx.fillRect(0, 0, size, size);
+
+  // Draw 8-pointed star (4 cardinal + 4 intercardinal)
+  const points = 8;
+
+  // Draw filled triangular points
+  for (let i = 0; i < points; i++) {
+    const angle = (i * Math.PI * 2) / points - Math.PI / 2; // Start from top (North)
+    const nextAngle = ((i + 1) * Math.PI * 2) / points - Math.PI / 2;
+
+    // Alternate black and white for cardinal points
+    const isCardinal = i % 2 === 0;
+    const radius = isCardinal ? outerRadius : outerRadius * 0.6;
+
+    ctx.fillStyle = (i % 2 === 0) ? '#000000' : '#ffffff';
+    ctx.strokeStyle = (i % 2 === 0) ? '#ffffff' : '#000000';
+    ctx.lineWidth = 2;
+
+    // Draw pointed triangle
+    ctx.beginPath();
+    ctx.moveTo(centerX, centerY); // Center
+
+    // Outer point
+    const outerX = centerX + Math.cos(angle) * radius;
+    const outerY = centerY + Math.sin(angle) * radius;
+    ctx.lineTo(outerX, outerY);
+
+    // Edge to next point at inner radius
+    const edgeAngle = (angle + nextAngle) / 2;
+    const edgeX = centerX + Math.cos(edgeAngle) * innerRadius;
+    const edgeY = centerY + Math.sin(edgeAngle) * innerRadius;
+    ctx.lineTo(edgeX, edgeY);
+
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+  }
+
+  // Draw center circle
+  ctx.fillStyle = '#ffffff';
+  ctx.strokeStyle = '#000000';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.arc(centerX, centerY, innerRadius * 0.4, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+
+  const texture = new THREE.CanvasTexture(canvas);
+  const material = new THREE.MeshBasicMaterial({
+    map: texture,
+    transparent: true,
+    opacity: 0.3,
+    side: THREE.DoubleSide,
+    depthTest: false
+  });
+
+  const rosettePlane = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), material);
+  rosettePlane.rotation.x = -Math.PI / 2; // Lie flat in horizon plane
+  rosettePlane.position.set(0, 0.005, 0); // Slightly above horizon to avoid z-fighting
+  scene.add(rosettePlane);
+}
+
+createCompassRosette();
+
+// Cardinal direction labels on the horizon - flat in the horizon plane, like compass points
+function addHorizonLabel(text, pos, rotationZ = 0) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 128;
+  canvas.height = 128;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = 'white';
+  ctx.font = 'bold 64px Arial';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, 64, 64);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  const material = new THREE.MeshBasicMaterial({
+    map: texture,
+    transparent: true,
+    opacity: 0.5,
+    side: THREE.DoubleSide,
+    depthTest: false
+  });
+
+  const plane = new THREE.Mesh(new THREE.PlaneGeometry(1.0, 1.0), material);
+  plane.rotation.x = -Math.PI / 2; // Lie flat in horizon plane
+  plane.rotation.z = rotationZ; // Rotate text to face outward
+  plane.position.copy(pos);
+  scene.add(plane);
+}
+
+const compassRadius = 2.5; // Inside the horizon circle
+addHorizonLabel("N", new THREE.Vector3(0, 0.01, compassRadius), 0);           // North
+addHorizonLabel("S", new THREE.Vector3(0, 0.01, -compassRadius), Math.PI);    // South (rotated 180°)
+addHorizonLabel("E", new THREE.Vector3(compassRadius, 0.01, 0), -Math.PI/2);  // East (rotated -90°)
+addHorizonLabel("W", new THREE.Vector3(-compassRadius, 0.01, 0), Math.PI/2);  // West (rotated 90°)
 
 // MC/IC are where the meridian intersects the ecliptic
-// Meridian is at x=0, so we need points on ecliptic where x=0
-// This occurs at 90° and 270° on the ecliptic
-const mcAngleOnEcliptic = 90 * Math.PI/180;  // Near Cancer
-const icAngleOnEcliptic = 270 * Math.PI/180; // Near Capricorn
+// They are FIXED on the meridian (not rotating with ecliptic)
+// They will be calculated dynamically as the ecliptic rotates
+addSphere("MC", new THREE.Vector3(0, 0, 0), 0xff00ff, false);  // Placeholder, updated dynamically
+addSphere("IC", new THREE.Vector3(0, 0, 0), 0xff00ff, false);  // Placeholder, updated dynamically
 
-const mcPos = new THREE.Vector3(
-  0,  // On meridian (x=0)
-  3 * Math.sin(mcAngleOnEcliptic) * Math.cos(OBLIQUITY),
-  3 * Math.sin(mcAngleOnEcliptic) * Math.sin(OBLIQUITY)
+// Celestial Poles - perpendicular to celestial equator, rotate with celestial sphere
+// Draw as lines extending outward along the polar axis
+const polarAxisMaterial = new THREE.LineBasicMaterial({
+  color: 0x00ffff,
+  opacity: 0.6,
+  transparent: true,
+  linewidth: 2
+});
+
+// North pole line - extends from celestial sphere outward
+const npLine = new THREE.Line(
+  new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(0, 3, 0),
+    new THREE.Vector3(0, 5, 0)
+  ]),
+  polarAxisMaterial
 );
+celestialGroup.add(npLine);
 
-const icPos = new THREE.Vector3(
-  0,  // On meridian (x=0)
-  3 * Math.sin(icAngleOnEcliptic) * Math.cos(OBLIQUITY),
-  3 * Math.sin(icAngleOnEcliptic) * Math.sin(OBLIQUITY)
+// South pole line - extends from celestial sphere outward
+const spLine = new THREE.Line(
+  new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(0, -3, 0),
+    new THREE.Vector3(0, -5, 0)
+  ]),
+  polarAxisMaterial
 );
+celestialGroup.add(spLine);
 
-addSphere("MC", mcPos, 0xff00ff);
-addSphere("IC", icPos, 0xff00ff);
-
-// ------------------- Cardinal Cross on Ecliptic -------------------
-// Cardinal points are placed on the ecliptic plane
-// We need to account for the obliquity tilt when placing them
-
-const radius = 3;
-const cardinalPoints = [
-  { name: "Aries ♈", angle: 0, color: 0xff6b6b },      // 0° - Spring Equinox
-  { name: "Cancer ♋", angle: 90, color: 0x4ecdc4 },    // 90° - Summer Solstice
-  { name: "Libra ♎", angle: 180, color: 0xffe66d },    // 180° - Autumn Equinox
-  { name: "Capricorn ♑", angle: 270, color: 0x95e1d3 } // 270° - Winter Solstice
-];
-
-cardinalPoints.forEach(point => {
-  const angleRad = THREE.MathUtils.degToRad(point.angle);
-
-  // Position on ecliptic plane (tilted by obliquity)
-  // The ecliptic is rotated around the X-axis
-  const x = radius * Math.cos(angleRad);
-  const y = radius * Math.sin(angleRad) * Math.cos(OBLIQUITY);
-  const z = radius * Math.sin(angleRad) * Math.sin(OBLIQUITY);
-
-  const mesh = new THREE.Mesh(
-    new THREE.SphereGeometry(0.15, 16, 16),
-    new THREE.MeshBasicMaterial({ color: point.color })
-  );
-  mesh.position.set(x, y, z);
-  celestialGroup.add(mesh);
-
-  // Label
+// Add labels at the ends of the polar axis lines
+['NP', 'SP'].forEach((name, i) => {
+  const pos = new THREE.Vector3(0, i === 0 ? 5 : -5, 0); // At end of lines
   const spriteMaterial = new THREE.SpriteMaterial({
     map: new THREE.CanvasTexture((() => {
       const c = document.createElement('canvas');
-      c.width = 256; c.height = 64;
+      c.width = 128; c.height = 64;
       const ctx = c.getContext('2d');
       ctx.fillStyle = 'white';
-      ctx.font = 'bold 28px Arial';
-      ctx.fillText(point.name, 10, 40);
+      ctx.font = '24px Arial';
+      ctx.fillText(name, 10, 40);
       return c;
     })()),
     depthTest: false
   });
   const sprite = new THREE.Sprite(spriteMaterial);
-  sprite.scale.set(1.5, 0.75, 1);
-  sprite.position.set(x, y, z).add(new THREE.Vector3(0, 0.3, 0));
+  sprite.scale.set(1, 0.5, 1);
+  sprite.position.copy(pos);
   celestialGroup.add(sprite);
 });
 
-// Draw the Cardinal Cross lines
-const lineMaterial = new THREE.LineBasicMaterial({ color: 0xffffff, opacity: 0.6, transparent: true });
+// ------------------- Cardinal Cross on Ecliptic -------------------
+// Cardinal points are placed on the ecliptic plane
+// Create a group with ecliptic's rotations for easier label placement
 
-// Aries-Libra axis (equinoctial)
-const ariesPos = new THREE.Vector3(radius, 0, 0);
-const libraPos = new THREE.Vector3(-radius, 0, 0);
-const equinoxLine = new THREE.Line(
-  new THREE.BufferGeometry().setFromPoints([ariesPos, libraPos]),
-  lineMaterial
-);
-celestialGroup.add(equinoxLine);
+const eclipticLabelGroup = new THREE.Group();
+eclipticLabelGroup.rotation.x = -Math.PI / 2 - OBLIQUITY; // Match ecliptic plane rotation
+celestialGroup.add(eclipticLabelGroup);
 
-// Cancer-Capricorn axis (solstitial)
-const cancerAngle = THREE.MathUtils.degToRad(90);
-const capricornAngle = THREE.MathUtils.degToRad(270);
+// Draw radial lines at 0° of each zodiac sign (every 30°)
+const radialLineMaterial = new THREE.LineBasicMaterial({
+  color: 0x888888,
+  opacity: 0.3,
+  transparent: true,
+  linewidth: 1
+});
 
-const cancerPos = new THREE.Vector3(
-  radius * Math.cos(cancerAngle),
-  radius * Math.sin(cancerAngle) * Math.cos(OBLIQUITY),
-  radius * Math.sin(cancerAngle) * Math.sin(OBLIQUITY)
-);
+for (let i = 0; i < 12; i++) {
+  const angle = i * 30; // 0°, 30°, 60°, etc.
+  const angleRad = THREE.MathUtils.degToRad(angle);
 
-const capricornPos = new THREE.Vector3(
-  radius * Math.cos(capricornAngle),
-  radius * Math.sin(capricornAngle) * Math.cos(OBLIQUITY),
-  radius * Math.sin(capricornAngle) * Math.sin(OBLIQUITY)
-);
-
-const solsticeLine = new THREE.Line(
-  new THREE.BufferGeometry().setFromPoints([cancerPos, capricornPos]),
-  lineMaterial
-);
-celestialGroup.add(solsticeLine);
-
-// ------------------- Latitude Update -------------------
-function updateForLatitude(latDeg){
-  const latRad = THREE.MathUtils.degToRad(latDeg);
-
-  // Horizon stays FIXED (horizontal)
-  // Rotate the entire celestial sphere around the east-west axis (Z-axis in our setup)
-  // At equator (0°): celestial equator is vertical, poles on horizon
-  // At pole (90°): celestial equator is horizontal, pole at zenith
-  celestialGroup.rotation.z = latRad;
+  const radialLine = new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(0, 0, 0), // Center
+      new THREE.Vector3(
+        eclipticRadius * Math.cos(angleRad),
+        eclipticRadius * Math.sin(angleRad),
+        0
+      )
+    ]),
+    radialLineMaterial
+  );
+  eclipticLabelGroup.add(radialLine);
 }
 
-// ------------------- Slider -------------------
+// Zodiac glyphs centered at 15° of each sign
+const labelRadius = 2.3; // Inside the ecliptic circle, like compass points
+const cardinalPoints = [
+  { name: "♈\uFE0E", angle: 15 },      // Aries (centered in 0°-30°)
+  { name: "♉\uFE0E", angle: 45 },      // Taurus (centered in 30°-60°)
+  { name: "♊\uFE0E", angle: 75 },      // Gemini (centered in 60°-90°)
+  { name: "♋\uFE0E", angle: 105 },     // Cancer (centered in 90°-120°)
+  { name: "♌\uFE0E", angle: 135 },     // Leo (centered in 120°-150°)
+  { name: "♍\uFE0E", angle: 165 },     // Virgo (centered in 150°-180°)
+  { name: "♎\uFE0E", angle: 195 },     // Libra (centered in 180°-210°)
+  { name: "♏\uFE0E", angle: 225 },     // Scorpio (centered in 210°-240°)
+  { name: "♐\uFE0E", angle: 255 },     // Sagittarius (centered in 240°-270°)
+  { name: "♑\uFE0E", angle: 285 },     // Capricorn (centered in 270°-300°)
+  { name: "♒\uFE0E", angle: 315 },     // Aquarius (centered in 300°-330°)
+  { name: "♓\uFE0E", angle: 345 }      // Pisces (centered in 330°-360°)
+];
+
+cardinalPoints.forEach(point => {
+  const angleRad = THREE.MathUtils.degToRad(point.angle);
+
+  // Label - flat plane in the ecliptic's local coordinate space
+  const canvas = document.createElement('canvas');
+  canvas.width = 128;
+  canvas.height = 128;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = 'white';
+  ctx.font = 'bold 84px Arial';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(point.name, 64, 64);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  const material = new THREE.MeshBasicMaterial({
+    map: texture,
+    transparent: true,
+    opacity: 0.5,
+    side: THREE.DoubleSide,
+    depthTest: false
+  });
+
+  const labelPlane = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 1.2), material);
+  // Position in circle in XY plane (before group rotations)
+  labelPlane.position.set(
+    labelRadius * Math.cos(angleRad),
+    labelRadius * Math.sin(angleRad),
+    0
+  );
+  // Rotate text to face outward/upward
+  labelPlane.rotation.z = angleRad + Math.PI / 2;
+
+  eclipticLabelGroup.add(labelPlane);
+});
+
+// Cardinal cross lines - very subtle
+const crossLineMaterial = new THREE.LineBasicMaterial({
+  color: 0xffffff,
+  opacity: 0.15,
+  transparent: true
+});
+
+// Aries-Libra axis (equinoctial)
+const ariesLibraLine = new THREE.Line(
+  new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(labelRadius, 0, 0),
+    new THREE.Vector3(-labelRadius, 0, 0)
+  ]),
+  crossLineMaterial
+);
+eclipticLabelGroup.add(ariesLibraLine);
+
+// Cancer-Capricorn axis (solstitial)
+const cancerCapricornLine = new THREE.Line(
+  new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(0, labelRadius, 0),
+    new THREE.Vector3(0, -labelRadius, 0)
+  ]),
+  crossLineMaterial
+);
+eclipticLabelGroup.add(cancerCapricornLine);
+
+// ------------------- Update celestial sphere -------------------
+let currentLatitude = 0;
+let currentTimeMinutes = 720; // 12:00 noon
+let currentDayOfYear = 1; // January 1
+
+function updateCelestialSphere(){
+  const latRad = THREE.MathUtils.degToRad(currentLatitude);
+
+  // Horizon stays FIXED (horizontal)
+  // Apply rotations in correct order:
+
+  // Set rotation order to apply hour angle first, then latitude tilt
+  celestialGroup.rotation.order = 'YXZ';
+
+  // 1. Rotate by time of day around the polar axis (Y-axis in celestial coordinates)
+  //    This simulates Earth's rotation, changing which part of ecliptic rises (ascendant)
+  //    360° in 24 hours = 15° per hour = 0.25° per minute
+  const hourAngle = (currentTimeMinutes / 1440) * Math.PI * 2; // 1440 minutes in a day
+
+  // Add yearly rotation offset - Earth's orbit causes ~1° shift per day
+  // On Jan 1 (day 1), the Sun is at ~280° ecliptic longitude (in Capricorn)
+  // We want the Sun to be "behind" the observer at noon, so we rotate the sphere accordingly
+  const yearAngle = ((currentDayOfYear - 1) / 365) * Math.PI * 2; // 365 days in a year
+
+  celestialGroup.rotation.y = hourAngle + yearAngle;
+
+  // 2. Tilt by latitude around the east-west axis (X-axis)
+  //    At equator (0°): celestial equator is vertical, poles on horizon
+  //    At pole (90°): celestial equator is horizontal, pole at zenith
+  celestialGroup.rotation.x = latRad;
+
+  // 3. Calculate MC/IC and ASC/DSC positions
+  const eclipticRadius = 3;
+  let nsAxisPoints = []; // For MC/IC (on N-S axis: x≈0, z≈0)
+  let ewAxisPoints = []; // For ASC/DSC (on E-W axis: y≈0, z≈0)
+
+  // Sample points around the ecliptic circle
+  for (let angle = 0; angle < 360; angle += 1) {
+    const angleRad = THREE.MathUtils.degToRad(angle);
+
+    // Start with point on circle in XY plane
+    const point = new THREE.Vector3(
+      eclipticRadius * Math.cos(angleRad),
+      eclipticRadius * Math.sin(angleRad),
+      0
+    );
+
+    // Apply ecliptic's rotations
+    point.applyAxisAngle(new THREE.Vector3(1, 0, 0), -Math.PI/2);
+    point.applyAxisAngle(new THREE.Vector3(0, 0, 1), OBLIQUITY);
+
+    // Apply celestialGroup's rotations
+    point.applyEuler(new THREE.Euler(latRad, hourAngle, 0, 'YXZ'));
+
+    // Distance from N-S axis (x≈0, z≈0) for MC/IC
+    const nsDistance = Math.sqrt(point.x * point.x + point.z * point.z);
+    nsAxisPoints.push({ point: point.clone(), distance: nsDistance });
+
+    // Distance from E-W axis (y≈0, z≈0) for ASC/DSC
+    const ewDistance = Math.sqrt(point.y * point.y + point.z * point.z);
+    ewAxisPoints.push({ point: point.clone(), distance: ewDistance });
+  }
+
+  // Calculate MC/IC - closest to N-S axis
+  nsAxisPoints.sort((a, b) => a.distance - b.distance);
+  const mcicPoint1 = nsAxisPoints[0].point;
+  const mcicPoint2 = nsAxisPoints[1].point;
+
+  // MC is the upper intersection (north/higher y), IC is the lower
+  if (mcicPoint1.y > mcicPoint2.y) {
+    spheres["MC"].position.copy(mcicPoint1);
+    spheres["IC"].position.copy(mcicPoint2);
+  } else {
+    spheres["MC"].position.copy(mcicPoint2);
+    spheres["IC"].position.copy(mcicPoint1);
+  }
+
+  // Calculate ASC/DSC - closest to E-W axis
+  ewAxisPoints.sort((a, b) => a.distance - b.distance);
+  const ascdscPoint1 = ewAxisPoints[0].point;
+  const ascdscPoint2 = ewAxisPoints[1].point;
+
+  // ASC is in the east (positive x), DSC is in the west (negative x)
+  if (ascdscPoint1.x > ascdscPoint2.x) {
+    spheres["ASC"].position.copy(ascdscPoint1);
+    spheres["DSC"].position.copy(ascdscPoint2);
+  } else {
+    spheres["ASC"].position.copy(ascdscPoint2);
+    spheres["DSC"].position.copy(ascdscPoint1);
+  }
+}
+
+// ------------------- Sliders -------------------
 const latSlider = document.getElementById('latSlider');
 const latValue = document.getElementById('latValue');
+const timeSlider = document.getElementById('timeSlider');
+const timeValue = document.getElementById('timeValue');
+const daySlider = document.getElementById('daySlider');
+const dayValue = document.getElementById('dayValue');
+
+// Convert day of year to month/day
+function dayOfYearToDate(day) {
+  const monthDays = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]; // 2000 is a leap year
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+  let remainingDays = day;
+  for (let i = 0; i < monthDays.length; i++) {
+    if (remainingDays <= monthDays[i]) {
+      return `${monthNames[i]} ${remainingDays}`;
+    }
+    remainingDays -= monthDays[i];
+  }
+  return 'Dec 31';
+}
 
 latSlider.addEventListener('input', ()=>{
-  const val = parseFloat(latSlider.value);
-  latValue.textContent = val.toFixed(1) + "°";
-  updateForLatitude(val);
+  currentLatitude = parseFloat(latSlider.value);
+  latValue.textContent = currentLatitude.toFixed(1) + "°";
+  updateCelestialSphere();
 });
-updateForLatitude(parseFloat(latSlider.value));
+
+timeSlider.addEventListener('input', ()=>{
+  currentTimeMinutes = parseFloat(timeSlider.value);
+  const hours = Math.floor(currentTimeMinutes / 60);
+  const minutes = currentTimeMinutes % 60;
+  timeValue.textContent = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+  updateCelestialSphere();
+});
+
+daySlider.addEventListener('input', ()=>{
+  currentDayOfYear = parseFloat(daySlider.value);
+  dayValue.textContent = dayOfYearToDate(currentDayOfYear);
+  updateCelestialSphere();
+});
+
+// Initialize
+currentLatitude = parseFloat(latSlider.value);
+currentTimeMinutes = parseFloat(timeSlider.value);
+currentDayOfYear = parseFloat(daySlider.value);
+updateCelestialSphere();
 
 // ------------------- Animate -------------------
 function animate(){
