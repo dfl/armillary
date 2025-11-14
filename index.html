@@ -293,15 +293,68 @@ function updateSphere(){
   celestial.rotation.z = (hourAngle + yearAngle); // Rotate around tilted polar axis (positive = E to W motion)
   celestial.rotation.y = 0;
 
-  // Sun position
+  // Sun position - Convert day of year to month/day
   let sunLonRad;
 
-  // Try to use ephemeris if available, otherwise use simple approximation
+  // Convert day of year (1-365) to month and day
+  const monthDays = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]; // 2000 is leap year
+  let remainingDays = currentDay;
+  let month = 0;
+  let day = 1;
+  for (let i = 0; i < 12; i++) {
+    if (remainingDays <= monthDays[i]) {
+      month = i;
+      day = remainingDays;
+      break;
+    }
+    remainingDays -= monthDays[i];
+  }
+
+  // Convert time (minutes since midnight) to hours/minutes
+  const hours = Math.floor(currentTime / 60);
+  const minutes = currentTime % 60;
+
+  // Use ephemeris if available, otherwise fall back to approximation
   if (typeof $moshier !== 'undefined') {
-    // TODO: Use proper Moshier Ephemeris API once library is loaded
-    // For now, fall back to approximation
-    const sunLon = (280 + (currentDay-1)*(360/365))%360;
-    sunLonRad = THREE.MathUtils.degToRad(sunLon);
+    try {
+      // Set observer location
+      $const.tlong = 0;  // Observer longitude (not relevant for ecliptic longitude)
+      $const.glat = currentLatitude;  // Observer latitude
+
+      // Set date
+      const date = {
+        year: 2000,
+        month: month + 1,  // Moshier uses 1-12, not 0-11
+        day: day,
+        hours: hours,
+        minutes: minutes,
+        seconds: 0
+      };
+
+      // Initialize and calculate
+      $processor.init();
+      const body = $moshier.body.sun;
+      $processor.calc(date, body);
+
+      // Get Sun's ecliptic longitude from the result
+      // The ecliptic longitude should be in body.position.rect or body.position.polar
+      // Moshier returns longitude in radians in body.position.longitude or similar
+      if (body.position && body.position.apparentLongitude !== undefined) {
+        sunLonRad = THREE.MathUtils.degToRad(body.position.apparentLongitude);
+      } else if (body.position && body.position.polar) {
+        sunLonRad = THREE.MathUtils.degToRad(body.position.polar[0]);
+      } else {
+        // Fallback to approximation if structure is unexpected
+        console.warn('Unexpected ephemeris data structure, using approximation');
+        const sunLon = (280 + (currentDay-1)*(360/365))%360;
+        sunLonRad = THREE.MathUtils.degToRad(sunLon);
+      }
+    } catch (e) {
+      console.warn('Ephemeris calculation failed, using approximation:', e);
+      // Fallback to approximation
+      const sunLon = (280 + (currentDay-1)*(360/365))%360;
+      sunLonRad = THREE.MathUtils.degToRad(sunLon);
+    }
   } else {
     // Simple approximation for year 2000
     const sunLon = (280 + (currentDay-1)*(360/365))%360;
