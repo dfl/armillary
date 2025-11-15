@@ -1,5 +1,7 @@
 // astronomy.js - Astronomical calculations
 
+import { calculateObliquity } from './epsilon.js';
+
 export class AstronomyCalculator {
   constructor() {
     this.J2000_EPOCH = 2451545.0;
@@ -8,29 +10,37 @@ export class AstronomyCalculator {
 
   /**
    * Calculate Local Sidereal Time
+   * Returns { LST: degrees, julianDate: JD }
    */
   calculateLST(currentDay, currentTime, currentLongitude, currentYear) {
+    const longitudeTimeOffset = (currentLongitude / 15) * 60;
+    const localTime = currentTime + longitudeTimeOffset;
+
     const yearOffset = (currentYear - 2000) * 365.25;
-    const daysFromJ2000 = yearOffset + (currentDay - 1) + (currentTime / 1440);
+    const daysFromJ2000 = yearOffset + (currentDay - 1) + (localTime / 1440);
     const julianDate = 2451544.5 + daysFromJ2000;
 
     const T = (julianDate - this.J2000_EPOCH) / 36525;
     const GST0 = 280.46061837 + 360.98564736629 * (julianDate - this.J2000_EPOCH) + 0.000387933 * T * T;
 
-    const longitudeTimeOffset = (currentLongitude / 15) * 60;
-    const localTime = currentTime + longitudeTimeOffset;
-
     let LST = (GST0 + currentLongitude + (localTime / 1440) * 360) % 360;
     if (LST < 0) LST += 360;
 
-    return LST;
+    return { LST, julianDate };
+  }
+
+  /**
+   * Get precise obliquity for a given Julian Date
+   */
+  getObliquity(julianDate) {
+    return calculateObliquity(julianDate);
   }
 
   /**
    * Calculate Midheaven (MC)
    */
-  calculateMC(lstRad) {
-    let MC = (Math.atan2(Math.sin(lstRad), Math.cos(lstRad) * Math.cos(this.OBLIQUITY)) * 180 / Math.PI);
+  calculateMC(lstRad, obliquity) {
+    let MC = (Math.atan2(Math.sin(lstRad), Math.cos(lstRad) * Math.cos(obliquity)) * 180 / Math.PI);
     if (MC < 0) MC += 360;
     return MC;
   }
@@ -38,9 +48,9 @@ export class AstronomyCalculator {
   /**
    * Calculate Ascendant (AC) and Descendant (DSC)
    */
-  calculateAscendant(lstRad, latRad) {
+  calculateAscendant(lstRad, latRad, obliquity) {
     const tanLat = Math.tan(latRad);
-    let DSC = (Math.atan2(-Math.cos(lstRad), Math.sin(lstRad) * Math.cos(this.OBLIQUITY) + tanLat * Math.sin(this.OBLIQUITY)) * 180 / Math.PI);
+    let DSC = (Math.atan2(-Math.cos(lstRad), Math.sin(lstRad) * Math.cos(obliquity) + tanLat * Math.sin(obliquity)) * 180 / Math.PI);
     if (DSC < 0) DSC += 360;
     const AC = (DSC + 180) % 360;
     return { AC, DSC };
@@ -50,7 +60,7 @@ export class AstronomyCalculator {
    * Calculate Sun's ecliptic longitude
    */
   calculateSunPosition(currentDay, currentYear, month, day, hours, minutes) {
-    if (typeof $moshier !== 'undefined') {
+    if (typeof window !== 'undefined' && typeof window.$moshier !== 'undefined') {
       try {
         const date = {
           year: currentYear,
@@ -61,9 +71,9 @@ export class AstronomyCalculator {
           seconds: 0
         };
 
-        $processor.init();
-        const body = $moshier.body.sun;
-        $processor.calc(date, body);
+        window.$processor.init();
+        const body = window.$moshier.body.sun;
+        window.$processor.calc(date, body);
 
         if (body.position && body.position.apparentLongitude !== undefined) {
           return body.position.apparentLongitude * Math.PI / 180;

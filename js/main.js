@@ -31,11 +31,15 @@ const updateVisualization = () => {
 // Initialize UI
 const uiManager = new UIManager(updateVisualization);
 
-// Initialize datetime parser
+// Initialize datetime parser with timezone callback
 const datetimeInput = document.getElementById('datetimeInput');
-const parser = new DateTimeParser(datetimeInput, (date) => {
-  uiManager.updateSlidersFromDate(date);
-});
+const parser = new DateTimeParser(
+  datetimeInput,
+  (date) => {
+    uiManager.updateSlidersFromDate(date);
+  },
+  () => uiManager.currentTimezone // Provide timezone getter
+);
 
 // Wire up "Now" button
 const nowButton = document.getElementById('nowButton');
@@ -57,10 +61,12 @@ starfieldToggle.addEventListener('change', () => {
 uiManager.initialize();
 
 // Load state from URL
-uiManager.loadStateFromURL(parser);
+const hasURLState = uiManager.loadStateFromURL(parser);
 
-// Initial update
-updateVisualization();
+// Initial update (only if no URL state was loaded)
+if (!hasURLState) {
+  updateVisualization();
+}
 
 // Start animation loop
 scene.animate();

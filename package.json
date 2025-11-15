@@ -1,5 +1,19 @@
 {
+  "name": "armillary",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
   "dependencies": {
-    "chrono-node": "^2.9.0"
+    "@tarekraafat/autocomplete.js": "^10.2.9",
+    "chrono-node": "^2.9.0",
+    "ephemeris": "^2.2.0",
+    "luxon": "^3.7.2"
+  },
+  "devDependencies": {
+    "vite": "^7.2.2"
   }
 }

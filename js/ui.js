@@ -1,11 +1,13 @@
 // ui.js - UI input handling, autocomplete, geocoding, datetime parsing
 
 import * as chrono from 'chrono-node';
+import { DateTime } from 'luxon';
 
 export class DateTimeParser {
-  constructor(inputElement, onDateTimeParsed) {
+  constructor(inputElement, onDateTimeParsed, getTimezone) {
     this.input = inputElement;
     this.onDateTimeParsed = onDateTimeParsed;
+    this.getTimezone = getTimezone; // Function to get current timezone
     this.setupEventListeners();
   }
 
@@ -50,7 +52,46 @@ export class DateTimeParser {
     // Use chrono-node for natural language parsing
     const results = chrono.parse(text);
     if (results.length > 0) {
-      return results[0].start.date();
+      const date = results[0].start.date();
+
+      // If we have timezone info, use Luxon to parse in that timezone
+      const timezone = this.getTimezone ? this.getTimezone() : null;
+      if (timezone) {
+        // Create DateTime in the specific timezone using the parsed components
+        const dt = DateTime.fromObject({
+          year: date.getFullYear(),
+          month: date.getMonth() + 1,
+          day: date.getDate(),
+          hour: date.getHours(),
+          minute: date.getMinutes(),
+          second: date.getSeconds()
+        }, { zone: timezone });
+
+        console.log('Parsed date:', text, 'in timezone:', timezone, '->', dt.toString(), 'UTC:', dt.toUTC().toString());
+
+        // Convert to UTC and return as naive Date for our calculations
+        const utc = dt.toUTC();
+        return new Date(Date.UTC(
+          utc.year,
+          utc.month - 1,
+          utc.day,
+          utc.hour,
+          utc.minute,
+          utc.second
+        ));
+      }
+
+      // Fallback: Convert to naive datetime by extracting local components and treating as UTC
+      const naive = new Date(Date.UTC(
+        date.getFullYear(),
+        date.getMonth(),
+        date.getDate(),
+        date.getHours(),
+        date.getMinutes(),
+        date.getSeconds()
+      ));
+      console.log('Parsed date (no timezone):', text, '->', date.toString(), '-> naive UTC:', naive.toUTCString());
+      return naive;
     }
 
     return null;
@@ -58,19 +99,20 @@ export class DateTimeParser {
 
   parseCustomFormat(text) {
     const cleanText = text.replace(/\s+/g, '').toLowerCase();
+    const timezone = this.getTimezone ? this.getTimezone() : null;
 
     const pattern1 = /^(\d{2})(\d{2})(\d{4})(\d{2})(\d{2})$/;
     const match1 = cleanText.match(pattern1);
     if (match1) {
       const [, month, day, year, hours, minutes] = match1;
-      return new Date(year, month - 1, day, hours, minutes, 0);
+      return this.createDateWithTimezone(parseInt(year), parseInt(month), parseInt(day), parseInt(hours), parseInt(minutes), 0, timezone);
     }
 
     const pattern2 = /^(\d{2})(\d{2})(\d{4})(\d{2})(\d{2})(\d{2})$/;
     const match2 = cleanText.match(pattern2);
     if (match2) {
       const [, month, day, year, hours, minutes, seconds] = match2;
-      return new Date(year, month - 1, day, hours, minutes, seconds);
+      return this.createDateWithTimezone(parseInt(year), parseInt(month), parseInt(day), parseInt(hours), parseInt(minutes), parseInt(seconds), timezone);
     }
 
     const pattern3 = /^(\d{2})(\d{2})(\d{4})(\d{2})(\d{2})(am|pm)$/;
@@ -80,7 +122,9 @@ export class DateTimeParser {
       hours = parseInt(hours);
       if (ampm === 'pm' && hours !== 12) hours += 12;
       if (ampm === 'am' && hours === 12) hours = 0;
-      return new Date(year, month - 1, day, hours, minutes, 0);
+      const result = this.createDateWithTimezone(parseInt(year), parseInt(month), parseInt(day), hours, parseInt(minutes), 0, timezone);
+      console.log('Parsed custom format:', text, timezone ? `in timezone: ${timezone}` : '-> naive UTC:', result.toUTCString());
+      return result;
     }
 
     const pattern4 = /^(\d{2})(\d{2})(\d{4})(\d{2})(\d{2})(\d{2})(am|pm)$/;
@@ -90,10 +134,31 @@ export class DateTimeParser {
       hours = parseInt(hours);
       if (ampm === 'pm' && hours !== 12) hours += 12;
       if (ampm === 'am' && hours === 12) hours = 0;
-      return new Date(year, month - 1, day, hours, minutes, seconds);
+      return this.createDateWithTimezone(parseInt(year), parseInt(month), parseInt(day), hours, parseInt(minutes), parseInt(seconds), timezone);
     }
 
     return null;
+  }
+
+  createDateWithTimezone(year, month, day, hours, minutes, seconds, timezone) {
+    if (timezone) {
+      // Use Luxon to create date in specific timezone
+      const dt = DateTime.fromObject({
+        year,
+        month,
+        day,
+        hour: hours,
+        minute: minutes,
+        second: seconds
+      }, { zone: timezone });
+
+      // Convert to UTC
+      const utc = dt.toUTC();
+      return new Date(Date.UTC(utc.year, utc.month - 1, utc.day, utc.hour, utc.minute, utc.second));
+    } else {
+      // Fallback: treat as naive UTC
+      return new Date(Date.UTC(year, month - 1, day, hours, minutes, seconds));
+    }
   }
 
   showSuccess() {
@@ -115,6 +180,7 @@ export class UIManager {
     this.currentTime = 720;
     this.currentDay = 1;
     this.currentYear = 2000;
+    this.currentTimezone = null; // IANA timezone name (e.g., 'America/Anchorage')
 
     this.elements = {};
     this.initializeElements();
@@ -240,13 +306,19 @@ export class UIManager {
   }
 
   updateSlidersFromDate(date) {
-    const month = date.getMonth();
-    const day = date.getDate();
-    const year = date.getFullYear();
+    // Extract the date/time components from the parsed date AS IF they were UTC
+    // This treats the input as a naive datetime (timezone-unaware)
+    // We then interpret these components as the birth location's local civil time
+    const month = date.getUTCMonth();
+    const day = date.getUTCDate();
+    const year = date.getUTCFullYear();
+    const hours = date.getUTCHours();
+    const minutes = date.getUTCMinutes();
 
-    console.log('updateSlidersFromDate called with year:', year);
+    console.log('updateSlidersFromDate: date components:', { year, month: month+1, day, hours, minutes });
+    console.log('Parsed date string:', date.toString(), 'UTC:', date.toUTCString());
+
     this.currentYear = year;
-    console.log('this.currentYear set to:', this.currentYear);
 
     const isLeapYear = (year % 4 === 0 && year % 100 !== 0) || (year % 400 === 0);
     const monthDays = isLeapYear
@@ -261,8 +333,6 @@ export class UIManager {
     this.elements.daySlider.value = dayOfYear;
     this.currentDay = dayOfYear;
 
-    const hours = date.getHours();
-    const minutes = date.getMinutes();
     const timeInMinutes = hours * 60 + minutes;
 
     this.elements.timeSlider.value = timeInMinutes;
@@ -320,16 +390,15 @@ export class UIManager {
     window.isLoadingFromURL = true;
     const params = new URLSearchParams(hash);
     let hasState = false;
+    let parsedDatetime = null;
 
     if (params.has('dt')) {
       const datetimeValue = params.get('dt');
+      console.log('Loading datetime from URL:', datetimeValue);
       this.elements.datetimeInput.value = datetimeValue;
 
-      const datetime = parser.parseFlexibleDateTime(datetimeValue);
-      if (datetime) {
-        this.updateSlidersFromDate(datetime);
-        hasState = true;
-      }
+      parsedDatetime = parser.parseFlexibleDateTime(datetimeValue);
+      hasState = true;
     }
 
     if (params.has('loc')) {
@@ -338,15 +407,30 @@ export class UIManager {
 
       (async () => {
         try {
-          const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(locationValue)}&limit=1&addressdetails=1`;
-          const response = await fetch(url, {
+          // First geocode to get lat/lon from Nominatim
+          const geocodeUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(locationValue)}&limit=1&addressdetails=1`;
+          const geocodeResponse = await fetch(geocodeUrl, {
             headers: { 'User-Agent': 'ArmillarySphere/1.0' }
           });
-          const places = await response.json();
+          const places = await geocodeResponse.json();
 
           if (places.length > 0) {
             const lat = parseFloat(places[0].lat);
             const lon = parseFloat(places[0].lon);
+
+            // Then reverse geocode with Geoapify to get timezone
+            const reverseUrl = `https://api.geoapify.com/v1/geocode/reverse?lat=${lat}&lon=${lon}&format=json&apiKey=YOUR_API_KEY`;
+            try {
+              const reverseResponse = await fetch(reverseUrl);
+              const reverseData = await reverseResponse.json();
+              if (reverseData.results && reverseData.results[0] && reverseData.results[0].timezone) {
+                this.currentTimezone = reverseData.results[0].timezone.name;
+                console.log('Timezone from Geoapify:', this.currentTimezone);
+              }
+            } catch (tzError) {
+              console.warn('Failed to fetch timezone from Geoapify:', tzError);
+              this.currentTimezone = null;
+            }
 
             const clampedLat = Math.max(-66, Math.min(66, lat));
             this.currentLatitude = clampedLat;
@@ -359,6 +443,11 @@ export class UIManager {
             this.elements.lonSlider.value = clampedLon;
             this.elements.lonInput.value = clampedLon.toFixed(4);
             this.elements.lonValue.textContent = clampedLon.toFixed(1) + "°";
+
+            // Now that we have the location and timezone, update the datetime
+            if (parsedDatetime) {
+              this.updateSlidersFromDate(parsedDatetime);
+            }
 
             this.updateCallback();
             this.saveStateToURL();
@@ -373,6 +462,10 @@ export class UIManager {
 
       hasState = true;
     } else {
+      // No location to geocode, so update datetime immediately if we have one
+      if (parsedDatetime) {
+        this.updateSlidersFromDate(parsedDatetime);
+      }
       window.isLoadingFromURL = false;
     }
 
@@ -422,7 +515,7 @@ export function initializeLocationAutocomplete(uiManager, updateCallback) {
       shouldCacheSrc: false,
       events: {
         input: {
-          selection(event) {
+          async selection(event) {
             if (window.isLoadingFromURL) {
               return;
             }
@@ -451,6 +544,20 @@ export function initializeLocationAutocomplete(uiManager, updateCallback) {
             lonSlider.value = clampedLon;
             uiManager.currentLongitude = clampedLon;
             document.getElementById('lonValue').textContent = clampedLon.toFixed(1) + "°";
+
+            // Fetch timezone for this location
+            try {
+              const reverseUrl = `https://api.geoapify.com/v1/geocode/reverse?lat=${lat}&lon=${lon}&format=json&apiKey=YOUR_API_KEY`;
+              const reverseResponse = await fetch(reverseUrl);
+              const reverseData = await reverseResponse.json();
+              if (reverseData.results && reverseData.results[0] && reverseData.results[0].timezone) {
+                uiManager.currentTimezone = reverseData.results[0].timezone.name;
+                console.log('Timezone from Geoapify (autocomplete):', uiManager.currentTimezone);
+              }
+            } catch (tzError) {
+              console.warn('Failed to fetch timezone from Geoapify:', tzError);
+              uiManager.currentTimezone = null;
+            }
 
             latSlider.dispatchEvent(new Event('input'));
             lonSlider.dispatchEvent(new Event('input'));

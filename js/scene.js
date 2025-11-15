@@ -623,9 +623,12 @@ export class ArmillaryScene {
     const latRad = THREE.MathUtils.degToRad(currentLatitude);
 
     // LST in DEGREES
-    const LSTdeg = astroCalc.calculateLST(currentDay, currentTime, currentLongitude, currentYear);
+    const { LST: LSTdeg, julianDate } = astroCalc.calculateLST(currentDay, currentTime, currentLongitude, currentYear);
     const lstRad = THREE.MathUtils.degToRad(LSTdeg);
 
+    // Get precise obliquity for this date
+    const obliquity = astroCalc.getObliquity(julianDate);
+    console.log('JD:', julianDate, 'Obliquity:', obliquity, 'rad =', obliquity * 180 / Math.PI, 'deg');
 
     // -----------------------------------------------------------
     // 2. Rotate the sky (celestial sphere)
@@ -638,12 +641,10 @@ export class ArmillaryScene {
     // -----------------------------------------------------------
     // 3. Get ASC / DSC / MC / IC (all returned in DEGREES)
     // -----------------------------------------------------------
-    const MCdeg = astroCalc.calculateMC(lstRad);
+    const MCdeg = astroCalc.calculateMC(lstRad, obliquity);
     const ICdeg = (MCdeg + 180) % 360;
 
-    let { AC: ACdeg, DSC: DSCdeg } = astroCalc.calculateAscendant(lstRad, latRad);
-
-    console.log('Calculated angles - LST:', LSTdeg, 'MC:', MCdeg, 'AC:', ACdeg, 'Lat:', currentLatitude);
+    let { AC: ACdeg, DSC: DSCdeg } = astroCalc.calculateAscendant(lstRad, latRad, obliquity);
 
     // Southern Hemisphere correction
     if (currentLatitude < 0) {
