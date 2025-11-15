@@ -642,11 +642,12 @@ const starMeshes = {};
 starData.forEach(([name, ra, dec, mag]) => {
   // Star size based on magnitude (brighter = larger)
   // Magnitude scale is inverted (smaller number = brighter)
-  const size = Math.max(0.02, 0.12 - mag * 0.02);
+  const size = Math.max(0.015, 0.05 - mag * 0.01); // Smaller base size
 
   // Star brightness based on magnitude
   const brightness = Math.max(0.3, 1.0 - mag * 0.15);
 
+  // Create star sphere (smaller)
   const starGeometry = new THREE.SphereGeometry(size, 8, 8);
   const starMaterial = new THREE.MeshBasicMaterial({
     color: new THREE.Color(brightness, brightness, brightness * 0.95)
@@ -658,6 +659,19 @@ starData.forEach(([name, ra, dec, mag]) => {
 
   starGroup.add(star);
   starMeshes[name] = star;
+
+  // Add glow effect (larger, transparent sphere)
+  const glowSize = size * 3.5; // Glow is 3.5x the star size
+  const glowGeometry = new THREE.SphereGeometry(glowSize, 16, 16);
+  const glowMaterial = new THREE.MeshBasicMaterial({
+    color: new THREE.Color(brightness * 0.9, brightness * 0.9, brightness * 0.85),
+    transparent: true,
+    opacity: Math.max(0.15, 0.35 - mag * 0.03) // Brighter stars have more visible glow
+  });
+
+  const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+  glow.position.copy(position);
+  starGroup.add(glow);
 });
 
 // Add constellation lines
