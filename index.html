@@ -521,7 +521,8 @@ celestial.add(zodiacGroup);
 // Radial lines at 0° of each zodiac sign (every 30°)
 const radialLineMaterial = new THREE.LineBasicMaterial({color:0x888888, opacity:0.3, transparent:true});
 for(let i=0; i<12; i++){
-  const angle = THREE.MathUtils.degToRad(i*30);
+  // Reverse to match reversed zodiac glyphs
+  const angle = THREE.MathUtils.degToRad(-i*30);
   const radialLine = new THREE.Line(
     new THREE.BufferGeometry().setFromPoints([
       new THREE.Vector3(0,0,0),
@@ -536,7 +537,8 @@ const zodiacRadius = 2.3;
 const zodiacGlyphs = Array.from({length:12},(_,i)=>String.fromCodePoint(0x2648+i)+'\uFE0E');
 
 zodiacGlyphs.forEach((glyph,i)=>{
-  const angle = THREE.MathUtils.degToRad(i*30+15); // center at 15° of each sign
+  // Reverse the zodiac order: negate the angle to draw counterclockwise
+  const angle = THREE.MathUtils.degToRad(-(i*30+15)); // center at 15° of each sign, reversed
   const canvas=document.createElement('canvas'); canvas.width=128; canvas.height=128;
   const ctx=canvas.getContext('2d');
   ctx.fillStyle='white'; ctx.font='bold 84px Arial'; ctx.textAlign='center'; ctx.textBaseline='middle';
@@ -1121,13 +1123,14 @@ function updateSphere(){
 
   // Position Sun on ecliptic (in zodiacGroup's coordinate system)
   // Offset slightly above ecliptic plane (positive Z) to avoid being blocked by ecliptic fill
-  eclipticSunGroup.position.set(CE_RADIUS*Math.cos(sunLonRad), CE_RADIUS*Math.sin(sunLonRad), 0.05);
+  // Negate angle to match reversed zodiac drawing
+  eclipticSunGroup.position.set(CE_RADIUS*Math.cos(-sunLonRad), CE_RADIUS*Math.sin(-sunLonRad), 0.05);
 
   // Position realistic sun far out in space at same ecliptic angle
   const sunDistanceFromEarth = CE_RADIUS * 50;
   realisticSunGroup.position.set(
-    sunDistanceFromEarth * Math.cos(sunLonRad),
-    sunDistanceFromEarth * Math.sin(sunLonRad),
+    sunDistanceFromEarth * Math.cos(-sunLonRad),
+    sunDistanceFromEarth * Math.sin(-sunLonRad),
     0
   );
 
@@ -1223,33 +1226,50 @@ function updateSphere(){
   const acRad_ecliptic = THREE.MathUtils.degToRad(AC);
   const dscRad_ecliptic = THREE.MathUtils.degToRad(DSC);
 
-  // Transform from ecliptic longitude to scene (horizon) coordinates:
-  // 1. Start at point on ecliptic (XY plane)
-  // 2. Apply obliquity (ε) - converts ecliptic → equatorial coords
-  // 3. Apply latitude tilt - tilts celestial sphere for observer's location
-  // 4. Apply LST rotation - rotates sphere to current sidereal time
-  //
-  // Result: MC ends up on meridian, AC on eastern horizon
-  const eclipticToScene = (lonRad) => {
-    return new THREE.Vector3(CE_RADIUS * Math.cos(lonRad), CE_RADIUS * Math.sin(lonRad), 0.05)
-      .applyEuler(new THREE.Euler(OBLIQUITY, 0, 0, 'XYZ'))  // Obliquity
-      .applyEuler(new THREE.Euler(celestial.rotation.x, 0, celestial.rotation.z, 'XZY')); // Lat + LST
-  };
+  // Position spheres directly on the ecliptic in zodiacGroup's local coordinate system
+  // The spheres are now children of zodiacGroup, so they rotate with the ecliptic
+  // Position them at their ecliptic longitudes in the XY plane (before obliquity tilt)
+  // Negate angles to match reversed zodiac glyph drawing
+  spheres["MC"].position.set(CE_RADIUS * Math.cos(-mcRad_ecliptic), CE_RADIUS * Math.sin(-mcRad_ecliptic), 0.05);
+  spheres["IC"].position.set(CE_RADIUS * Math.cos(-icRad_ecliptic), CE_RADIUS * Math.sin(-icRad_ecliptic), 0.05);
+  spheres["ASC"].position.set(CE_RADIUS * Math.cos(-acRad_ecliptic), CE_RADIUS * Math.sin(-acRad_ecliptic), 0.05);
+  spheres["DSC"].position.set(CE_RADIUS * Math.cos(-dscRad_ecliptic), CE_RADIUS * Math.sin(-dscRad_ecliptic), 0.05);
 
-  spheres["MC"].position.copy(eclipticToScene(mcRad_ecliptic));
-  spheres["IC"].position.copy(eclipticToScene(icRad_ecliptic));
-  spheres["ASC"].position.copy(eclipticToScene(acRad_ecliptic));
-  spheres["DSC"].position.copy(eclipticToScene(dscRad_ecliptic));
+  // Rotate the zodiac wheel (with spheres) so AC sphere is on eastern horizon
+  //
+  // The zodiac glyphs and spheres are now drawn in reverse order (negative angles).
+  // The AC sphere is at angle -acRad_ecliptic in the zodiac's local XY plane.
+  //
+  // To position AC at eastern horizon:
+  // - AC is at -acRad_ecliptic
+  // - Rotate by +acRad_ecliptic to bring it to 0 (eastern horizon)
+  // - Add LST rotation for primary motion
+  //
+  // But wait - the celestial group already rotates by lstAngle, which the zodiac inherits
+  // We need to counter-rotate and then position correctly:
+  zodiacGroup.rotation.z = -lstAngle + acRad_ecliptic;
 
   // Update angle labels to follow sphere positions
+  // Get world positions since spheres are now children of zodiacGroup
   if (window.angleLabels) {
-    window.angleLabels.MC.position.copy(spheres["MC"].position);
+    const mcWorldPos = new THREE.Vector3();
+    spheres["MC"].getWorldPosition(mcWorldPos);
+    window.angleLabels.MC.position.copy(mcWorldPos);
     window.angleLabels.MC.position.y += 0.3; // Offset above sphere
-    window.angleLabels.IC.position.copy(spheres["IC"].position);
+
+    const icWorldPos = new THREE.Vector3();
+    spheres["IC"].getWorldPosition(icWorldPos);
+    window.angleLabels.IC.position.copy(icWorldPos);
     window.angleLabels.IC.position.y -= 0.3; // Offset below sphere
-    window.angleLabels.ASC.position.copy(spheres["ASC"].position);
+
+    const ascWorldPos = new THREE.Vector3();
+    spheres["ASC"].getWorldPosition(ascWorldPos);
+    window.angleLabels.ASC.position.copy(ascWorldPos);
     window.angleLabels.ASC.position.x += 0.3; // Offset to the right
-    window.angleLabels.DSC.position.copy(spheres["DSC"].position);
+
+    const dscWorldPos = new THREE.Vector3();
+    spheres["DSC"].getWorldPosition(dscWorldPos);
+    window.angleLabels.DSC.position.copy(dscWorldPos);
     window.angleLabels.DSC.position.x -= 0.3; // Offset to the left
   }
 
@@ -1376,7 +1396,7 @@ function addAngle(name,color){
     new THREE.SphereGeometry(0.12,16,16),
     new THREE.MeshBasicMaterial({color,transparent:true,opacity:0.6})
   );
-  scene.add(mesh); // Add to scene, not celestial - these are horizon-fixed angles
+  zodiacGroup.add(mesh); // Add to zodiacGroup so they rotate with the ecliptic
   spheres[name]=mesh;
 }
 addAngle("MC",0x888888);
