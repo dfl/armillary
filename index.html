@@ -54,10 +54,16 @@
 <body>
 
 <div id="ui">
-  Latitude: <input type="range" id="latSlider" min="-66" max="66" value="0" step="1">
+  DateTime: <input type="text" id="datetimeInput" placeholder="e.g., 'now', '2000-03-21 12:00', 'March 21 2000 noon'" style="width: 300px;">
+  <button id="nowButton">Now</button>
+  <br>
+  <br>
+  Latitude: <input type="text" id="latInput" placeholder="e.g., 40.7128, -33.8688" style="width: 80px;">
+  <input type="range" id="latSlider" min="-66" max="66" value="0" step="0.1">
   <span id="latValue">0°</span>
   <br>
-  Longitude: <input type="range" id="lonSlider" min="-180" max="180" value="0" step="1">
+  Longitude: <input type="text" id="lonInput" placeholder="e.g., -74.0060, 151.2093" style="width: 80px;">
+  <input type="range" id="lonSlider" min="-180" max="180" value="0" step="0.1">
   <span id="lonValue">0°</span>
   <br>
   Time: <input type="range" id="timeSlider" min="0" max="1439" value="720" step="1">
@@ -84,7 +90,8 @@
 {
   "imports": {
     "three": "https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.module.js",
-    "three/examples/jsm/": "https://cdn.jsdelivr.net/npm/three@0.158.0/examples/jsm/"
+    "three/examples/jsm/": "https://cdn.jsdelivr.net/npm/three@0.158.0/examples/jsm/",
+    "chrono-node": "./node_modules/chrono-node/dist/esm/index.js"
   }
 }
 </script>
@@ -92,6 +99,114 @@
 <script type="module">
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import * as chrono from 'chrono-node';
+
+// ------------------- DateTimeParser -------------------
+class DateTimeParser {
+  constructor(inputElement, onDateTimeParsed) {
+    this.input = inputElement;
+    this.onDateTimeParsed = onDateTimeParsed;
+    this.setupEventListeners();
+  }
+
+  setupEventListeners() {
+    this.input.addEventListener('blur', () => this.parse());
+    this.input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        this.parse();
+      }
+    });
+  }
+
+  setNow() {
+    const now = new Date();
+    this.input.value = 'now';
+    this.onDateTimeParsed(now);
+    this.showSuccess();
+  }
+
+  parse() {
+    const text = this.input.value.trim();
+    if (!text) return;
+
+    const datetime = this.parseFlexibleDateTime(text);
+    if (datetime) {
+      this.onDateTimeParsed(datetime);
+      this.showSuccess();
+    } else {
+      this.showError();
+    }
+  }
+
+  parseFlexibleDateTime(text) {
+    // Handle "now" keyword
+    if (text.toLowerCase() === 'now') {
+      return new Date();
+    }
+
+    const customParsed = this.parseCustomFormat(text);
+    if (customParsed) return customParsed;
+
+    // Use chrono-node for natural language parsing
+    const results = chrono.parse(text);
+    if (results.length > 0) {
+      return results[0].start.date();
+    }
+
+    return null;
+  }
+
+  parseCustomFormat(text) {
+    const cleanText = text.replace(/\s+/g, '').toLowerCase();
+
+    const pattern1 = /^(\d{2})(\d{2})(\d{4})(\d{2})(\d{2})$/;
+    const match1 = cleanText.match(pattern1);
+    if (match1) {
+      const [, month, day, year, hours, minutes] = match1;
+      return new Date(year, month - 1, day, hours, minutes, 0);
+    }
+
+    const pattern2 = /^(\d{2})(\d{2})(\d{4})(\d{2})(\d{2})(\d{2})$/;
+    const match2 = cleanText.match(pattern2);
+    if (match2) {
+      const [, month, day, year, hours, minutes, seconds] = match2;
+      return new Date(year, month - 1, day, hours, minutes, seconds);
+    }
+
+    const pattern3 = /^(\d{2})(\d{2})(\d{4})(\d{2})(\d{2})(am|pm)$/;
+    const match3 = cleanText.match(pattern3);
+    if (match3) {
+      let [, month, day, year, hours, minutes, ampm] = match3;
+      hours = parseInt(hours);
+      if (ampm === 'pm' && hours !== 12) hours += 12;
+      if (ampm === 'am' && hours === 12) hours = 0;
+      return new Date(year, month - 1, day, hours, minutes, 0);
+    }
+
+    const pattern4 = /^(\d{2})(\d{2})(\d{4})(\d{2})(\d{2})(\d{2})(am|pm)$/;
+    const match4 = cleanText.match(pattern4);
+    if (match4) {
+      let [, month, day, year, hours, minutes, seconds, ampm] = match4;
+      hours = parseInt(hours);
+      if (ampm === 'pm' && hours !== 12) hours += 12;
+      if (ampm === 'am' && hours === 12) hours = 0;
+      return new Date(year, month - 1, day, hours, minutes, seconds);
+    }
+
+    return null;
+  }
+
+  showSuccess() {
+    this.input.style.borderColor = 'green';
+    setTimeout(() => this.input.style.borderColor = '', 1000);
+  }
+
+  showError() {
+    this.input.style.borderColor = 'red';
+    setTimeout(() => this.input.style.borderColor = '', 2000);
+  }
+}
 
 // ------------------- Scene Setup -------------------
 const scene = new THREE.Scene();
@@ -330,18 +445,31 @@ function dayToStr(day){
 function updateSphere(){
   const latRad = THREE.MathUtils.degToRad(currentLatitude);
 
+  // Calculate Local Sidereal Time first (needed for celestial rotation)
+  const J2000_epoch = 2451545.0;
+
   // Adjust time for longitude: 15° longitude = 1 hour time difference
-  // Longitude is positive East, so positive longitude means earlier solar time
   const longitudeTimeOffset = (currentLongitude / 15) * 60; // Convert to minutes
   const localTime = currentTime + longitudeTimeOffset;
 
-  const hourAngle = (localTime/1440)*Math.PI*2; // diurnal
-  const yearAngle = ((currentDay-1)/365)*Math.PI*2; // annual
+  const daysFromJ2000 = (currentDay - 1) + (localTime / 1440);
+  const julianDate = 2451544.5 + daysFromJ2000;
 
-  // Set rotation order: X rotation (latitude tilt) then Z rotation (hour angle)
+  // Greenwich Sidereal Time at 0h UT (simplified formula)
+  const T = (julianDate - J2000_epoch) / 36525;
+  const GST0 = 280.46061837 + 360.98564736629 * (julianDate - J2000_epoch) + 0.000387933 * T * T;
+
+  // Local Sidereal Time = GST + longitude (in degrees)
+  let LST = (GST0 + currentLongitude + (localTime / 1440) * 360) % 360;
+  if (LST < 0) LST += 360;
+
+  // Rotate celestial sphere based on LST (sidereal time, not solar time!)
+  const lstAngle = THREE.MathUtils.degToRad(LST);
+
+  // Set rotation order: X rotation (latitude tilt) then Z rotation (sidereal time)
   celestial.rotation.order = 'XZY';
   celestial.rotation.x = -latRad; // Tilt polar axis from north (Z) towards zenith (Y)
-  celestial.rotation.z = (hourAngle + yearAngle); // Rotate around tilted polar axis (positive = E to W motion)
+  celestial.rotation.z = lstAngle; // Rotate based on Local Sidereal Time
   celestial.rotation.y = 0;
 
   // Sun position - Convert day of year to month/day
@@ -383,11 +511,25 @@ function updateSphere(){
         seconds: 0
       };
 
-      // Initialize and calculate
+      // Initialize and calculate position
       $processor.init();
       const body = $moshier.body.sun;
       $processor.calc(date, body);
-      sunBodyData = body; // Save for later use
+
+      // Calculate rise and set times
+      // Note: riset needs to be called separately and uses a date at the start of the day
+      const dateForRiset = {
+        year: 2000,
+        month: month + 1,
+        day: day,
+        hours: 0,
+        minutes: 0,
+        seconds: 0
+      };
+
+      // Note: Ephemeris rise/set not used - we calculate from scratch below
+
+      sunBodyData = body; // Save for later use (now includes rise/set if available)
 
       // Get Sun's ecliptic longitude from the result
       // The ecliptic longitude should be in body.position.rect or body.position.polar
@@ -419,48 +561,35 @@ function updateSphere(){
   sun.position.set(CE_RADIUS*Math.cos(sunLonRad), CE_RADIUS*Math.sin(sunLonRad), 0.05);
   sunGlow.position.copy(sun.position);
 
-  // ------------------- Analytic Angles: MC, IC, AC, DSC -------------------
-  // MC: projection of celestial pole onto local meridian
-  const sinLat = Math.sin(latRad);
-  const cosLat = Math.cos(latRad);
-  const mcVec = new THREE.Vector3(0, cosLat, sinLat).normalize(); // Midheaven vector
-  spheres["MC"].position.copy(mcVec.clone().multiplyScalar(CE_RADIUS));
-  spheres["IC"].position.copy(mcVec.clone().multiplyScalar(-CE_RADIUS));
+  // ------------------- Calculate Astrological Angles (MC, IC, AC, DSC) -------------------
+  // Using traditional astrological formulas (not geometric intersections)
+  //
+  // MC (Midheaven): Ecliptic degree where RA = LST (equatorial meridian)
+  // AC (Ascendant): Ecliptic degree rising on eastern horizon
 
-  // Ascendant vector: intersection of horizon with ecliptic plane along east
-  const acVec = new THREE.Vector3(cosLat,0,-sinLat).normalize();
-  spheres["ASC"].position.copy(acVec.clone().multiplyScalar(CE_RADIUS));
-  spheres["DSC"].position.copy(acVec.clone().multiplyScalar(-CE_RADIUS));
+  const epsilon = OBLIQUITY;
+  const lstRad = THREE.MathUtils.degToRad(LST);
 
-  // ------------------- Calculate LST, MC, AC in Zodiac Degrees -------------------
-  // Local Sidereal Time (LST) calculation
-  // Simplified: LST = hour angle + right ascension offset for the day
-  const J2000_epoch = 2451545.0; // Julian date for J2000.0
-  const daysFromJ2000 = (currentDay - 1) + (localTime / 1440); // Fractional days in year 2000
-  const julianDate = 2451544.5 + daysFromJ2000; // Approximate JD for year 2000
+  // MC Formula: tan(MC) = tan(RAMC) / cos(ε), where RAMC = LST
+  // Derivation: Convert equatorial coordinates (RA=LST, Dec=0) to ecliptic longitude
+  let MC = THREE.MathUtils.radToDeg(
+    Math.atan2(Math.sin(lstRad), Math.cos(lstRad) * Math.cos(epsilon))
+  );
+  if (MC < 0) MC += 360;
 
-  // Greenwich Sidereal Time at 0h UT (simplified formula)
-  const T = (julianDate - J2000_epoch) / 36525; // Julian centuries from J2000.0
-  const GST0 = 280.46061837 + 360.98564736629 * (julianDate - J2000_epoch) + 0.000387933 * T * T;
+  // IC: Opposite point (180° from MC)
+  let IC = (MC + 180) % 360;
 
-  // Local Sidereal Time = GST + longitude (in degrees)
-  let LST = (GST0 + currentLongitude + (localTime / 1440) * 360) % 360;
-  if (LST < 0) LST += 360;
-
-  // MC (Midheaven) = Local Sidereal Time converted to ecliptic longitude
-  // For simplicity, MC ≈ LST (this is approximate; exact formula involves RAMC conversion)
-  let MC = LST;
-
-  // AC (Ascendant) calculation using standard formula
-  // tan(AC) = cos(MC) / (-sin(MC)*cos(ε) - tan(lat)*sin(ε))
-  const epsilon = OBLIQUITY; // Obliquity of ecliptic
-  const mcRad = THREE.MathUtils.degToRad(MC);
+  // AC Formula: tan(AC) = -cos(RAMC) / (sin(RAMC)*cos(ε) + tan(lat)*sin(ε))
+  // Derivation: Ecliptic degree on eastern horizon at observer's latitude
   const tanLat = Math.tan(latRad);
-
-  const acNumerator = Math.cos(mcRad);
-  const acDenominator = -Math.sin(mcRad) * Math.cos(epsilon) - tanLat * Math.sin(epsilon);
-  let AC = THREE.MathUtils.radToDeg(Math.atan2(acNumerator, acDenominator));
+  let AC = THREE.MathUtils.radToDeg(
+    Math.atan2(-Math.cos(lstRad), Math.sin(lstRad) * Math.cos(epsilon) + tanLat * Math.sin(epsilon))
+  );
   if (AC < 0) AC += 360;
+
+  // DSC: Opposite point (180° from AC)
+  let DSC = (AC + 180) % 360;
 
   // Convert to zodiac notation (sign + degree)
   function toZodiacString(longitude) {
@@ -478,89 +607,198 @@ function updateSphere(){
     return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
   }
 
+  // Validation: Verify calculations match expected values
+  // Set to true to enable verification logging
+  const verifyAngles = false;
+  if (verifyAngles) {
+    console.log('=== Astrological Angles ===');
+    console.log('Location: Lat', currentLatitude.toFixed(2), '° | Lon', currentLongitude.toFixed(2), '°');
+    console.log('LST:', LST.toFixed(2), '° (', lstToTimeString(LST), ')');
+    console.log('MC:', MC.toFixed(2), '° =', toZodiacString(MC));
+    console.log('IC:', IC.toFixed(2), '° =', toZodiacString(IC));
+    console.log('AC:', AC.toFixed(2), '° =', toZodiacString(AC));
+    console.log('DSC:', DSC.toFixed(2), '° =', toZodiacString(DSC));
+  }
+
   // Update display
   document.getElementById('lstValue').textContent = lstToTimeString(LST);
   document.getElementById('mcValue').textContent = toZodiacString(MC);
   document.getElementById('acValue').textContent = toZodiacString(AC);
 
-  // ------------------- Calculate Sunrise and Sunset -------------------
-  // These values should only depend on date and location, not time of day
-  let sunriseTime = "--:--";
-  let sunsetTime = "--:--";
+  // Calculate geometric intersections for visual sphere positioning
+  // These are where the ecliptic actually crosses meridian/horizon in 3D space
+  // (Different from astrological MC/AC which use equatorial definitions)
+  const combinedTilt = epsilon - latRad; // ε - lat
 
-  console.log('sunBodyData:', sunBodyData);
+  // Geometric MC: Where ecliptic crosses meridian plane (X=0) - upper
+  let MC_visual = THREE.MathUtils.radToDeg(
+    Math.atan2(Math.cos(lstRad), Math.cos(combinedTilt) * Math.sin(lstRad))
+  );
+  if (MC_visual < 0) MC_visual += 360;
 
-  if (sunBodyData) {
-    console.log('Checking for rise/set in ephemeris data');
-    console.log('Rise:', sunBodyData.rise, 'Set:', sunBodyData.set);
-    console.log('Full body:', JSON.stringify(sunBodyData, null, 2));
+  // Geometric IC: Opposite point - lower
+  let IC_visual = (MC_visual + 180) % 360;
 
-    try {
-      // Check if ephemeris provides rise/set times
-      if (sunBodyData.rise && sunBodyData.set) {
-        console.log('Using ephemeris rise/set times');
-        // Format ephemeris rise/set times
-        function formatRiseSetTime(timeData) {
-          if (typeof timeData === 'string') return timeData;
-          if (timeData.hours !== undefined) {
-            const h = timeData.hours;
-            const m = timeData.minutes || 0;
-            return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
-          }
-          return "--:--";
-        }
-        sunriseTime = formatRiseSetTime(sunBodyData.rise);
-        sunsetTime = formatRiseSetTime(sunBodyData.set);
-      } else {
-        console.log('Ephemeris does not provide rise/set, using manual calculation');
-        // Fallback: calculate manually (independent of time slider)
-        const sunDeclination = Math.asin(Math.sin(sunLonRad) * Math.sin(epsilon));
-        const sunAltitude = -0.833 * Math.PI / 180;
-        const cosH = (Math.sin(sunAltitude) - Math.sin(latRad) * Math.sin(sunDeclination)) /
-                     (Math.cos(latRad) * Math.cos(sunDeclination));
+  // Geometric ASC: Where ecliptic crosses horizon plane (Y=0) - eastern
+  let AC_visual = THREE.MathUtils.radToDeg(
+    Math.atan2(-Math.sin(lstRad), Math.cos(combinedTilt) * Math.cos(lstRad))
+  );
+  if (AC_visual < 0) AC_visual += 360;
 
-        if (cosH > 1) {
-          sunriseTime = "No sunrise";
-          sunsetTime = "No sunset";
-        } else if (cosH < -1) {
-          sunriseTime = "Midnight sun";
-          sunsetTime = "Midnight sun";
-        } else {
-          const H = Math.acos(cosH) * 180 / Math.PI;
-          const sunRA = Math.atan2(Math.sin(sunLonRad) * Math.cos(epsilon), Math.cos(sunLonRad));
-          const sunRADeg = THREE.MathUtils.radToDeg(sunRA);
-          let transitLST = sunRADeg < 0 ? sunRADeg + 360 : sunRADeg;
+  // Geometric DSC: Opposite point - western
+  let DSC_visual = (AC_visual + 180) % 360;
 
-          // Calculate GST at 0h for this day (independent of current time)
-          const julianDate0h = 2451544.5 + (currentDay - 1);
-          const T0 = (julianDate0h - J2000_epoch) / 36525;
-          const GST0_day = 280.46061837 + 360.98564736629 * (julianDate0h - J2000_epoch) + 0.000387933 * T0 * T0;
+  // Use geometric positions for sphere placement
+  const mcRad_ecliptic = THREE.MathUtils.degToRad(MC_visual);
+  const icRad_ecliptic = THREE.MathUtils.degToRad(IC_visual);
+  const acRad_ecliptic = THREE.MathUtils.degToRad(AC_visual);
+  const dscRad_ecliptic = THREE.MathUtils.degToRad(DSC_visual);
 
-          const transitTime = ((transitLST - GST0_day - currentLongitude) / 360) * 1440;
-          const sunriseMinutes = transitTime - (H / 15) * 60;
-          const sunsetMinutes = transitTime + (H / 15) * 60;
+  // Transform from ecliptic longitude to scene (horizon) coordinates:
+  // 1. Start at point on ecliptic (XY plane)
+  // 2. Apply obliquity (ε) - converts ecliptic → equatorial coords
+  // 3. Apply latitude tilt - tilts celestial sphere for observer's location
+  // 4. Apply LST rotation - rotates sphere to current sidereal time
+  //
+  // Result: MC ends up on meridian, AC on eastern horizon
+  const eclipticToScene = (lonRad) => {
+    return new THREE.Vector3(CE_RADIUS * Math.cos(lonRad), CE_RADIUS * Math.sin(lonRad), 0.05)
+      .applyEuler(new THREE.Euler(OBLIQUITY, 0, 0, 'XYZ'))  // Obliquity
+      .applyEuler(new THREE.Euler(celestial.rotation.x, 0, celestial.rotation.z, 'XZY')); // Lat + LST
+  };
 
-          function formatTime(minutes) {
-            let m = ((minutes % 1440) + 1440) % 1440;
-            const h = Math.floor(m / 60);
-            const min = Math.floor(m % 60);
-            return `${h.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')}`;
-          }
+  spheres["MC"].position.copy(eclipticToScene(mcRad_ecliptic));
+  spheres["IC"].position.copy(eclipticToScene(icRad_ecliptic));
+  spheres["ASC"].position.copy(eclipticToScene(acRad_ecliptic));
+  spheres["DSC"].position.copy(eclipticToScene(dscRad_ecliptic));
 
-          sunriseTime = formatTime(sunriseMinutes);
-          sunsetTime = formatTime(sunsetMinutes);
-        }
-      }
-    } catch (e) {
-      console.warn('Sunrise/sunset calculation failed:', e);
-      sunriseTime = "Error";
-      sunsetTime = "Error";
-    }
+  // Update angle labels to follow sphere positions
+  if (window.angleLabels) {
+    window.angleLabels.MC.position.copy(spheres["MC"].position);
+    window.angleLabels.MC.position.y += 0.3; // Offset above sphere
+    window.angleLabels.IC.position.copy(spheres["IC"].position);
+    window.angleLabels.IC.position.y -= 0.3; // Offset below sphere
+    window.angleLabels.ASC.position.copy(spheres["ASC"].position);
+    window.angleLabels.ASC.position.x += 0.3; // Offset to the right
+    window.angleLabels.DSC.position.copy(spheres["DSC"].position);
+    window.angleLabels.DSC.position.x -= 0.3; // Offset to the left
   }
 
-  console.log('Final sunrise/sunset:', sunriseTime, sunsetTime);
-  document.getElementById('sunriseValue').textContent = sunriseTime;
-  document.getElementById('sunsetValue').textContent = sunsetTime;
+  // Verify positioning (can be disabled after verification)
+  const verifyPositions = false;
+  if (verifyPositions) {
+    console.log('=== Astrological vs Geometric Angles ===');
+    console.log('MC (astrological):', MC.toFixed(2), '° =', toZodiacString(MC));
+    console.log('MC (geometric):', MC_visual.toFixed(2), '° =', toZodiacString(MC_visual));
+    console.log('Difference:', Math.abs(MC - MC_visual).toFixed(2), '°');
+    console.log('');
+    console.log('AC (astrological):', AC.toFixed(2), '° =', toZodiacString(AC));
+    console.log('AC (geometric):', AC_visual.toFixed(2), '° =', toZodiacString(AC_visual));
+    console.log('Difference:', Math.abs(AC - AC_visual).toFixed(2), '°');
+    console.log('');
+    console.log('Sphere positions:');
+    console.log('MC on meridian (X ≈ 0):', spheres["MC"].position.x.toFixed(4));
+    console.log('ASC on horizon (Y ≈ 0):', spheres["ASC"].position.y.toFixed(4));
+  }
+
+  // ------------------- Calculate Sunrise and Sunset (from scratch) -------------------
+  // Calculate rise/set times based on sun's ecliptic longitude
+  // Algorithm: Convert ecliptic to equatorial, calculate hour angle, find rise/set times
+
+  function calculateRiseSet(sunEclipticLon, latitude, longitude, dayOfYear) {
+    // Constants
+    const OBLIQUITY_RAD = epsilon;
+    const SUN_ANGULAR_RADIUS = 0.267 * Math.PI / 180; // 16 arcminutes
+    const ATMOSPHERIC_REFRACTION = 0.567 * Math.PI / 180; // 34 arcminutes
+    const ALTITUDE_AT_RISE_SET = -(SUN_ANGULAR_RADIUS + ATMOSPHERIC_REFRACTION); // -0.833 degrees
+
+    // Convert ecliptic longitude to equatorial coordinates (RA, Dec)
+    // For the sun, ecliptic latitude β ≈ 0
+    const sinDec = Math.sin(OBLIQUITY_RAD) * Math.sin(sunEclipticLon);
+    const declination = Math.asin(sinDec);
+
+    const rightAscension = Math.atan2(
+      Math.sin(sunEclipticLon) * Math.cos(OBLIQUITY_RAD),
+      Math.cos(sunEclipticLon)
+    );
+    const RA_deg = THREE.MathUtils.radToDeg(rightAscension);
+    const RA_norm = RA_deg < 0 ? RA_deg + 360 : RA_deg;
+
+    // Calculate hour angle when sun is at horizon
+    const latRad = THREE.MathUtils.degToRad(latitude);
+    const cosHourAngle = (Math.sin(ALTITUDE_AT_RISE_SET) - Math.sin(latRad) * Math.sin(declination)) /
+                         (Math.cos(latRad) * Math.cos(declination));
+
+    // Check for no sunrise/sunset (polar regions)
+    if (cosHourAngle > 1) {
+      return { sunrise: "No sunrise", sunset: "No sunset", transit: "--:--" };
+    }
+    if (cosHourAngle < -1) {
+      return { sunrise: "24h sun", sunset: "24h sun", transit: "--:--" };
+    }
+
+    // Hour angle in degrees (0-180)
+    const H_deg = THREE.MathUtils.radToDeg(Math.acos(cosHourAngle));
+
+    // Calculate Greenwich Sidereal Time at 0h UT for this day
+    const julianDate0h = 2451544.5 + (dayOfYear - 1); // JD for year 2000
+    const T = (julianDate0h - J2000_epoch) / 36525;
+    const GST0 = 280.46061837 + 360.98564736629 * (julianDate0h - J2000_epoch) +
+                 0.000387933 * T * T - 0.0000000258 * T * T * T;
+
+    // Calculate transit time (when RA = LST)
+    // LST = GST + longitude, so at transit: GST = RA - longitude
+    // Time in UT when this occurs: (RA - longitude - GST0) / 360.98564736629 * 24 hours
+    let transitUT = ((RA_norm - longitude - GST0) / 360.98564736629) * 24; // hours
+
+    // Normalize to 0-24 range
+    while (transitUT < 0) transitUT += 24;
+    while (transitUT >= 24) transitUT -= 24;
+
+    // Sunrise and sunset times (UT)
+    const H_hours = H_deg / 15; // Convert hour angle from degrees to hours
+    let sunriseUT = transitUT - H_hours;
+    let sunsetUT = transitUT + H_hours;
+
+    // Normalize to 0-24 range
+    while (sunriseUT < 0) sunriseUT += 24;
+    while (sunriseUT >= 24) sunriseUT -= 24;
+    while (sunsetUT < 0) sunsetUT += 24;
+    while (sunsetUT >= 24) sunsetUT -= 24;
+
+    // Convert from UT to local solar time (add longitude offset)
+    const lonTimeOffset = longitude / 15; // hours
+    let sunriseLocal = sunriseUT + lonTimeOffset;
+    let sunsetLocal = sunsetUT + lonTimeOffset;
+    let transitLocal = transitUT + lonTimeOffset;
+
+    // Normalize to 0-24 range
+    while (sunriseLocal < 0) sunriseLocal += 24;
+    while (sunriseLocal >= 24) sunriseLocal -= 24;
+    while (sunsetLocal < 0) sunsetLocal += 24;
+    while (sunsetLocal >= 24) sunsetLocal -= 24;
+    while (transitLocal < 0) transitLocal += 24;
+    while (transitLocal >= 24) transitLocal -= 24;
+
+    // Format as HH:MM
+    const formatTime = (hours) => {
+      const h = Math.floor(hours);
+      const m = Math.floor((hours - h) * 60);
+      return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+    };
+
+    return {
+      sunrise: formatTime(sunriseLocal),
+      sunset: formatTime(sunsetLocal),
+      transit: formatTime(transitLocal)
+    };
+  }
+
+  // Calculate sunrise/sunset using our from-scratch implementation
+  const riseSetData = calculateRiseSet(sunLonRad, currentLatitude, currentLongitude, currentDay);
+
+  document.getElementById('sunriseValue').textContent = riseSetData.sunrise;
+  document.getElementById('sunsetValue').textContent = riseSetData.sunset;
 }
 
 // ------------------- Angle Spheres -------------------
@@ -578,11 +816,107 @@ addAngle("IC",0xff0000);
 addAngle("ASC",0xff0000);
 addAngle("DSC",0xff0000);
 
+// ------------------- Angle Labels -------------------
+function addAngleLabel(name) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 128;
+  canvas.height = 64;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = 'white';
+  ctx.font = 'bold 32px Arial';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(name, 64, 32);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  const material = new THREE.SpriteMaterial({ map: texture, depthTest: false });
+  const sprite = new THREE.Sprite(material);
+  sprite.scale.set(0.8, 0.4, 1);
+  scene.add(sprite);
+  return sprite;
+}
+
+window.angleLabels = {
+  MC: addAngleLabel('MC'),
+  IC: addAngleLabel('IC'),
+  ASC: addAngleLabel('ASC'),
+  DSC: addAngleLabel('DSC')
+};
+
+// ------------------- Lat/Lon Text Input Elements -------------------
+const latInput=document.getElementById('latInput');
+const lonInput=document.getElementById('lonInput');
+
 // ------------------- Slider Listeners -------------------
-latSlider.addEventListener('input',()=>{currentLatitude=parseFloat(latSlider.value);latValue.textContent=currentLatitude+"°";updateSphere();});
-lonSlider.addEventListener('input',()=>{currentLongitude=parseFloat(lonSlider.value);lonValue.textContent=currentLongitude+"°";updateSphere();});
+latSlider.addEventListener('input',()=>{
+  currentLatitude=parseFloat(latSlider.value);
+  latValue.textContent=currentLatitude.toFixed(1)+"°";
+  latInput.value=currentLatitude.toFixed(4);
+  updateSphere();
+});
+
+lonSlider.addEventListener('input',()=>{
+  currentLongitude=parseFloat(lonSlider.value);
+  lonValue.textContent=currentLongitude.toFixed(1)+"°";
+  lonInput.value=currentLongitude.toFixed(4);
+  updateSphere();
+});
+
 timeSlider.addEventListener('input',()=>{currentTime=parseFloat(timeSlider.value);let h=Math.floor(currentTime/60);let m=currentTime%60;timeValue.textContent=`${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}`;updateSphere();});
 daySlider.addEventListener('input',()=>{currentDay=parseFloat(daySlider.value);dayValue.textContent=`Day ${currentDay}: ${dayToStr(currentDay)}`;updateSphere();});
+
+// ------------------- Lat/Lon Text Input Listeners -------------------
+function parseLatInput() {
+  const value = parseFloat(latInput.value);
+  if (!isNaN(value)) {
+    // Clamp to valid range
+    const clamped = Math.max(-66, Math.min(66, value));
+    currentLatitude = clamped;
+    latSlider.value = clamped;
+    latValue.textContent = clamped.toFixed(1) + "°";
+    latInput.value = clamped.toFixed(4);
+    latInput.style.borderColor = 'green';
+    setTimeout(() => latInput.style.borderColor = '', 1000);
+    updateSphere();
+  } else {
+    latInput.style.borderColor = 'red';
+    setTimeout(() => latInput.style.borderColor = '', 2000);
+  }
+}
+
+function parseLonInput() {
+  const value = parseFloat(lonInput.value);
+  if (!isNaN(value)) {
+    // Clamp to valid range
+    const clamped = Math.max(-180, Math.min(180, value));
+    currentLongitude = clamped;
+    lonSlider.value = clamped;
+    lonValue.textContent = clamped.toFixed(1) + "°";
+    lonInput.value = clamped.toFixed(4);
+    lonInput.style.borderColor = 'green';
+    setTimeout(() => lonInput.style.borderColor = '', 1000);
+    updateSphere();
+  } else {
+    lonInput.style.borderColor = 'red';
+    setTimeout(() => lonInput.style.borderColor = '', 2000);
+  }
+}
+
+latInput.addEventListener('blur', parseLatInput);
+latInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    parseLatInput();
+  }
+});
+
+lonInput.addEventListener('blur', parseLonInput);
+lonInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    parseLonInput();
+  }
+});
 
 // ------------------- Animate -------------------
 function animate(){
@@ -595,8 +929,10 @@ currentLatitude=parseFloat(latSlider.value);
 currentLongitude=parseFloat(lonSlider.value);
 currentTime=parseFloat(timeSlider.value);
 currentDay=parseFloat(daySlider.value);
-latValue.textContent=currentLatitude+"°";
-lonValue.textContent=currentLongitude+"°";
+latValue.textContent=currentLatitude.toFixed(1)+"°";
+lonValue.textContent=currentLongitude.toFixed(1)+"°";
+latInput.value=currentLatitude.toFixed(4);
+lonInput.value=currentLongitude.toFixed(4);
 let h=Math.floor(currentTime/60), m=currentTime%60;
 timeValue.textContent=`${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}`;
 dayValue.textContent=`Day ${currentDay}: ${dayToStr(currentDay)}`;
@@ -607,6 +943,58 @@ window.addEventListener('resize',()=>{
   camera.aspect=window.innerWidth/window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth,window.innerHeight);
+});
+
+// ------------------- DateTime Parser Integration -------------------
+function dateToYearDay(date) {
+  // Get day of year (1-365/366)
+  const start = new Date(date.getFullYear(), 0, 0);
+  const diff = date - start;
+  const oneDay = 1000 * 60 * 60 * 24;
+  return Math.floor(diff / oneDay);
+}
+
+function updateSlidersFromDate(date) {
+  // Update day of year slider
+  // For year 2000 simulation (leap year)
+  // More robust calculation that avoids timezone issues
+  const month = date.getMonth();
+  const day = date.getDate();
+
+  // Days in each month for leap year 2000
+  const monthDays = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+
+  let dayOfYear = day;
+  for (let i = 0; i < month; i++) {
+    dayOfYear += monthDays[i];
+  }
+
+  daySlider.value = dayOfYear;
+  currentDay = dayOfYear;
+  dayValue.textContent = `Day ${currentDay}: ${dayToStr(currentDay)}`;
+
+  // Update time slider
+  const hours = date.getHours();
+  const minutes = date.getMinutes();
+  const timeInMinutes = hours * 60 + minutes;
+
+  timeSlider.value = timeInMinutes;
+  currentTime = timeInMinutes;
+  timeValue.textContent = `${hours.toString().padStart(2,'0')}:${minutes.toString().padStart(2,'0')}`;
+
+  // Update the visualization
+  updateSphere();
+}
+
+// Initialize datetime parser
+const datetimeInput = document.getElementById('datetimeInput');
+const parser = new DateTimeParser(datetimeInput, updateSlidersFromDate);
+
+// Wire up "Now" button
+const nowButton = document.getElementById('nowButton');
+nowButton.addEventListener('click', (e) => {
+  e.preventDefault();
+  parser.setNow();
 });
 
 </script>
