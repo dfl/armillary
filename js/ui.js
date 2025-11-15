@@ -177,7 +177,7 @@ export class UIManager {
     this.updateCallback = updateCallback;
     this.currentLatitude = 0;
     this.currentLongitude = 0;
-    this.currentTime = 720;
+    this.currentTime = 720; // Universal Time (UT) in minutes for calculations
     this.currentDay = 1;
     this.currentYear = 2000;
     this.currentTimezone = null; // IANA timezone name (e.g., 'America/Anchorage')
@@ -306,17 +306,28 @@ export class UIManager {
   }
 
   updateSlidersFromDate(date) {
-    // Extract the date/time components from the parsed date AS IF they were UTC
-    // This treats the input as a naive datetime (timezone-unaware)
-    // We then interpret these components as the birth location's local civil time
+    // Use UTC methods to extract components (they represent the correct values)
     const month = date.getUTCMonth();
     const day = date.getUTCDate();
     const year = date.getUTCFullYear();
-    const hours = date.getUTCHours();
-    const minutes = date.getUTCMinutes();
+    const utcHours = date.getUTCHours();
+    const utcMinutes = date.getUTCMinutes();
 
-    console.log('updateSlidersFromDate: date components:', { year, month: month+1, day, hours, minutes });
-    console.log('Parsed date string:', date.toString(), 'UTC:', date.toUTCString());
+    // For UI display: if we have a timezone, convert UTC back to local time
+    let displayHours, displayMinutes;
+    if (this.currentTimezone) {
+      // Convert UTC to local timezone for display
+      const dt = DateTime.fromJSDate(date, { zone: 'UTC' }).setZone(this.currentTimezone);
+      displayHours = dt.hour;
+      displayMinutes = dt.minute;
+      console.log('Displaying local time:', `${displayHours}:${displayMinutes}`, 'in timezone:', this.currentTimezone);
+    } else {
+      // No timezone - display UTC time (which represents naive local time)
+      displayHours = utcHours;
+      displayMinutes = utcMinutes;
+    }
+
+    console.log('updateSlidersFromDate: UTC:', `${utcHours}:${utcMinutes}`, 'Display:', `${displayHours}:${displayMinutes}`);
 
     this.currentYear = year;
 
@@ -333,11 +344,14 @@ export class UIManager {
     this.elements.daySlider.value = dayOfYear;
     this.currentDay = dayOfYear;
 
-    const timeInMinutes = hours * 60 + minutes;
+    // Store UTC time for calculations (astronomy calculations expect UT)
+    const utcTimeInMinutes = utcHours * 60 + utcMinutes;
+    this.currentTime = utcTimeInMinutes;
 
-    this.elements.timeSlider.value = timeInMinutes;
-    this.currentTime = timeInMinutes;
-    this.elements.timeValue.textContent = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+    // Display local time in UI
+    const displayTimeInMinutes = displayHours * 60 + displayMinutes;
+    this.elements.timeSlider.value = displayTimeInMinutes;
+    this.elements.timeValue.textContent = `${displayHours.toString().padStart(2, '0')}:${displayMinutes.toString().padStart(2, '0')}`;
 
     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     const jd = this.currentDay + (this.currentTime / 1440);
@@ -390,14 +404,12 @@ export class UIManager {
     window.isLoadingFromURL = true;
     const params = new URLSearchParams(hash);
     let hasState = false;
-    let parsedDatetime = null;
+    let datetimeString = null;
 
     if (params.has('dt')) {
-      const datetimeValue = params.get('dt');
-      console.log('Loading datetime from URL:', datetimeValue);
-      this.elements.datetimeInput.value = datetimeValue;
-
-      parsedDatetime = parser.parseFlexibleDateTime(datetimeValue);
+      datetimeString = params.get('dt');
+      console.log('Loading datetime from URL:', datetimeString);
+      this.elements.datetimeInput.value = datetimeString;
       hasState = true;
     }
 
@@ -419,16 +431,22 @@ export class UIManager {
             const lon = parseFloat(places[0].lon);
 
             // Then reverse geocode with Geoapify to get timezone
-            const reverseUrl = `https://api.geoapify.com/v1/geocode/reverse?lat=${lat}&lon=${lon}&format=json&apiKey=YOUR_API_KEY`;
-            try {
-              const reverseResponse = await fetch(reverseUrl);
-              const reverseData = await reverseResponse.json();
-              if (reverseData.results && reverseData.results[0] && reverseData.results[0].timezone) {
-                this.currentTimezone = reverseData.results[0].timezone.name;
-                console.log('Timezone from Geoapify:', this.currentTimezone);
+            const apiKey = import.meta.env.VITE_GEOAPIFY_API_KEY;
+            if (apiKey) {
+              const reverseUrl = `https://api.geoapify.com/v1/geocode/reverse?lat=${lat}&lon=${lon}&format=json&apiKey=${apiKey}`;
+              try {
+                const reverseResponse = await fetch(reverseUrl);
+                const reverseData = await reverseResponse.json();
+                if (reverseData.results && reverseData.results[0] && reverseData.results[0].timezone) {
+                  this.currentTimezone = reverseData.results[0].timezone.name;
+                  console.log('Timezone from Geoapify:', this.currentTimezone);
+                }
+              } catch (tzError) {
+                console.warn('Failed to fetch timezone from Geoapify:', tzError);
+                this.currentTimezone = null;
               }
-            } catch (tzError) {
-              console.warn('Failed to fetch timezone from Geoapify:', tzError);
+            } else {
+              console.warn('VITE_GEOAPIFY_API_KEY not set in .env file');
               this.currentTimezone = null;
             }
 
@@ -445,7 +463,10 @@ export class UIManager {
             this.elements.lonValue.textContent = clampedLon.toFixed(1) + "°";
 
             // Now that we have the location and timezone, update the datetime
-            if (parsedDatetime) {
+            if (datetimeString) {
+              // Don't reparse - we already have it from before, but now timezone is set
+              // The parsing should happen after this point when user types
+              const parsedDatetime = parser.parseFlexibleDateTime(datetimeString);
               this.updateSlidersFromDate(parsedDatetime);
             }
 
@@ -462,11 +483,13 @@ export class UIManager {
 
       hasState = true;
     } else {
-      // No location to geocode, so update datetime immediately if we have one
-      if (parsedDatetime) {
+      // No location to geocode
+      window.isLoadingFromURL = false;
+      // Parse datetime without timezone info (fallback to naive)
+      if (datetimeString) {
+        const parsedDatetime = parser.parseFlexibleDateTime(datetimeString);
         this.updateSlidersFromDate(parsedDatetime);
       }
-      window.isLoadingFromURL = false;
     }
 
     return hasState;
@@ -546,16 +569,22 @@ export function initializeLocationAutocomplete(uiManager, updateCallback) {
             document.getElementById('lonValue').textContent = clampedLon.toFixed(1) + "°";
 
             // Fetch timezone for this location
-            try {
-              const reverseUrl = `https://api.geoapify.com/v1/geocode/reverse?lat=${lat}&lon=${lon}&format=json&apiKey=YOUR_API_KEY`;
-              const reverseResponse = await fetch(reverseUrl);
-              const reverseData = await reverseResponse.json();
-              if (reverseData.results && reverseData.results[0] && reverseData.results[0].timezone) {
-                uiManager.currentTimezone = reverseData.results[0].timezone.name;
-                console.log('Timezone from Geoapify (autocomplete):', uiManager.currentTimezone);
+            const apiKey = import.meta.env.VITE_GEOAPIFY_API_KEY;
+            if (apiKey) {
+              try {
+                const reverseUrl = `https://api.geoapify.com/v1/geocode/reverse?lat=${lat}&lon=${lon}&format=json&apiKey=${apiKey}`;
+                const reverseResponse = await fetch(reverseUrl);
+                const reverseData = await reverseResponse.json();
+                if (reverseData.results && reverseData.results[0] && reverseData.results[0].timezone) {
+                  uiManager.currentTimezone = reverseData.results[0].timezone.name;
+                  console.log('Timezone from Geoapify (autocomplete):', uiManager.currentTimezone);
+                }
+              } catch (tzError) {
+                console.warn('Failed to fetch timezone from Geoapify:', tzError);
+                uiManager.currentTimezone = null;
               }
-            } catch (tzError) {
-              console.warn('Failed to fetch timezone from Geoapify:', tzError);
+            } else {
+              console.warn('VITE_GEOAPIFY_API_KEY not set in .env file');
               uiManager.currentTimezone = null;
             }
 

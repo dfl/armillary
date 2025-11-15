@@ -1,6 +1,7 @@
 // astronomy.js - Astronomical calculations
 
 import { calculateObliquity } from './epsilon.js';
+import * as ephemeris from 'ephemeris';
 
 export class AstronomyCalculator {
   constructor() {
@@ -57,36 +58,28 @@ export class AstronomyCalculator {
   }
 
   /**
-   * Calculate Sun's ecliptic longitude
+   * Calculate Sun's ecliptic longitude using ephemeris npm package
    */
   calculateSunPosition(currentDay, currentYear, month, day, hours, minutes) {
-    if (typeof window !== 'undefined' && typeof window.$moshier !== 'undefined') {
-      try {
-        const date = {
-          year: currentYear,
-          month: month + 1,
-          day: day,
-          hours: hours,
-          minutes: minutes,
-          seconds: 0
-        };
+    try {
+      // Create date object for ephemeris (expects UTC time)
+      const date = new Date(Date.UTC(currentYear, month, day, hours, minutes, 0));
 
-        window.$processor.init();
-        const body = window.$moshier.body.sun;
-        window.$processor.calc(date, body);
+      // Calculate Sun position using ephemeris
+      const result = ephemeris.getAllPlanets(date, 0, 0); // lat/lon don't matter for ecliptic position
 
-        if (body.position && body.position.apparentLongitude !== undefined) {
-          return body.position.apparentLongitude * Math.PI / 180;
-        } else if (body.position && body.position.polar) {
-          return body.position.polar[0] * Math.PI / 180;
-        }
-      } catch (e) {
-        console.warn('Ephemeris calculation failed, using approximation:', e);
+      if (result && result.observed && result.observed.sun && result.observed.sun.apparentLongitudeDd !== undefined) {
+        const sunLon = result.observed.sun.apparentLongitudeDd;
+        console.log('Sun position from ephemeris:', sunLon, 'degrees');
+        return sunLon * Math.PI / 180;
       }
+    } catch (e) {
+      console.warn('Ephemeris calculation failed, using approximation:', e);
     }
 
     // Fallback approximation
     const sunLon = (280 + (currentDay - 1) * (360 / 365)) % 360;
+    console.warn('Using approximate Sun position:', sunLon);
     return sunLon * Math.PI / 180;
   }
 

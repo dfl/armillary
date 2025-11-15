@@ -11,7 +11,8 @@
     "@tarekraafat/autocomplete.js": "^10.2.9",
     "chrono-node": "^2.9.0",
     "ephemeris": "^2.2.0",
-    "luxon": "^3.7.2"
+    "luxon": "^3.7.2",
+    "three": "^0.181.1"
   },
   "devDependencies": {
     "vite": "^7.2.2"
