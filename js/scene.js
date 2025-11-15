@@ -706,7 +706,8 @@ export class ArmillaryScene {
     // -----------------------------------------------------------
     // 8. SUN POSITION
     // -----------------------------------------------------------
-    const { month, day } = astroCalc.dayOfYearToMonthDay(currentDay);
+    const isLeapYear = (currentYear % 4 === 0 && currentYear % 100 !== 0) || (currentYear % 400 === 0);
+    const { month, day } = astroCalc.dayOfYearToMonthDay(currentDay, isLeapYear);
     const hours = Math.floor(currentTime / 60);
     const minutes = currentTime % 60;
 

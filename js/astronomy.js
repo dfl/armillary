@@ -64,6 +64,8 @@ export class AstronomyCalculator {
     try {
       // Create date object for ephemeris (expects UTC time)
       const date = new Date(Date.UTC(currentYear, month, day, hours, minutes, 0));
+      console.log('calculateSunPosition called with:', {currentDay, currentYear, month, day, hours, minutes});
+      console.log('Date created for ephemeris:', date.toISOString());
 
       // Calculate Sun position using ephemeris
       const result = ephemeris.getAllPlanets(date, 0, 0); // lat/lon don't matter for ecliptic position
