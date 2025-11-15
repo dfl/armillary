@@ -468,9 +468,11 @@ export class UIManager {
               // The parsing should happen after this point when user types
               const parsedDatetime = parser.parseFlexibleDateTime(datetimeString);
               this.updateSlidersFromDate(parsedDatetime);
+            } else {
+              // If no datetime string, we still need to update once for location change
+              this.updateCallback();
             }
 
-            this.updateCallback();
             this.saveStateToURL();
 
             setTimeout(() => { window.isLoadingFromURL = false; }, 500);

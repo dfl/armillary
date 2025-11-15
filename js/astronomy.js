@@ -14,18 +14,43 @@ export class AstronomyCalculator {
    * Returns { LST: degrees, julianDate: JD }
    */
   calculateLST(currentDay, currentTime, currentLongitude, currentYear) {
-    const longitudeTimeOffset = (currentLongitude / 15) * 60;
-    const localTime = currentTime + longitudeTimeOffset;
+    // currentTime is already in UTC (minutes since midnight UTC)
+    // No longitude offset should be applied to UTC time!
 
-    const yearOffset = (currentYear - 2000) * 365.25;
-    const daysFromJ2000 = yearOffset + (currentDay - 1) + (localTime / 1440);
+    // Calculate exact days from year 2000 to currentYear (accounting for leap years)
+    let yearOffset = 0;
+    const startYear = Math.min(2000, currentYear);
+    const endYear = Math.max(2000, currentYear);
+
+    for (let y = startYear; y < endYear; y++) {
+      const isLeap = (y % 4 === 0 && y % 100 !== 0) || (y % 400 === 0);
+      yearOffset += isLeap ? 366 : 365;
+    }
+
+    if (currentYear < 2000) yearOffset = -yearOffset;
+
+    const daysFromJ2000 = yearOffset + (currentDay - 1) + (currentTime / 1440);
     const julianDate = 2451544.5 + daysFromJ2000;
 
-    const T = (julianDate - this.J2000_EPOCH) / 36525;
-    const GST0 = 280.46061837 + 360.98564736629 * (julianDate - this.J2000_EPOCH) + 0.000387933 * T * T;
+    // Calculate GMST at 0h UT (midnight) for this date
+    const julianDate0h = 2451544.5 + yearOffset + (currentDay - 1);
+    const T = (julianDate0h - this.J2000_EPOCH) / 36525;
 
-    let LST = (GST0 + currentLongitude + (localTime / 1440) * 360) % 360;
+    // GMST at 0h UT
+    const GMST0 = 280.46061837 + 360.98564736629 * (julianDate0h - this.J2000_EPOCH) + 0.000387933 * T * T - 0.0000000258 * T * T * T;
+
+    // Add the time elapsed since midnight (in sidereal time units)
+    // Sidereal day is shorter than solar day, so we need to account for that
+    const hoursUT = currentTime / 60;
+    const GMSTnow = GMST0 + hoursUT * 15.04106858; // 15.04106858 deg/hour is sidereal rate
+
+    console.log('JD:', julianDate, 'GMST at 0h:', GMST0 % 360, 'Hours UT:', hoursUT, 'GMST now:', GMSTnow % 360);
+
+    // LST = GMST + longitude (in degrees)
+    let LST = (GMSTnow + currentLongitude) % 360;
     if (LST < 0) LST += 360;
+
+    console.log('Longitude:', currentLongitude, 'Final LST:', LST);
 
     return { LST, julianDate };
   }
@@ -64,15 +89,12 @@ export class AstronomyCalculator {
     try {
       // Create date object for ephemeris (expects UTC time)
       const date = new Date(Date.UTC(currentYear, month, day, hours, minutes, 0));
-      console.log('calculateSunPosition called with:', {currentDay, currentYear, month, day, hours, minutes});
-      console.log('Date created for ephemeris:', date.toISOString());
 
       // Calculate Sun position using ephemeris
       const result = ephemeris.getAllPlanets(date, 0, 0); // lat/lon don't matter for ecliptic position
 
       if (result && result.observed && result.observed.sun && result.observed.sun.apparentLongitudeDd !== undefined) {
         const sunLon = result.observed.sun.apparentLongitudeDd;
-        console.log('Sun position from ephemeris:', sunLon, 'degrees');
         return sunLon * Math.PI / 180;
       }
     } catch (e) {
