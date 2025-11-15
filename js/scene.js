@@ -6,7 +6,7 @@ import { starData, constellationLines } from './stardata.js';
 
 export class ArmillaryScene {
   constructor() {
-    this.OBLIQUITY = 23.44 * Math.PI / 180;
+    this.obliquity = 23.44 * Math.PI / 180;
     this.CE_RADIUS = 3;
     this.SUN_TEXTURE_PATH = './images/sun_texture.jpg';
 
@@ -67,7 +67,7 @@ export class ArmillaryScene {
     this.scene.add(this.celestial);
 
     this.zodiacGroup = new THREE.Group();
-    this.zodiacGroup.rotation.x = this.OBLIQUITY;
+    this.zodiacGroup.rotation.x = this.obliquity;
     this.celestial.add(this.zodiacGroup);
   }
 
@@ -308,8 +308,20 @@ export class ArmillaryScene {
       new THREE.CircleGeometry(this.CE_RADIUS, 128),
       new THREE.MeshBasicMaterial({ color: 0x888888, side: THREE.DoubleSide, transparent: true, opacity: 0.1 })
     );
-    ecliptic.rotation.x = this.OBLIQUITY;
+    ecliptic.rotation.x = this.obliquity;
     this.celestial.add(ecliptic);
+
+    const eclipticOutlinePoints = [];
+    for (let i = 0; i <= 64; i++) {
+      const angle = (i / 64) * Math.PI * 2;
+      eclipticOutlinePoints.push(new THREE.Vector3(this.CE_RADIUS * Math.cos(angle), this.CE_RADIUS * Math.sin(angle), 0));
+    }
+    const eclipticOutline = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints(eclipticOutlinePoints),
+      new THREE.LineBasicMaterial({ color: 0x888888, opacity: 0.5, transparent: true })
+    );
+    eclipticOutline.rotation.x = this.obliquity;
+    this.celestial.add(eclipticOutline);
   }
 
   createZodiacWheel() {
@@ -378,7 +390,7 @@ export class ArmillaryScene {
       });
 
       const star = new THREE.Mesh(starGeometry, starMaterial);
-      const position = raDecToVector3(ra, dec, this.CE_RADIUS * 3.0);
+      const position = raDecToVector3(ra, dec, this.CE_RADIUS * 10.0);
       star.position.copy(position);
       star.userData = { name, constellation };
 
@@ -435,7 +447,7 @@ export class ArmillaryScene {
     this.celestial.add(this.constellationLineGroup);
 
     // Background stars
-    const bgStarCount = 800;
+    const bgStarCount = 1000;
     const bgStarGeometry = new THREE.BufferGeometry();
     const bgStarPositions = [];
     const bgStarColors = [];
@@ -443,7 +455,7 @@ export class ArmillaryScene {
     for (let i = 0; i < bgStarCount; i++) {
       const theta = Math.random() * Math.PI * 2;
       const phi = Math.acos(2 * Math.random() - 1);
-      const r = this.CE_RADIUS * 2.9;
+      const r = this.CE_RADIUS * 100;
 
       const x = r * Math.sin(phi) * Math.cos(theta);
       const y = r * Math.sin(phi) * Math.sin(theta);
@@ -627,8 +639,10 @@ export class ArmillaryScene {
     const lstRad = THREE.MathUtils.degToRad(LSTdeg);
 
     // Get precise obliquity for this date
-    const obliquity = astroCalc.getObliquity(julianDate);
-    console.log('JD:', julianDate, 'Obliquity:', obliquity, 'rad =', obliquity * 180 / Math.PI, 'deg');
+    this.obliquity = astroCalc.getObliquity(julianDate);
+    console.log('JD:', julianDate, 'Obliquity:', this.obliquity, 'rad =', this.obliquity * 180 / Math.PI, 'deg');
+    console.log("LST (deg):", THREE.MathUtils.radToDeg(lstRad));
+
 
     // -----------------------------------------------------------
     // 2. Rotate the sky (celestial sphere)
@@ -641,15 +655,16 @@ export class ArmillaryScene {
     // -----------------------------------------------------------
     // 3. Get ASC / DSC / MC / IC (all returned in DEGREES)
     // -----------------------------------------------------------
-    const MCdeg = astroCalc.calculateMC(lstRad, obliquity);
+    const MCdeg = astroCalc.calculateMC(lstRad, this.obliquity);
     const ICdeg = (MCdeg + 180) % 360;
 
-    let { AC: ACdeg, DSC: DSCdeg } = astroCalc.calculateAscendant(lstRad, latRad, obliquity);
+    let { AC: ACdeg, DSC: DCdeg } = astroCalc.calculateAscendant(lstRad, latRad, this.obliquity);
+    console.log("MC (deg):", MCdeg, "IC (deg):", ICdeg, "ASC (deg):", ACdeg, "DSC (deg):", DCdeg);
 
     // Southern Hemisphere correction
     if (currentLatitude < 0) {
       ACdeg = (ACdeg + 180) % 360;
-      DSCdeg = (DSCdeg + 180) % 360;
+      DCdeg = (DCdeg + 180) % 360;
     }
 
 
@@ -657,24 +672,19 @@ export class ArmillaryScene {
     // -----------------------------------------------------------
     // 4. Rotate the zodiac/ecliptic wheel
     // -----------------------------------------------------------
-    // OBLIQUITY tilt (apply ONCE)
-    this.zodiacGroup.rotation.x = this.OBLIQUITY;
-
-    // Rotate wheel by sidereal time only
-    this.zodiacGroup.rotation.z = -lstRad;
-
+    this.zodiacGroup.rotation.order = "ZXY";   // explicit and safe order
+    this.zodiacGroup.rotation.x = this.obliquity    // tilt ecliptic by obliquity
+    this.zodiacGroup.rotation.z = 0;           // DO NOT counter-rotate by LST
 
     // -----------------------------------------------------------
     // 5. Convert angle → cartesian (MATCHING zodiac wheel)
     // -----------------------------------------------------------
     const placeOnZodiac = (deg) => {
-        // Zodiac glyphs use negative angles (counterclockwise)
-        // So we need to negate to match that coordinate system
-        const rad = THREE.MathUtils.degToRad(-deg);
+        const rad = THREE.MathUtils.degToRad(-deg);  // positive mapping
         return new THREE.Vector3(
             this.CE_RADIUS * Math.cos(rad),
             this.CE_RADIUS * Math.sin(rad),
-            0.05
+            0.0   // keep on the plane; small z offsets can be added later
         );
     };
 
@@ -685,7 +695,7 @@ export class ArmillaryScene {
     this.spheres.MC.position.copy(placeOnZodiac(MCdeg));
     this.spheres.IC.position.copy(placeOnZodiac(ICdeg));
     this.spheres.ASC.position.copy(placeOnZodiac(ACdeg));
-    this.spheres.DSC.position.copy(placeOnZodiac(DSCdeg));
+    this.spheres.DSC.position.copy(placeOnZodiac(DCdeg));
 
 
     // -----------------------------------------------------------
@@ -718,7 +728,7 @@ export class ArmillaryScene {
     );
 
     const sunDeg = THREE.MathUtils.radToDeg(sunLonRad);
-
+    console.log("Sun ecliptic lon (deg):", sunDeg);
     this.eclipticSunGroup.position.copy(placeOnZodiac(sunDeg));
 
     // optional: far-away realistic sun
