@@ -31,8 +31,7 @@ export class ArmillaryScene {
     this.initGroups();
     this.createFixedReferences();
     this.createCelestialEquator();
-    this.createEcliptic();
-    this.createZodiacWheel();
+    this.createEclipticZodiacWheel();
     this.createStarField();
     this.createSun();
     this.createAngleSpheres();
@@ -303,13 +302,12 @@ export class ArmillaryScene {
     addPoleLabel('SP', -this.CE_RADIUS - polarLineLength);
   }
 
-  createEcliptic() {
+  createEclipticZodiacWheel() {
     const ecliptic = new THREE.Mesh(
       new THREE.CircleGeometry(this.CE_RADIUS, 128),
       new THREE.MeshBasicMaterial({ color: 0x888888, side: THREE.DoubleSide, transparent: true, opacity: 0.1 })
     );
-    ecliptic.rotation.x = this.obliquity;
-    this.celestial.add(ecliptic);
+    this.zodiacGroup.add(ecliptic);
 
     const eclipticOutlinePoints = [];
     for (let i = 0; i <= 64; i++) {
@@ -320,11 +318,8 @@ export class ArmillaryScene {
       new THREE.BufferGeometry().setFromPoints(eclipticOutlinePoints),
       new THREE.LineBasicMaterial({ color: 0x888888, opacity: 0.5, transparent: true })
     );
-    eclipticOutline.rotation.x = this.obliquity;
-    this.celestial.add(eclipticOutline);
-  }
+    this.zodiacGroup.add(eclipticOutline);
 
-  createZodiacWheel() {
     // Radial lines
     const radialLineMaterial = new THREE.LineBasicMaterial({ color: 0x888888, opacity: 0.3, transparent: true });
     for (let i = 0; i < 12; i++) {
@@ -358,7 +353,7 @@ export class ArmillaryScene {
       const mat = new THREE.MeshBasicMaterial({ map: texture, transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthTest: false });
       const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 1.2), mat);
       mesh.position.set(zodiacRadius * Math.cos(angle), zodiacRadius * Math.sin(angle), 0);
-      mesh.rotation.z = angle + Math.PI / 2;
+      // mesh.rotation.z = angle + Math.PI / 2;
       this.zodiacGroup.add(mesh);
     });
   }
@@ -675,7 +670,7 @@ export class ArmillaryScene {
     // -----------------------------------------------------------
     // 4. Rotate the zodiac/ecliptic wheel
     // -----------------------------------------------------------
-    this.zodiacGroup.rotation.x = this.obliquity; // Obliquity tilt (X)
+    // this.zodiacGroup.rotation.x = this.obliquity; // Obliquity tilt (X)
     this.zodiacGroup.rotation.z = THREE.MathUtils.degToRad(ACdeg); // ASC is on eastern horizon (Z)
 
 
