@@ -259,6 +259,114 @@ const horizonOutline = new THREE.Line(
 horizonOutline.rotation.x = -Math.PI/2;
 scene.add(horizonOutline);
 
+// Compass rosette in center of horizon plane
+const compassRosetteGroup = new THREE.Group();
+
+// Cardinal direction lines (N, S, E, W) - longer and brighter
+const cardinalLineMaterial = new THREE.LineBasicMaterial({ color: 0x00ff00, opacity: 0.6, transparent: true });
+const cardinalLength = 1.2;
+
+// North (toward +Z)
+const northLine = new THREE.Line(
+  new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(0, 0, 0),
+    new THREE.Vector3(0, 0, cardinalLength)
+  ]),
+  cardinalLineMaterial
+);
+compassRosetteGroup.add(northLine);
+
+// South (toward -Z)
+const southLine = new THREE.Line(
+  new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(0, 0, 0),
+    new THREE.Vector3(0, 0, -cardinalLength)
+  ]),
+  cardinalLineMaterial
+);
+compassRosetteGroup.add(southLine);
+
+// East (toward +X)
+const eastLine = new THREE.Line(
+  new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(0, 0, 0),
+    new THREE.Vector3(cardinalLength, 0, 0)
+  ]),
+  cardinalLineMaterial
+);
+compassRosetteGroup.add(eastLine);
+
+// West (toward -X)
+const westLine = new THREE.Line(
+  new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(0, 0, 0),
+    new THREE.Vector3(-cardinalLength, 0, 0)
+  ]),
+  cardinalLineMaterial
+);
+compassRosetteGroup.add(westLine);
+
+// Intercardinal direction lines (NE, SE, SW, NW) - shorter and dimmer
+const intercardinalLineMaterial = new THREE.LineBasicMaterial({ color: 0x00ff00, opacity: 0.3, transparent: true });
+const intercardinalLength = 0.8;
+
+// NE
+const neLine = new THREE.Line(
+  new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(0, 0, 0),
+    new THREE.Vector3(intercardinalLength * Math.SQRT1_2, 0, intercardinalLength * Math.SQRT1_2)
+  ]),
+  intercardinalLineMaterial
+);
+compassRosetteGroup.add(neLine);
+
+// SE
+const seLine = new THREE.Line(
+  new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(0, 0, 0),
+    new THREE.Vector3(intercardinalLength * Math.SQRT1_2, 0, -intercardinalLength * Math.SQRT1_2)
+  ]),
+  intercardinalLineMaterial
+);
+compassRosetteGroup.add(seLine);
+
+// SW
+const swLine = new THREE.Line(
+  new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(0, 0, 0),
+    new THREE.Vector3(-intercardinalLength * Math.SQRT1_2, 0, -intercardinalLength * Math.SQRT1_2)
+  ]),
+  intercardinalLineMaterial
+);
+compassRosetteGroup.add(swLine);
+
+// NW
+const nwLine = new THREE.Line(
+  new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(0, 0, 0),
+    new THREE.Vector3(-intercardinalLength * Math.SQRT1_2, 0, intercardinalLength * Math.SQRT1_2)
+  ]),
+  intercardinalLineMaterial
+);
+compassRosetteGroup.add(nwLine);
+
+// Add small center circle
+const centerCirclePoints = [];
+const centerRadius = 0.15;
+for (let i = 0; i <= 32; i++) {
+  const angle = (i / 32) * Math.PI * 2;
+  centerCirclePoints.push(new THREE.Vector3(centerRadius * Math.cos(angle), 0, centerRadius * Math.sin(angle)));
+}
+const centerCircle = new THREE.Line(
+  new THREE.BufferGeometry().setFromPoints(centerCirclePoints),
+  new THREE.LineBasicMaterial({ color: 0x00ff00, opacity: 0.5, transparent: true })
+);
+compassRosetteGroup.add(centerCircle);
+
+// Position at horizon level (Y = 0.01 to be slightly above the horizon plane)
+compassRosetteGroup.position.y = 0.01;
+scene.add(compassRosetteGroup);
+
 // Meridian outline (no filled plane, only outline)
 const meridianOutlinePoints = [];
 for (let i = 0; i <= 64; i++) {
