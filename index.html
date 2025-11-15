@@ -539,6 +539,9 @@ function addPoleLabel(name,z){
 addPoleLabel('NP', CE_RADIUS+polarLineLength);
 addPoleLabel('SP', -CE_RADIUS-polarLineLength);
 
+// ------------------- Constants for Assets -------------------
+const SUN_TEXTURE_PATH = './images/sun_texture.jpg';
+
 // ------------------- Star Map and Constellations -------------------
 // Star data: [name, RA (hours), Dec (degrees), magnitude, constellation]
 const starData = [
@@ -787,17 +790,21 @@ const bgStarField = new THREE.Points(bgStarGeometry, bgStarMaterial);
 celestial.add(bgStarField);
 
 // ------------------- Sun on Ecliptic (marker) -------------------
-// Load sun texture for ecliptic marker sun
+// Load sun texture (shared for both ecliptic marker and distant sun)
 const textureLoader = new THREE.TextureLoader();
+// console.log('Attempting to load sun texture from:', SUN_TEXTURE_PATH);
 const sunTextureEcliptic = textureLoader.load(
-  'https://images.unsplash.com/photo-1614642264762-d0a3b8bf3700?w=1024',
-  (texture) => {
-    console.log('Ecliptic sun texture loaded');
-  },
-  undefined,
-  (error) => {
-    console.warn('Could not load ecliptic sun texture, using color instead');
-  }
+  SUN_TEXTURE_PATH,
+  // (texture) => {
+  //   console.log('✓ Sun texture loaded successfully!', texture);
+  // },
+  // (progress) => {
+  //   console.log('Loading sun texture:', (progress.loaded / progress.total * 100).toFixed(0) + '%');
+  // },
+  // (error) => {
+  //   console.error('✗ Failed to load sun texture:', error);
+  //   console.error('Path attempted:', SUN_TEXTURE_PATH);
+  // }
 );
 
 const eclipticSunRadius = 0.15;
@@ -806,16 +813,16 @@ const sun = new THREE.Mesh(
   new THREE.SphereGeometry(eclipticSunRadius, 32, 32),
   new THREE.MeshBasicMaterial({
     map: sunTextureEcliptic,
-    color: 0xffeecc // Slight warm tint
+    color: 0xffaa44 // Orange tint for more realistic sun color
   })
 );
 
 // Add glow layers for ecliptic sun (similar to distant sun but scaled)
 const eclipticSunGlowLayers = [
-  { size: eclipticSunRadius * 1.15, opacity: 0.7, color: 0xffff99 },  // Inner corona
-  { size: eclipticSunRadius * 1.4, opacity: 0.5, color: 0xffcc66 },   // Middle corona
-  { size: eclipticSunRadius * 2.0, opacity: 0.3, color: 0xff9933 },   // Outer corona
-  { size: eclipticSunRadius * 3.0, opacity: 0.15, color: 0xff6600 }   // Extended corona
+  { size: eclipticSunRadius * 1.15, opacity: 0.1, color: 0xffff99 },  // Inner corona
+  { size: eclipticSunRadius * 1.4, opacity: 0.1, color: 0xffcc66 },   // Middle corona
+  // { size: eclipticSunRadius * 2.0, opacity: 0.05, color: 0xff9933 },   // Outer corona
+  // { size: eclipticSunRadius * 3.0, opacity: 0.05, color: 0xff6600 }   // Extended corona
 ];
 
 const eclipticSunGroup = new THREE.Group();
@@ -854,26 +861,14 @@ const sunDistance = CE_RADIUS * 50; // Place sun far beyond celestial sphere
 // apparent_diameter = 2 * distance * tan(angular_diameter / 2)
 const realisticSunRadius = sunDistance * Math.tan(sunAngularDiameter / 2);
 
-// Load sun texture for distant sun
-const sunTexture = textureLoader.load(
-  'https://images.unsplash.com/photo-1614642264762-d0a3b8bf3700?w=1024',
-  // onLoad callback - add some brightness to the material
-  (texture) => {
-    console.log('Sun texture loaded');
-  },
-  // onProgress callback
-  undefined,
-  // onError callback
-  (error) => {
-    console.warn('Could not load sun texture, using color instead');
-  }
-);
+// Reuse the same texture for distant sun (already loaded above)
+const sunTexture = sunTextureEcliptic;
 
 const realisticSun = new THREE.Mesh(
   new THREE.SphereGeometry(realisticSunRadius, 64, 64),
   new THREE.MeshBasicMaterial({
-    map: sunTexture,
-    color: 0xffeecc // Slight warm tint
+    // map: sunTexture,
+    color: 0xffaa44 // Orange tint for more realistic sun color
   })
 );
 
