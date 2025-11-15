@@ -668,7 +668,9 @@ export class ArmillaryScene {
     // 5. Convert angle → cartesian (MATCHING zodiac wheel)
     // -----------------------------------------------------------
     const placeOnZodiac = (deg) => {
-        const rad = THREE.MathUtils.degToRad(deg);
+        // Zodiac glyphs use negative angles (counterclockwise)
+        // So we need to negate to match that coordinate system
+        const rad = THREE.MathUtils.degToRad(-deg);
         return new THREE.Vector3(
             this.CE_RADIUS * Math.cos(rad),
             this.CE_RADIUS * Math.sin(rad),
