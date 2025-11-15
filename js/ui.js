@@ -1,5 +1,7 @@
 // ui.js - UI input handling, autocomplete, geocoding, datetime parsing
 
+import * as chrono from 'chrono-node';
+
 export class DateTimeParser {
   constructor(inputElement, onDateTimeParsed) {
     this.input = inputElement;
@@ -46,12 +48,9 @@ export class DateTimeParser {
     if (customParsed) return customParsed;
 
     // Use chrono-node for natural language parsing
-    // Note: chrono is loaded globally from importmap, not as ES6 module
-    if (typeof window.chrono !== 'undefined') {
-      const results = window.chrono.parse(text);
-      if (results.length > 0) {
-        return results[0].start.date();
-      }
+    const results = chrono.parse(text);
+    if (results.length > 0) {
+      return results[0].start.date();
     }
 
     return null;

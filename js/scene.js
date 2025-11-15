@@ -643,6 +643,8 @@ export class ArmillaryScene {
 
     let { AC: ACdeg, DSC: DSCdeg } = astroCalc.calculateAscendant(lstRad, latRad);
 
+    console.log('Calculated angles - LST:', LSTdeg, 'MC:', MCdeg, 'AC:', ACdeg, 'Lat:', currentLatitude);
+
     // Southern Hemisphere correction
     if (currentLatitude < 0) {
       ACdeg = (ACdeg + 180) % 360;
