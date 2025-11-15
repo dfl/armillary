@@ -17,6 +17,7 @@ console.log('Scene created');
 
 // Update function
 const updateVisualization = () => {
+  console.log('updateVisualization called with currentYear:', uiManager.currentYear);
   scene.updateSphere(
     astroCalc,
     uiManager.currentLatitude,

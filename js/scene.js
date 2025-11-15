@@ -6,9 +6,6 @@ import { starData, constellationLines } from './stardata.js';
 
 export class ArmillaryScene {
   constructor() {
-    this.debugShow('Constructor starting');
-
-    console.log('ArmillaryScene constructor called');
     this.OBLIQUITY = 23.44 * Math.PI / 180;
     this.CE_RADIUS = 3;
     this.SUN_TEXTURE_PATH = './images/sun_texture.jpg';
@@ -30,50 +27,17 @@ export class ArmillaryScene {
     this.eclipticSunGroup = null;
     this.realisticSunGroup = null;
 
-    try {
-      this.debugShow('initScene...');
-      this.initScene();
-      this.debugShow('initGroups...');
-      this.initGroups();
-      this.debugShow('createFixedReferences...');
-      this.createFixedReferences();
-      this.debugShow('createCelestialEquator...');
-      this.createCelestialEquator();
-      this.debugShow('createEcliptic...');
-      this.createEcliptic();
-      this.debugShow('createZodiacWheel...');
-      this.createZodiacWheel();
-      this.debugShow('createStarField...');
-      this.createStarField();
-      this.debugShow('createSun...');
-      this.createSun();
-      this.debugShow('createAngleSpheres...');
-      this.createAngleSpheres();
-      this.debugShow('createAngleLabels...');
-      this.createAngleLabels();
-      this.debugShow('setupStarHover...');
-      this.setupStarHover();
-      this.debugShow('Construction complete!');
-    } catch (error) {
-      this.debugShow('ERROR: ' + error.message);
-      throw error;
-    }
-  }
-
-  debugShow(message) {
-    const debugDiv = document.createElement('div');
-    debugDiv.style.position = 'fixed';
-    debugDiv.style.top = '50%';
-    debugDiv.style.left = '50%';
-    debugDiv.style.transform = 'translate(-50%, -50%)';
-    debugDiv.style.background = 'red';
-    debugDiv.style.color = 'white';
-    debugDiv.style.padding = '20px';
-    debugDiv.style.zIndex = '10000';
-    debugDiv.style.fontSize = '20px';
-    debugDiv.innerHTML = message;
-    document.body.appendChild(debugDiv);
-    setTimeout(() => debugDiv.remove(), 1000);
+    this.initScene();
+    this.initGroups();
+    this.createFixedReferences();
+    this.createCelestialEquator();
+    this.createEcliptic();
+    this.createZodiacWheel();
+    this.createStarField();
+    this.createSun();
+    this.createAngleSpheres();
+    this.createAngleLabels();
+    this.setupStarHover();
   }
 
   initScene() {
@@ -388,29 +352,6 @@ export class ArmillaryScene {
   }
 
   createStarField() {
-    // Write debug info to page
-    const debugDiv = document.createElement('div');
-    debugDiv.style.position = 'fixed';
-    debugDiv.style.top = '50%';
-    debugDiv.style.left = '50%';
-    debugDiv.style.transform = 'translate(-50%, -50%)';
-    debugDiv.style.background = 'red';
-    debugDiv.style.color = 'white';
-    debugDiv.style.padding = '20px';
-    debugDiv.style.zIndex = '10000';
-    debugDiv.style.fontSize = '20px';
-    debugDiv.innerHTML = `createStarField called!<br>starData: ${starData ? 'exists' : 'undefined'}<br>length: ${starData ? starData.length : 'N/A'}`;
-    document.body.appendChild(debugDiv);
-
-    console.log('createStarField called');
-    console.log('starData:', starData);
-    console.log('starData length:', starData ? starData.length : 'undefined');
-
-    if (!starData || starData.length === 0) {
-      alert('ERROR: starData is empty or undefined!');
-      return;
-    }
-
     this.starGroup = new THREE.Group();
     this.constellationLineGroup = new THREE.Group();
 
@@ -489,11 +430,6 @@ export class ArmillaryScene {
         this.constellationLineGroup.add(line);
       }
     });
-
-    console.log('Created', Object.keys(this.starMeshes).length, 'stars');
-    console.log('Created', this.constellationLineGroup.children.length, 'constellation lines');
-
-    alert(`Created ${Object.keys(this.starMeshes).length} stars and ${this.constellationLineGroup.children.length} constellation lines`);
 
     this.celestial.add(this.starGroup);
     this.celestial.add(this.constellationLineGroup);
@@ -681,93 +617,127 @@ export class ArmillaryScene {
   }
 
   updateSphere(astroCalc, currentLatitude, currentLongitude, currentTime, currentDay, currentYear) {
+    // -----------------------------------------------------------
+    // 1. Convert inputs
+    // -----------------------------------------------------------
     const latRad = THREE.MathUtils.degToRad(currentLatitude);
 
-    // Calculate LST
-    const LST = astroCalc.calculateLST(currentDay, currentTime, currentLongitude, currentYear);
-    const lstAngle = THREE.MathUtils.degToRad(LST);
-    const lstRad = lstAngle;
+    // LST in DEGREES
+    const LSTdeg = astroCalc.calculateLST(currentDay, currentTime, currentLongitude, currentYear);
+    const lstRad = THREE.MathUtils.degToRad(LSTdeg);
 
-    // Rotate celestial sphere
-    this.celestial.rotation.order = 'XZY';
-    this.celestial.rotation.x = -latRad;
-    this.celestial.rotation.z = lstAngle;
+
+    // -----------------------------------------------------------
+    // 2. Rotate the sky (celestial sphere)
+    // -----------------------------------------------------------
+    this.celestial.rotation.order = "XZY";
+    this.celestial.rotation.x = -latRad;   // tilt sky for observer latitude
+    this.celestial.rotation.z = lstRad;    // rotate sky by LST
     this.celestial.rotation.y = 0;
 
-    // Calculate angles
-    const MC = astroCalc.calculateMC(lstRad);
-    const IC = (MC + 180) % 360;
-    const { AC, DSC } = astroCalc.calculateAscendant(lstRad, latRad);
+    // -----------------------------------------------------------
+    // 3. Get ASC / DSC / MC / IC (all returned in DEGREES)
+    // -----------------------------------------------------------
+    const MCdeg = astroCalc.calculateMC(lstRad);
+    const ICdeg = (MCdeg + 180) % 360;
 
-    // Update display
-    document.getElementById('lstValue').textContent = astroCalc.lstToTimeString(LST);
-    document.getElementById('mcValue').textContent = astroCalc.toZodiacString(MC);
-    document.getElementById('acValue').textContent = astroCalc.toZodiacString(AC);
+    let { AC: ACdeg, DSC: DSCdeg } = astroCalc.calculateAscendant(lstRad, latRad);
 
-    // Position spheres
-    const mcRad = THREE.MathUtils.degToRad(MC);
-    const icRad = THREE.MathUtils.degToRad(IC);
-    const acRad = THREE.MathUtils.degToRad(AC);
-    const dscRad = THREE.MathUtils.degToRad(DSC);
+    // Southern Hemisphere correction
+    if (currentLatitude < 0) {
+      ACdeg = (ACdeg + 180) % 360;
+      DSCdeg = (DSCdeg + 180) % 360;
+    }
 
-    this.spheres["MC"].position.set(this.CE_RADIUS * Math.cos(-mcRad), this.CE_RADIUS * Math.sin(-mcRad), 0.05);
-    this.spheres["IC"].position.set(this.CE_RADIUS * Math.cos(-icRad), this.CE_RADIUS * Math.sin(-icRad), 0.05);
-    this.spheres["ASC"].position.set(this.CE_RADIUS * Math.cos(-acRad), this.CE_RADIUS * Math.sin(-acRad), 0.05);
-    this.spheres["DSC"].position.set(this.CE_RADIUS * Math.cos(-dscRad), this.CE_RADIUS * Math.sin(-dscRad), 0.05);
 
-    // Rotate zodiac wheel
-    this.zodiacGroup.rotation.z = -lstAngle + acRad;
 
-    // Update labels
-    const mcWorldPos = new THREE.Vector3();
-    this.spheres["MC"].getWorldPosition(mcWorldPos);
-    this.angleLabels.MC.position.copy(mcWorldPos);
-    this.angleLabels.MC.position.y += 0.3;
+    // -----------------------------------------------------------
+    // 4. Rotate the zodiac/ecliptic wheel
+    // -----------------------------------------------------------
+    // OBLIQUITY tilt (apply ONCE)
+    this.zodiacGroup.rotation.x = this.OBLIQUITY;
 
-    const icWorldPos = new THREE.Vector3();
-    this.spheres["IC"].getWorldPosition(icWorldPos);
-    this.angleLabels.IC.position.copy(icWorldPos);
-    this.angleLabels.IC.position.y -= 0.3;
+    // Rotate wheel by sidereal time only
+    this.zodiacGroup.rotation.z = -lstRad;
 
-    const ascWorldPos = new THREE.Vector3();
-    this.spheres["ASC"].getWorldPosition(ascWorldPos);
-    this.angleLabels.ASC.position.copy(ascWorldPos);
-    this.angleLabels.ASC.position.x += 0.3;
 
-    const dscWorldPos = new THREE.Vector3();
-    this.spheres["DSC"].getWorldPosition(dscWorldPos);
-    this.angleLabels.DSC.position.copy(dscWorldPos);
-    this.angleLabels.DSC.position.x -= 0.3;
+    // -----------------------------------------------------------
+    // 5. Convert angle → cartesian (MATCHING zodiac wheel)
+    // -----------------------------------------------------------
+    const placeOnZodiac = (deg) => {
+        const rad = THREE.MathUtils.degToRad(deg);
+        return new THREE.Vector3(
+            this.CE_RADIUS * Math.cos(rad),
+            this.CE_RADIUS * Math.sin(rad),
+            0.05
+        );
+    };
 
-    // Calculate and position sun
+
+    // -----------------------------------------------------------
+    // 6. Place MC / IC / ASC / DSC spheres
+    // -----------------------------------------------------------
+    this.spheres.MC.position.copy(placeOnZodiac(MCdeg));
+    this.spheres.IC.position.copy(placeOnZodiac(ICdeg));
+    this.spheres.ASC.position.copy(placeOnZodiac(ACdeg));
+    this.spheres.DSC.position.copy(placeOnZodiac(DSCdeg));
+
+
+    // -----------------------------------------------------------
+    // 7. Labels follow the spheres in world space
+    // -----------------------------------------------------------
+    for (const key of ["MC", "IC", "ASC", "DSC"]) {
+        const worldPos = new THREE.Vector3();
+        this.spheres[key].getWorldPosition(worldPos);
+
+        // small offset
+        if (key === "MC") worldPos.y += 0.2;
+        if (key === "IC") worldPos.y -= 0.2;
+        if (key === "ASC") worldPos.x += 0.2;
+        if (key === "DSC") worldPos.x -= 0.2;
+
+        this.angleLabels[key].position.copy(worldPos);
+    }
+
+
+    // -----------------------------------------------------------
+    // 8. SUN POSITION
+    // -----------------------------------------------------------
     const { month, day } = astroCalc.dayOfYearToMonthDay(currentDay);
     const hours = Math.floor(currentTime / 60);
     const minutes = currentTime % 60;
-    const sunLonRad = astroCalc.calculateSunPosition(currentDay, currentYear, month, day, hours, minutes);
 
-    this.eclipticSunGroup.position.set(
-      this.CE_RADIUS * Math.cos(-sunLonRad),
-      this.CE_RADIUS * Math.sin(-sunLonRad),
-      0.05
+    const sunLonRad = astroCalc.calculateSunPosition(
+        currentDay, currentYear, month, day, hours, minutes
     );
 
-    const sunDistance = this.CE_RADIUS * 50;
+    const sunDeg = THREE.MathUtils.radToDeg(sunLonRad);
+
+    this.eclipticSunGroup.position.copy(placeOnZodiac(sunDeg));
+
+    // optional: far-away realistic sun
+    const distance = this.CE_RADIUS * 50;
+    const rad = THREE.MathUtils.degToRad(sunDeg);
     this.realisticSunGroup.position.set(
-      sunDistance * Math.cos(-sunLonRad),
-      sunDistance * Math.sin(-sunLonRad),
-      0
+        Math.cos(rad) * distance,
+        Math.sin(rad) * distance,
+        0
     );
 
-    // Update sun position display
-    const sunLonDeg = THREE.MathUtils.radToDeg(sunLonRad);
-    const sunLonNormalized = ((sunLonDeg % 360) + 360) % 360;
-    document.getElementById('sunPositionValue').textContent = astroCalc.toZodiacString(sunLonNormalized);
 
-    // Calculate and display sunrise/sunset
+    // -----------------------------------------------------------
+    // 9. UI updates
+    // -----------------------------------------------------------
+    document.getElementById("lstValue").textContent = astroCalc.lstToTimeString(LSTdeg);
+    document.getElementById("mcValue").textContent = astroCalc.toZodiacString(MCdeg);
+    document.getElementById("acValue").textContent = astroCalc.toZodiacString(ACdeg);
+    document.getElementById("sunPositionValue").textContent = astroCalc.toZodiacString(sunDeg);
+
     const riseSetData = astroCalc.calculateRiseSet(sunLonRad, currentLatitude, currentLongitude, currentDay);
-    document.getElementById('sunriseValue').textContent = riseSetData.sunrise;
-    document.getElementById('sunsetValue').textContent = riseSetData.sunset;
+    document.getElementById("sunriseValue").textContent = riseSetData.sunrise;
+    document.getElementById("sunsetValue").textContent = riseSetData.sunset;
   }
+
 
   toggleStarfield(visible) {
     this.starGroup.visible = visible;
@@ -780,4 +750,31 @@ export class ArmillaryScene {
     this.controls.update();
     this.renderer.render(this.scene, this.camera);
   }
+
+  addDiagnosticMarkers() {
+    const material = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+    const geom = new THREE.SphereGeometry(0.06, 16, 16);
+
+    const angles = {
+        "0° Aries": 0,
+        "90° Cancer": 90,
+        "180° Libra": 180,
+        "270° Capricorn": 270
+    };
+
+    for (const [label, deg] of Object.entries(angles)) {
+        const rad = THREE.MathUtils.degToRad(deg);
+
+        const sphere = new THREE.Mesh(geom, material);
+        sphere.position.set(
+            this.CE_RADIUS * Math.cos(rad),
+            this.CE_RADIUS * Math.sin(rad),
+            0
+        );
+
+        this.zodiacGroup.add(sphere);
+        console.log("Placed diagnostic marker:", label, deg);
+    }
+  }
+
 }

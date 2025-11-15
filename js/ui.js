@@ -245,7 +245,9 @@ export class UIManager {
     const day = date.getDate();
     const year = date.getFullYear();
 
+    console.log('updateSlidersFromDate called with year:', year);
     this.currentYear = year;
+    console.log('this.currentYear set to:', this.currentYear);
 
     const isLeapYear = (year % 4 === 0 && year % 100 !== 0) || (year % 400 === 0);
     const monthDays = isLeapYear
