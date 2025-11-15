@@ -71,6 +71,8 @@
   <br>
   Day of Year: <input type="range" id="daySlider" min="1" max="365" value="1" step="1">
   <span id="dayValue">Jan 1</span>
+  <br>
+  <label><input type="checkbox" id="starfieldToggle" checked> Show Starfield</label>
 </div>
 
 <div id="angles">
@@ -213,7 +215,7 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x111111);
 
 const camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 1000);
-camera.position.set(4,4,4);
+camera.position.set(0,2.5,-6);
 
 const renderer = new THREE.WebGLRenderer({antialias:true});
 renderer.setSize(window.innerWidth, window.innerHeight);
@@ -221,6 +223,9 @@ document.body.appendChild(renderer.domElement);
 
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
+
+// Set camera to look at origin
+camera.lookAt(0, 0, 0);
 
 // ------------------- Constants -------------------
 const OBLIQUITY = 23.44 * Math.PI/180;
@@ -396,6 +401,220 @@ function addPoleLabel(name,z){
 }
 addPoleLabel('NP', CE_RADIUS+polarLineLength);
 addPoleLabel('SP', -CE_RADIUS-polarLineLength);
+
+// ------------------- Star Map and Constellations -------------------
+// Star data: [name, RA (hours), Dec (degrees), magnitude]
+const starData = [
+  // Ursa Major (Big Dipper)
+  ['Dubhe', 11.062, 61.75, 1.8],
+  ['Merak', 11.031, 56.38, 2.4],
+  ['Phecda', 11.897, 53.69, 2.4],
+  ['Megrez', 12.257, 57.03, 3.3],
+  ['Alioth', 12.900, 55.96, 1.8],
+  ['Mizar', 13.399, 54.93, 2.2],
+  ['Alkaid', 13.792, 49.31, 1.9],
+  // Orion
+  ['Betelgeuse', 5.919, 7.41, 0.5],
+  ['Rigel', 5.242, -8.20, 0.1],
+  ['Bellatrix', 5.418, 6.35, 1.6],
+  ['Mintaka', 5.533, -0.30, 2.2],
+  ['Alnilam', 5.603, -1.20, 1.7],
+  ['Alnitak', 5.679, -1.94, 1.8],
+  ['Saiph', 5.796, -9.67, 2.1],
+  // Ursa Minor (Little Dipper)
+  ['Polaris', 2.530, 89.26, 2.0],
+  ['Kochab', 14.845, 74.16, 2.1],
+  ['Pherkad', 15.345, 71.83, 3.0],
+  // Cassiopeia
+  ['Schedar', 0.675, 56.54, 2.2],
+  ['Caph', 0.153, 59.15, 2.3],
+  ['Cih', 0.945, 60.72, 2.5],
+  ['Ruchbah', 1.430, 60.24, 2.7],
+  ['Segin', 1.911, 63.67, 3.4],
+  // Leo
+  ['Regulus', 10.139, 11.97, 1.4],
+  ['Denebola', 11.817, 14.57, 2.1],
+  ['Algieba', 10.333, 19.84, 2.6],
+  // Taurus
+  ['Aldebaran', 4.599, 16.51, 0.9],
+  ['Elnath', 5.438, 28.61, 1.7],
+  // Gemini
+  ['Pollux', 7.755, 28.03, 1.2],
+  ['Castor', 7.577, 31.89, 1.6],
+  // Canis Major
+  ['Sirius', 6.752, -16.72, -1.5],
+  ['Adhara', 6.977, -28.97, 1.5],
+  // Boötes
+  ['Arcturus', 14.261, 19.18, -0.05],
+  // Virgo
+  ['Spica', 13.420, -11.16, 1.0],
+  // Lyra
+  ['Vega', 18.615, 38.78, 0.0],
+  // Aquila
+  ['Altair', 19.846, 8.87, 0.8],
+  // Cygnus
+  ['Deneb', 20.690, 45.28, 1.3],
+  ['Albireo', 19.512, 27.96, 3.1],
+  // Scorpius
+  ['Antares', 16.490, -26.43, 1.1],
+  // Crux (Southern Cross)
+  ['Acrux', 12.443, -63.10, 0.8],
+  ['Mimosa', 12.795, -59.69, 1.3],
+  ['Gacrux', 12.519, -57.11, 1.6],
+  // Centaurus
+  ['Alpha Centauri', 14.661, -60.84, -0.3],
+  ['Beta Centauri', 14.064, -60.37, 0.6],
+  // Eridanus
+  ['Achernar', 1.629, -57.24, 0.5],
+  // Carina
+  ['Canopus', 6.399, -52.70, -0.7]
+];
+
+// Constellation line connections: [star1_name, star2_name]
+const constellationLines = [
+  // Big Dipper
+  ['Dubhe', 'Merak'],
+  ['Merak', 'Phecda'],
+  ['Phecda', 'Megrez'],
+  ['Megrez', 'Alioth'],
+  ['Alioth', 'Mizar'],
+  ['Mizar', 'Alkaid'],
+  ['Megrez', 'Dubhe'],
+  // Little Dipper
+  ['Polaris', 'Kochab'],
+  ['Kochab', 'Pherkad'],
+  // Orion
+  ['Betelgeuse', 'Bellatrix'],
+  ['Bellatrix', 'Mintaka'],
+  ['Mintaka', 'Alnilam'],
+  ['Alnilam', 'Alnitak'],
+  ['Alnitak', 'Saiph'],
+  ['Saiph', 'Rigel'],
+  ['Rigel', 'Betelgeuse'],
+  ['Betelgeuse', 'Mintaka'],
+  ['Alnilam', 'Rigel'],
+  // Cassiopeia (W shape)
+  ['Caph', 'Schedar'],
+  ['Schedar', 'Cih'],
+  ['Cih', 'Ruchbah'],
+  ['Ruchbah', 'Segin'],
+  // Leo (simplified)
+  ['Regulus', 'Algieba'],
+  ['Regulus', 'Denebola'],
+  // Gemini
+  ['Castor', 'Pollux'],
+  // Summer Triangle
+  ['Vega', 'Altair'],
+  ['Altair', 'Deneb'],
+  ['Deneb', 'Vega'],
+  // Cygnus (Northern Cross)
+  ['Deneb', 'Albireo'],
+  // Southern Cross
+  ['Acrux', 'Gacrux'],
+  ['Mimosa', 'Gacrux']
+];
+
+// Convert RA/Dec to cartesian coordinates on celestial sphere
+function raDecToVector3(ra_hours, dec_deg, radius) {
+  // RA: 0-24 hours, convert to radians (0-2π)
+  // Dec: -90 to +90 degrees
+  const ra = (ra_hours / 24) * Math.PI * 2;
+  const dec = THREE.MathUtils.degToRad(dec_deg);
+
+  // Spherical to Cartesian conversion
+  // In celestial coordinates: RA is angle in equatorial plane, Dec is elevation
+  // X-Y plane is celestial equator, Z is towards north celestial pole
+  const x = radius * Math.cos(dec) * Math.cos(ra);
+  const y = radius * Math.cos(dec) * Math.sin(ra);
+  const z = radius * Math.sin(dec);
+
+  return new THREE.Vector3(x, y, z);
+}
+
+// Create star field
+const starGroup = new THREE.Group();
+const starMeshes = {};
+
+starData.forEach(([name, ra, dec, mag]) => {
+  // Star size based on magnitude (brighter = larger)
+  // Magnitude scale is inverted (smaller number = brighter)
+  const size = Math.max(0.02, 0.12 - mag * 0.02);
+
+  // Star brightness based on magnitude
+  const brightness = Math.max(0.3, 1.0 - mag * 0.15);
+
+  const starGeometry = new THREE.SphereGeometry(size, 8, 8);
+  const starMaterial = new THREE.MeshBasicMaterial({
+    color: new THREE.Color(brightness, brightness, brightness * 0.95)
+  });
+
+  const star = new THREE.Mesh(starGeometry, starMaterial);
+  const position = raDecToVector3(ra, dec, CE_RADIUS * 3.0);
+  star.position.copy(position);
+
+  starGroup.add(star);
+  starMeshes[name] = star;
+});
+
+// Add constellation lines
+const constellationLineGroup = new THREE.Group();
+const lineMaterial = new THREE.LineBasicMaterial({
+  color: 0x4444ff,
+  transparent: true,
+  opacity: 0.4
+});
+
+constellationLines.forEach(([star1, star2]) => {
+  if (starMeshes[star1] && starMeshes[star2]) {
+    const points = [
+      starMeshes[star1].position.clone(),
+      starMeshes[star2].position.clone()
+    ];
+    const lineGeometry = new THREE.BufferGeometry().setFromPoints(points);
+    const line = new THREE.Line(lineGeometry, lineMaterial);
+    constellationLineGroup.add(line);
+  }
+});
+
+// Add star field and constellation lines to celestial sphere
+celestial.add(starGroup);
+celestial.add(constellationLineGroup);
+
+// Add background star field (smaller, dimmer stars for atmosphere)
+const bgStarCount = 800;
+const bgStarGeometry = new THREE.BufferGeometry();
+const bgStarPositions = [];
+const bgStarColors = [];
+
+for (let i = 0; i < bgStarCount; i++) {
+  // Random position on sphere
+  const theta = Math.random() * Math.PI * 2;
+  const phi = Math.acos(2 * Math.random() - 1);
+  const r = CE_RADIUS * 2.9;
+
+  const x = r * Math.sin(phi) * Math.cos(theta);
+  const y = r * Math.sin(phi) * Math.sin(theta);
+  const z = r * Math.cos(phi);
+
+  bgStarPositions.push(x, y, z);
+
+  // Vary brightness
+  const brightness = 0.3 + Math.random() * 0.5;
+  bgStarColors.push(brightness, brightness, brightness * 0.98);
+}
+
+bgStarGeometry.setAttribute('position', new THREE.Float32BufferAttribute(bgStarPositions, 3));
+bgStarGeometry.setAttribute('color', new THREE.Float32BufferAttribute(bgStarColors, 3));
+
+const bgStarMaterial = new THREE.PointsMaterial({
+  size: 0.03,
+  vertexColors: true,
+  transparent: true,
+  opacity: 0.8
+});
+
+const bgStarField = new THREE.Points(bgStarGeometry, bgStarMaterial);
+celestial.add(bgStarField);
 
 // ------------------- Sun -------------------
 const sun = new THREE.Mesh(
@@ -811,10 +1030,10 @@ function addAngle(name,color){
   scene.add(mesh); // Add to scene, not celestial - these are horizon-fixed angles
   spheres[name]=mesh;
 }
-addAngle("MC",0xff0000);
-addAngle("IC",0xff0000);
-addAngle("ASC",0xff0000);
-addAngle("DSC",0xff0000);
+addAngle("MC",0x888888);
+addAngle("IC",0x888888);
+addAngle("ASC",0x888888);
+addAngle("DSC",0x888888);
 
 // ------------------- Angle Labels -------------------
 function addAngleLabel(name) {
@@ -916,6 +1135,15 @@ lonInput.addEventListener('keydown', (e) => {
     e.preventDefault();
     parseLonInput();
   }
+});
+
+// ------------------- Starfield Toggle -------------------
+const starfieldToggle = document.getElementById('starfieldToggle');
+starfieldToggle.addEventListener('change', () => {
+  const visible = starfieldToggle.checked;
+  starGroup.visible = visible;
+  constellationLineGroup.visible = visible;
+  bgStarField.visible = visible;
 });
 
 // ------------------- Animate -------------------
