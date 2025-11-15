@@ -328,7 +328,7 @@ export class ArmillaryScene {
     // Radial lines
     const radialLineMaterial = new THREE.LineBasicMaterial({ color: 0x888888, opacity: 0.3, transparent: true });
     for (let i = 0; i < 12; i++) {
-      const angle = THREE.MathUtils.degToRad(-i * 30);
+      const angle = THREE.MathUtils.degToRad(i * 30);
       const radialLine = new THREE.Line(
         new THREE.BufferGeometry().setFromPoints([
           new THREE.Vector3(0, 0, 0),
@@ -344,7 +344,7 @@ export class ArmillaryScene {
     const zodiacGlyphs = Array.from({ length: 12 }, (_, i) => String.fromCodePoint(0x2648 + i) + '\uFE0E');
 
     zodiacGlyphs.forEach((glyph, i) => {
-      const angle = THREE.MathUtils.degToRad(-(i * 30 + 15));
+      const angle = THREE.MathUtils.degToRad(i * 30 + 15);
       const canvas = document.createElement('canvas');
       canvas.width = 128;
       canvas.height = 128;
@@ -644,11 +644,15 @@ export class ArmillaryScene {
     console.log("LST (deg):", THREE.MathUtils.radToDeg(lstRad));
 
 
+    this.celestial.rotation.order     =
+    this.zodiacGroup.rotation.order   =
+    "ZXY";    // safest for sky → local conversions
+
+
     // -----------------------------------------------------------
     // 2. Rotate the sky (celestial sphere)
     // -----------------------------------------------------------
-    this.celestial.rotation.order = "XZY";
-    this.celestial.rotation.x = -latRad;   // tilt sky for observer latitude
+    this.celestial.rotation.x = latRad;    // tilt sky for observer latitude
     this.celestial.rotation.z = lstRad;    // rotate sky by LST
     this.celestial.rotation.y = 0;
 
@@ -668,19 +672,18 @@ export class ArmillaryScene {
     }
 
 
-
     // -----------------------------------------------------------
     // 4. Rotate the zodiac/ecliptic wheel
     // -----------------------------------------------------------
-    this.zodiacGroup.rotation.order = "ZXY";   // explicit and safe order
-    this.zodiacGroup.rotation.x = this.obliquity    // tilt ecliptic by obliquity
-    this.zodiacGroup.rotation.z = 0;           // DO NOT counter-rotate by LST
+    this.zodiacGroup.rotation.x = this.obliquity; // Obliquity tilt (X)
+    this.zodiacGroup.rotation.z = THREE.MathUtils.degToRad(ACdeg); // ASC is on eastern horizon (Z)
+
 
     // -----------------------------------------------------------
     // 5. Convert angle → cartesian (MATCHING zodiac wheel)
     // -----------------------------------------------------------
     const placeOnZodiac = (deg) => {
-        const rad = THREE.MathUtils.degToRad(-deg);  // positive mapping
+        const rad = THREE.MathUtils.degToRad(deg);  // positive mapping
         return new THREE.Vector3(
             this.CE_RADIUS * Math.cos(rad),
             this.CE_RADIUS * Math.sin(rad),
@@ -740,6 +743,10 @@ export class ArmillaryScene {
         0
     );
 
+
+    const w = new THREE.Vector3();
+    this.spheres.MC.getWorldPosition(w); console.log("MC world", w);
+    this.spheres.ASC.getWorldPosition(w); console.log("ASC world", w);
 
     // -----------------------------------------------------------
     // 9. UI updates
