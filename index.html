@@ -51,38 +51,31 @@
   }
   #starInfo {
     position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
+    bottom: 10px;
+    right: 10px;
     color: white;
     font-family: sans-serif;
-    background: rgba(0,0,0,0.8);
-    padding: 20px 30px;
-    border-radius: 8px;
-    display: none;
-    text-align: center;
-    z-index: 1000;
-  }
-  #starInfo h2 {
-    margin: 0 0 10px 0;
-    font-size: 24px;
-  }
-  #starInfo p {
-    margin: 5px 0;
-    font-size: 16px;
-  }
-  #starInfo button {
-    margin-top: 15px;
-    padding: 8px 20px;
-    font-size: 14px;
-    cursor: pointer;
-    background: rgba(255,255,255,0.2);
-    color: white;
-    border: 1px solid white;
+    background: rgba(0,0,0,0.5);
+    padding: 12px;
     border-radius: 4px;
+    min-width: 200px;
+    z-index: 1000;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 500ms ease-in-out;
   }
-  #starInfo button:hover {
-    background: rgba(255,255,255,0.3);
+  #starInfo.visible {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  #starInfo .star-name {
+    font-weight: bold;
+    font-size: 18px;
+    margin-bottom: 4px;
+  }
+  #starInfo .constellation-name {
+    font-size: 14px;
+    color: #aaaaff;
   }
 </style>
 </head>
@@ -122,9 +115,8 @@
 </div>
 
 <div id="starInfo">
-  <h2 id="starName">Star Name</h2>
-  <p id="constellationName">Constellation</p>
-  <button id="closeStarInfo">Close</button>
+  <div class="star-name" id="starName">Star Name</div>
+  <div class="constellation-name" id="constellationName">Constellation</div>
 </div>
 
 <script type='text/javascript' src='./ephemeris-1.2.1.bundle.js' charset='utf-8'></script>
@@ -704,22 +696,34 @@ starData.forEach(([name, ra, dec, mag, constellation]) => {
   starGroup.add(star);
   starMeshes[name] = star;
 
-  // Add glow effect (larger, transparent sphere)
-  const glowSize = size * 3.5; // Glow is 3.5x the star size
-  const glowGeometry = new THREE.SphereGeometry(glowSize, 16, 16);
-  const glowMaterial = new THREE.MeshBasicMaterial({
-    color: new THREE.Color(brightness * 0.9, brightness * 0.9, brightness * 0.85),
-    transparent: true,
-    opacity: Math.max(0.15, 0.35 - mag * 0.03) // Brighter stars have more visible glow
+  // Add multiple glow layers for radiant effect (similar to sun)
+  // Base opacity on magnitude - brighter stars get more intense glows
+  const baseGlowOpacity = Math.max(0.15, 0.5 - mag * 0.06);
+
+  const starGlowLayers = [
+    { size: size * 1.5, opacity: baseGlowOpacity * 0.9, color: new THREE.Color(brightness, brightness, brightness * 0.98) },
+    { size: size * 2.5, opacity: baseGlowOpacity * 0.6, color: new THREE.Color(brightness * 0.95, brightness * 0.95, brightness * 0.9) },
+    { size: size * 4.0, opacity: baseGlowOpacity * 0.4, color: new THREE.Color(brightness * 0.9, brightness * 0.9, brightness * 0.85) },
+    { size: size * 6.0, opacity: baseGlowOpacity * 0.2, color: new THREE.Color(brightness * 0.85, brightness * 0.85, brightness * 0.8) }
+  ];
+
+  starGlowLayers.forEach((layer, index) => {
+    const glowGeometry = new THREE.SphereGeometry(layer.size, 16, 16);
+    const glowMaterial = new THREE.MeshBasicMaterial({
+      color: layer.color,
+      transparent: true,
+      opacity: layer.opacity,
+      blending: THREE.AdditiveBlending
+    });
+
+    const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+    glow.position.copy(position);
+
+    // Store same data on glow so hovering over any layer works
+    glow.userData = { name, constellation };
+
+    starGroup.add(glow);
   });
-
-  const glow = new THREE.Mesh(glowGeometry, glowMaterial);
-  glow.position.copy(position);
-
-  // Store same data on glow so clicking either works
-  glow.userData = { name, constellation };
-
-  starGroup.add(glow);
 });
 
 // Add constellation lines
@@ -782,23 +786,55 @@ const bgStarMaterial = new THREE.PointsMaterial({
 const bgStarField = new THREE.Points(bgStarGeometry, bgStarMaterial);
 celestial.add(bgStarField);
 
-// ------------------- Sun -------------------
-const sun = new THREE.Mesh(
-  new THREE.SphereGeometry(0.15,32,32),
-  new THREE.MeshBasicMaterial({color:0xffff88})
+// ------------------- Sun on Ecliptic (marker) -------------------
+// Load sun texture for ecliptic marker sun
+const textureLoader = new THREE.TextureLoader();
+const sunTextureEcliptic = textureLoader.load(
+  'https://images.unsplash.com/photo-1614642264762-d0a3b8bf3700?w=1024',
+  (texture) => {
+    console.log('Ecliptic sun texture loaded');
+  },
+  undefined,
+  (error) => {
+    console.warn('Could not load ecliptic sun texture, using color instead');
+  }
 );
-zodiacGroup.add(sun); // Add to zodiacGroup so it's on the ecliptic plane
 
-// Add sun glow effect
-const sunGlow = new THREE.Mesh(
-  new THREE.SphereGeometry(0.25, 32, 32),
+const eclipticSunRadius = 0.15;
+
+const sun = new THREE.Mesh(
+  new THREE.SphereGeometry(eclipticSunRadius, 32, 32),
   new THREE.MeshBasicMaterial({
-    color: 0xffff00,
-    transparent: true,
-    opacity: 0.3
+    map: sunTextureEcliptic,
+    color: 0xffeecc // Slight warm tint
   })
 );
-zodiacGroup.add(sunGlow);
+
+// Add glow layers for ecliptic sun (similar to distant sun but scaled)
+const eclipticSunGlowLayers = [
+  { size: eclipticSunRadius * 1.15, opacity: 0.7, color: 0xffff99 },  // Inner corona
+  { size: eclipticSunRadius * 1.4, opacity: 0.5, color: 0xffcc66 },   // Middle corona
+  { size: eclipticSunRadius * 2.0, opacity: 0.3, color: 0xff9933 },   // Outer corona
+  { size: eclipticSunRadius * 3.0, opacity: 0.15, color: 0xff6600 }   // Extended corona
+];
+
+const eclipticSunGroup = new THREE.Group();
+eclipticSunGroup.add(sun);
+
+eclipticSunGlowLayers.forEach(layer => {
+  const glowMesh = new THREE.Mesh(
+    new THREE.SphereGeometry(layer.size, 32, 32),
+    new THREE.MeshBasicMaterial({
+      color: layer.color,
+      transparent: true,
+      opacity: layer.opacity,
+      blending: THREE.AdditiveBlending
+    })
+  );
+  eclipticSunGroup.add(glowMesh);
+});
+
+zodiacGroup.add(eclipticSunGroup); // Add to zodiacGroup so it's on the ecliptic plane
 
 // ------------------- Realistic Sun (far out in space) -------------------
 // Astronomical constants for realistic proportions:
@@ -818,8 +854,7 @@ const sunDistance = CE_RADIUS * 50; // Place sun far beyond celestial sphere
 // apparent_diameter = 2 * distance * tan(angular_diameter / 2)
 const realisticSunRadius = sunDistance * Math.tan(sunAngularDiameter / 2);
 
-// Load sun texture
-const textureLoader = new THREE.TextureLoader();
+// Load sun texture for distant sun
 const sunTexture = textureLoader.load(
   'https://images.unsplash.com/photo-1614642264762-d0a3b8bf3700?w=1024',
   // onLoad callback - add some brightness to the material
@@ -1012,8 +1047,7 @@ function updateSphere(){
 
   // Position Sun on ecliptic (in zodiacGroup's coordinate system)
   // Offset slightly above ecliptic plane (positive Z) to avoid being blocked by ecliptic fill
-  sun.position.set(CE_RADIUS*Math.cos(sunLonRad), CE_RADIUS*Math.sin(sunLonRad), 0.05);
-  sunGlow.position.copy(sun.position);
+  eclipticSunGroup.position.set(CE_RADIUS*Math.cos(sunLonRad), CE_RADIUS*Math.sin(sunLonRad), 0.05);
 
   // Position realistic sun far out in space at same ecliptic angle
   const sunDistanceFromEarth = CE_RADIUS * 50;
@@ -1416,11 +1450,11 @@ window.addEventListener('resize',()=>{
   renderer.setSize(window.innerWidth,window.innerHeight);
 });
 
-// ------------------- Star Click Detection -------------------
+// ------------------- Star Hover Detection -------------------
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
 
-function onStarClick(event) {
+function onStarHover(event) {
   // Calculate mouse position in normalized device coordinates (-1 to +1)
   mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
   mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
@@ -1431,31 +1465,28 @@ function onStarClick(event) {
   // Get all objects in the star group (both stars and glows)
   const intersects = raycaster.intersectObjects(starGroup.children, false);
 
+  const starInfoElement = document.getElementById('starInfo');
+
   if (intersects.length > 0) {
-    const clickedObject = intersects[0].object;
-    if (clickedObject.userData.name && clickedObject.userData.constellation) {
-      // Show star info popup
-      document.getElementById('starName').textContent = clickedObject.userData.name;
-      document.getElementById('constellationName').textContent = clickedObject.userData.constellation;
-      document.getElementById('starInfo').style.display = 'block';
+    const hoveredObject = intersects[0].object;
+    if (hoveredObject.userData.name && hoveredObject.userData.constellation) {
+      // Update star info content
+      document.getElementById('starName').textContent = hoveredObject.userData.name;
+      document.getElementById('constellationName').textContent = hoveredObject.userData.constellation;
+      // Show with fade-in transition
+      starInfoElement.classList.add('visible');
+      // Change cursor to pointer
+      renderer.domElement.style.cursor = 'pointer';
     }
+  } else {
+    // Hide star info with fade-out transition
+    starInfoElement.classList.remove('visible');
+    renderer.domElement.style.cursor = 'default';
   }
 }
 
-// Close button for star info
-document.getElementById('closeStarInfo').addEventListener('click', () => {
-  document.getElementById('starInfo').style.display = 'none';
-});
-
-// Close on escape key
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') {
-    document.getElementById('starInfo').style.display = 'none';
-  }
-});
-
-// Add click listener to canvas
-renderer.domElement.addEventListener('click', onStarClick);
+// Add mousemove listener to canvas for hover detection
+renderer.domElement.addEventListener('mousemove', onStarHover);
 
 // ------------------- DateTime Parser Integration -------------------
 function dateToYearDay(date) {
