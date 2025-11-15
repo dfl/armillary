@@ -919,10 +919,10 @@ function dayToStr(day){
   const mn=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   let d=day;
   for(let i=0;i<12;i++){
-    if(d<=md[i]) return `${mn[i]} ${d}`;
+    if(d<=md[i]) return `${mn[i]} ${d}, 2000`;
     d-=md[i];
   }
-  return 'Dec 31';
+  return 'Dec 31, 2000';
 }
 
 // ------------------- Celestial Sphere Update -------------------
@@ -1063,16 +1063,18 @@ function updateSphere(){
 
   // MC Formula: tan(MC) = tan(RAMC) / cos(ε), where RAMC = LST
   // Derivation: Convert equatorial coordinates (RA=LST, Dec=0) to ecliptic longitude
-  let MC = THREE.MathUtils.radToDeg(
+  // Note: The formula gives IC first, so we add 180° to get MC (upper meridian)
+  let IC = THREE.MathUtils.radToDeg(
     Math.atan2(Math.sin(lstRad), Math.cos(lstRad) * Math.cos(epsilon))
   );
-  if (MC < 0) MC += 360;
+  if (IC < 0) IC += 360;
 
-  // IC: Opposite point (180° from MC)
-  let IC = (MC + 180) % 360;
+  // MC: Opposite point (180° from IC) - upper meridian
+  let MC = (IC + 180) % 360;
 
-  // AC Formula: tan(AC) = -cos(RAMC) / (sin(RAMC)*cos(ε) + tan(lat)*sin(ε))
-  // Derivation: Ecliptic degree on eastern horizon at observer's latitude
+  // AC (Ascendant): Where ecliptic intersects the eastern horizon
+  // Formula: tan(AC) = -cos(RAMC) / (sin(RAMC)*cos(ε) + tan(lat)*sin(ε))
+  // where RAMC = LST (Right Ascension of Midheaven)
   const tanLat = Math.tan(latRad);
   let AC = THREE.MathUtils.radToDeg(
     Math.atan2(-Math.cos(lstRad), Math.sin(lstRad) * Math.cos(epsilon) + tanLat * Math.sin(epsilon))
@@ -1085,10 +1087,26 @@ function updateSphere(){
   // Convert to zodiac notation (sign + degree)
   function toZodiacString(longitude) {
     const signs = ['♈\uFE0E', '♉\uFE0E', '♊\uFE0E', '♋\uFE0E', '♌\uFE0E', '♍\uFE0E', '♎\uFE0E', '♏\uFE0E', '♐\uFE0E', '♑\uFE0E', '♒\uFE0E', '♓\uFE0E'];
-    const signIndex = Math.floor(longitude / 30);
-    const degree = longitude % 30;
-    const minutes = Math.floor((degree % 1) * 60);
-    const wholeDegs = Math.floor(degree);
+    let signIndex = Math.floor(longitude / 30);
+    let degree = longitude % 30;
+    let wholeDegs = Math.floor(degree);
+    let decimalMinutes = (degree % 1) * 60;
+    let minutes = Math.floor(decimalMinutes);
+    let seconds = (decimalMinutes % 1) * 60;
+
+    // Round up if seconds >= 30
+    if (seconds >= 30) {
+      minutes++;
+      if (minutes >= 60) {
+        minutes = 0;
+        wholeDegs++;
+        if (wholeDegs >= 30) {
+          wholeDegs = 0;
+          signIndex = (signIndex + 1) % 12;
+        }
+      }
+    }
+
     return `${wholeDegs.toString().padStart(2, '0')}${signs[signIndex]}${minutes.toString().padStart(2, '0')}`;
   }
 
@@ -1116,34 +1134,11 @@ function updateSphere(){
   document.getElementById('mcValue').textContent = toZodiacString(MC);
   document.getElementById('acValue').textContent = toZodiacString(AC);
 
-  // Calculate geometric intersections for visual sphere positioning
-  // These are where the ecliptic actually crosses meridian/horizon in 3D space
-  // (Different from astrological MC/AC which use equatorial definitions)
-  const combinedTilt = epsilon - latRad; // ε - lat
-
-  // Geometric MC: Where ecliptic crosses meridian plane (X=0) - upper
-  let MC_visual = THREE.MathUtils.radToDeg(
-    Math.atan2(Math.cos(lstRad), Math.cos(combinedTilt) * Math.sin(lstRad))
-  );
-  if (MC_visual < 0) MC_visual += 360;
-
-  // Geometric IC: Opposite point - lower
-  let IC_visual = (MC_visual + 180) % 360;
-
-  // Geometric ASC: Where ecliptic crosses horizon plane (Y=0) - eastern
-  let AC_visual = THREE.MathUtils.radToDeg(
-    Math.atan2(-Math.sin(lstRad), Math.cos(combinedTilt) * Math.cos(lstRad))
-  );
-  if (AC_visual < 0) AC_visual += 360;
-
-  // Geometric DSC: Opposite point - western
-  let DSC_visual = (AC_visual + 180) % 360;
-
-  // Use geometric positions for sphere placement
-  const mcRad_ecliptic = THREE.MathUtils.degToRad(MC_visual);
-  const icRad_ecliptic = THREE.MathUtils.degToRad(IC_visual);
-  const acRad_ecliptic = THREE.MathUtils.degToRad(AC_visual);
-  const dscRad_ecliptic = THREE.MathUtils.degToRad(DSC_visual);
+  // Use the calculated angles for sphere placement
+  const mcRad_ecliptic = THREE.MathUtils.degToRad(MC);
+  const icRad_ecliptic = THREE.MathUtils.degToRad(IC);
+  const acRad_ecliptic = THREE.MathUtils.degToRad(AC);
+  const dscRad_ecliptic = THREE.MathUtils.degToRad(DSC);
 
   // Transform from ecliptic longitude to scene (horizon) coordinates:
   // 1. Start at point on ecliptic (XY plane)
@@ -1178,14 +1173,9 @@ function updateSphere(){
   // Verify positioning (can be disabled after verification)
   const verifyPositions = false;
   if (verifyPositions) {
-    console.log('=== Astrological vs Geometric Angles ===');
-    console.log('MC (astrological):', MC.toFixed(2), '° =', toZodiacString(MC));
-    console.log('MC (geometric):', MC_visual.toFixed(2), '° =', toZodiacString(MC_visual));
-    console.log('Difference:', Math.abs(MC - MC_visual).toFixed(2), '°');
-    console.log('');
-    console.log('AC (astrological):', AC.toFixed(2), '° =', toZodiacString(AC));
-    console.log('AC (geometric):', AC_visual.toFixed(2), '° =', toZodiacString(AC_visual));
-    console.log('Difference:', Math.abs(AC - AC_visual).toFixed(2), '°');
+    console.log('=== Ecliptic Intersection Angles ===');
+    console.log('MC (ecliptic ∩ meridian):', MC.toFixed(2), '° =', toZodiacString(MC));
+    console.log('AC (ecliptic ∩ horizon):', AC.toFixed(2), '° =', toZodiacString(AC));
     console.log('');
     console.log('Sphere positions:');
     console.log('MC on meridian (X ≈ 0):', spheres["MC"].position.x.toFixed(4));
