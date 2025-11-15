@@ -1147,26 +1147,25 @@ function updateSphere(){
 
   // MC Formula: tan(MC) = tan(RAMC) / cos(ε), where RAMC = LST
   // Derivation: Convert equatorial coordinates (RA=LST, Dec=0) to ecliptic longitude
-  // Note: The formula gives IC first, so we add 180° to get MC (upper meridian)
-  let IC = THREE.MathUtils.radToDeg(
+  let MC = THREE.MathUtils.radToDeg(
     Math.atan2(Math.sin(lstRad), Math.cos(lstRad) * Math.cos(epsilon))
   );
-  if (IC < 0) IC += 360;
+  if (MC < 0) MC += 360;
 
-  // MC: Opposite point (180° from IC) - upper meridian
-  let MC = (IC + 180) % 360;
+  // IC: Opposite point (180° from MC) - lower meridian
+  let IC = (MC + 180) % 360;
 
   // AC (Ascendant): Where ecliptic intersects the eastern horizon
   // Formula: tan(AC) = -cos(RAMC) / (sin(RAMC)*cos(ε) + tan(lat)*sin(ε))
   // where RAMC = LST (Right Ascension of Midheaven)
   const tanLat = Math.tan(latRad);
-  let AC = THREE.MathUtils.radToDeg(
+  let DSC = THREE.MathUtils.radToDeg(
     Math.atan2(-Math.cos(lstRad), Math.sin(lstRad) * Math.cos(epsilon) + tanLat * Math.sin(epsilon))
   );
-  if (AC < 0) AC += 360;
+  if (DSC < 0) DSC += 360;
 
-  // DSC: Opposite point (180° from AC)
-  let DSC = (AC + 180) % 360;
+  // AC: Opposite point (180° from DSC)
+  let AC = (DSC + 180) % 360;
 
   // Convert to zodiac notation (sign + degree)
   function toZodiacString(longitude) {
@@ -1255,13 +1254,17 @@ function updateSphere(){
   }
 
   // Verify positioning (can be disabled after verification)
-  const verifyPositions = false;
+  const verifyPositions = true;
   if (verifyPositions) {
     console.log('=== Ecliptic Intersection Angles ===');
     console.log('MC (ecliptic ∩ meridian):', MC.toFixed(2), '° =', toZodiacString(MC));
     console.log('AC (ecliptic ∩ horizon):', AC.toFixed(2), '° =', toZodiacString(AC));
     console.log('');
     console.log('Sphere positions:');
+    console.log('MC position:', spheres["MC"].position.x.toFixed(4), spheres["MC"].position.y.toFixed(4), spheres["MC"].position.z.toFixed(4));
+    console.log('IC position:', spheres["IC"].position.x.toFixed(4), spheres["IC"].position.y.toFixed(4), spheres["IC"].position.z.toFixed(4));
+    console.log('ASC position:', spheres["ASC"].position.x.toFixed(4), spheres["ASC"].position.y.toFixed(4), spheres["ASC"].position.z.toFixed(4));
+    console.log('DSC position:', spheres["DSC"].position.x.toFixed(4), spheres["DSC"].position.y.toFixed(4), spheres["DSC"].position.z.toFixed(4));
     console.log('MC on meridian (X ≈ 0):', spheres["MC"].position.x.toFixed(4));
     console.log('ASC on horizon (Y ≈ 0):', spheres["ASC"].position.y.toFixed(4));
   }
@@ -1537,6 +1540,7 @@ function loadStateFromURL() {
   const hash = window.location.hash.substring(1);
   if (!hash) return false;
 
+  window.isLoadingFromURL = true;
   const params = new URLSearchParams(hash);
   let hasState = false;
 
@@ -1588,13 +1592,24 @@ function loadStateFromURL() {
 
           // Update visualization
           updateSphere();
+
+          // Save state back to URL to preserve it
+          saveStateToURL();
+
+          // Reset flag after a short delay to allow autocomplete to settle
+          setTimeout(() => { window.isLoadingFromURL = false; }, 500);
         }
       } catch (error) {
         console.error('Failed to load location from URL:', error);
+        // Reset flag even on error
+        setTimeout(() => { window.isLoadingFromURL = false; }, 500);
       }
     })();
 
     hasState = true;
+  } else {
+    // No location to load, reset flag immediately
+    window.isLoadingFromURL = false;
   }
 
   return hasState;
@@ -1605,6 +1620,7 @@ window.updateSphere = updateSphere;
 window.currentLatitude = currentLatitude;
 window.currentLongitude = currentLongitude;
 window.saveStateToURL = saveStateToURL;
+window.isLoadingFromURL = false;
 
 window.addEventListener('resize',()=>{
   camera.aspect=window.innerWidth/window.innerHeight;
@@ -1765,6 +1781,11 @@ loadStateFromURL();
       events: {
         input: {
           selection(event) {
+            // Ignore autocomplete selections during URL loading
+            if (window.isLoadingFromURL) {
+              return;
+            }
+
             const feedback = event.detail;
             const selection = feedback.selection.value[feedback.selection.key];
 
