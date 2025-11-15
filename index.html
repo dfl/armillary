@@ -5,6 +5,11 @@
 <title>ASC/MC Visualization - Analytic</title>
 <style>
   body { margin: 0; overflow: hidden; }
+  input[type="text"] {
+    border-radius: 0.5rem;
+    border: 1px solid #ddd;
+    padding: 0.25rem 0.5rem;
+  }
   #ui {
     position: absolute;
     top: 10px;
@@ -13,7 +18,7 @@
     font-family: sans-serif;
     background: rgba(0,0,0,0.5);
     padding: 8px;
-    border-radius: 4px;
+    border-radius: 0.5rem;
   }
   #angles {
     position: absolute;
@@ -23,7 +28,7 @@
     font-family: sans-serif;
     background: rgba(0,0,0,0.5);
     padding: 12px;
-    border-radius: 4px;
+    border-radius: 0.5rem;
     min-width: 150px;
   }
   #angles div {
@@ -40,7 +45,7 @@
     font-family: sans-serif;
     background: rgba(0,0,0,0.5);
     padding: 12px;
-    border-radius: 4px;
+    border-radius: 0.5rem;
     min-width: 150px;
   }
   #sunTimes div {
@@ -57,7 +62,7 @@
     font-family: sans-serif;
     background: rgba(0,0,0,0.5);
     padding: 12px;
-    border-radius: 4px;
+    border-radius: 0.5rem;
     min-width: 200px;
     z-index: 1000;
     opacity: 0;
@@ -77,6 +82,65 @@
     font-size: 14px;
     color: #aaaaff;
   }
+
+  /* Autocomplete custom styles */
+  .autoComplete_wrapper {
+    display: inline-block;
+    position: relative;
+  }
+
+  #locationInput {
+    border-radius: 0.5rem;
+    border: 1px solid #ddd;
+    padding: 0.5rem 0.5rem 0.5rem 2.25rem;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%23666' viewBox='0 0 16 16'%3E%3Cpath d='M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: 0.75rem center;
+    background-size: 1rem;
+  }
+
+  #autoComplete_list_1 {
+    position: absolute;
+    max-height: 300px;
+    overflow-y: auto;
+    background-color: #000;
+    border: 1px solid #333;
+    border-radius: 0.5rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+    z-index: 9999;
+    list-style: none;
+    margin: 2px 0 0 0;
+    padding: 0;
+  }
+
+  #autoComplete_list_1 li {
+    padding: 8px 12px;
+    color: #fff;
+    cursor: pointer;
+    border-bottom: 1px solid #333;
+  }
+
+  #autoComplete_list_1 li:first-child {
+    border-top-left-radius: 0.5rem;
+    border-top-right-radius: 0.5rem;
+  }
+
+  #autoComplete_list_1 li:last-child {
+    border-bottom: none;
+    border-bottom-left-radius: 0.5rem;
+    border-bottom-right-radius: 0.5rem;
+  }
+
+  #autoComplete_list_1 li:hover,
+  #autoComplete_list_1 li[aria-selected="true"] {
+    background-color: #333;
+  }
+
+  #autoComplete_list_1 mark {
+    background-color: transparent;
+    color: #fff;
+    font-weight: bold;
+  }
 </style>
 </head>
 <body>
@@ -84,6 +148,9 @@
 <div id="ui">
   DateTime: <input type="text" id="datetimeInput" placeholder="e.g., 'now', '2000-03-21 12:00', 'March 21 2000 noon'" style="width: 300px;">
   <button id="nowButton">Now</button>
+  <br>
+  <br>
+  Location: <input type="text" id="locationInput" placeholder="Search for a city..." style="width: 300px;">
   <br>
   <br>
   Latitude: <input type="text" id="latInput" placeholder="e.g., 40.7128, -33.8688" style="width: 80px;">
@@ -110,6 +177,7 @@
 </div>
 
 <div id="sunTimes">
+  <div><span class="time-label">☉</span> <span id="sunPositionValue">--</span></div>
   <div><span class="time-label">Sunrise:</span> <span id="sunriseValue">--</span></div>
   <div><span class="time-label">Sunset:</span> <span id="sunsetValue">--</span></div>
 </div>
@@ -120,6 +188,7 @@
 </div>
 
 <script type='text/javascript' src='./ephemeris-1.2.1.bundle.js' charset='utf-8'></script>
+<script src="https://cdn.jsdelivr.net/npm/@tarekraafat/autocomplete.js@10.2.9/dist/autoComplete.min.js"></script>
 
 <script type="importmap">
 {
@@ -904,6 +973,7 @@ let currentLatitude=0;
 let currentLongitude=0;
 let currentTime=720;
 let currentDay=1;
+let currentYear=2000;
 
 const latSlider=document.getElementById('latSlider');
 const latValue=document.getElementById('latValue');
@@ -914,15 +984,15 @@ const timeValue=document.getElementById('timeValue');
 const daySlider=document.getElementById('daySlider');
 const dayValue=document.getElementById('dayValue');
 
-function dayToStr(day){
+function dayToStr(day, year){
   const md=[31,29,31,30,31,30,31,31,30,31,30,31];
   const mn=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   let d=day;
   for(let i=0;i<12;i++){
-    if(d<=md[i]) return `${mn[i]} ${d}, 2000`;
+    if(d<=md[i]) return `${mn[i]} ${d}, ${year}`;
     d-=md[i];
   }
-  return 'Dec 31, 2000';
+  return `Dec 31, ${year}`;
 }
 
 // ------------------- Celestial Sphere Update -------------------
@@ -936,7 +1006,16 @@ function updateSphere(){
   const longitudeTimeOffset = (currentLongitude / 15) * 60; // Convert to minutes
   const localTime = currentTime + longitudeTimeOffset;
 
-  const daysFromJ2000 = (currentDay - 1) + (localTime / 1440);
+  // Calculate Julian Date for the actual year
+  // Formula: JD = 367*Y - INT(7*(Y+INT((M+9)/12))/4) + INT(275*M/9) + D + 1721013.5 + UT/24
+  const Y = currentYear;
+  const M = Math.floor((currentDay - 1) / 30) + 1; // Rough approximation
+  const D = ((currentDay - 1) % 30) + 1;
+  const UT = localTime / 60; // Convert minutes to hours
+
+  // Simplified: Use year offset from J2000
+  const yearOffset = (currentYear - 2000) * 365.25;
+  const daysFromJ2000 = yearOffset + (currentDay - 1) + (localTime / 1440);
   const julianDate = 2451544.5 + daysFromJ2000;
 
   // Greenwich Sidereal Time at 0h UT (simplified formula)
@@ -987,7 +1066,7 @@ function updateSphere(){
 
       // Set date
       const date = {
-        year: 2000,
+        year: currentYear,
         month: month + 1,  // Moshier uses 1-12, not 0-11
         day: day,
         hours: hours,
@@ -1003,7 +1082,7 @@ function updateSphere(){
       // Calculate rise and set times
       // Note: riset needs to be called separately and uses a date at the start of the day
       const dateForRiset = {
-        year: 2000,
+        year: currentYear,
         month: month + 1,
         day: day,
         hours: 0,
@@ -1051,6 +1130,11 @@ function updateSphere(){
     sunDistanceFromEarth * Math.sin(sunLonRad),
     0
   );
+
+  // Convert sun's ecliptic longitude to degrees and display
+  const sunLonDeg = THREE.MathUtils.radToDeg(sunLonRad);
+  const sunLonNormalized = ((sunLonDeg % 360) + 360) % 360; // Normalize to 0-360
+  document.getElementById('sunPositionValue').textContent = toZodiacString(sunLonNormalized);
 
   // ------------------- Calculate Astrological Angles (MC, IC, AC, DSC) -------------------
   // Using traditional astrological formulas (not geometric intersections)
@@ -1344,7 +1428,7 @@ lonSlider.addEventListener('input',()=>{
 });
 
 timeSlider.addEventListener('input',()=>{currentTime=parseFloat(timeSlider.value);let h=Math.floor(currentTime/60);let m=currentTime%60;timeValue.textContent=`${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}`;updateSphere();});
-daySlider.addEventListener('input',()=>{currentDay=parseFloat(daySlider.value);dayValue.textContent=`Day ${currentDay}: ${dayToStr(currentDay)}`;updateSphere();});
+daySlider.addEventListener('input',()=>{currentDay=parseFloat(daySlider.value);dayValue.textContent=`Day ${currentDay}: ${dayToStr(currentDay, currentYear)}`;updateSphere();});
 
 // ------------------- Lat/Lon Text Input Listeners -------------------
 function parseLatInput() {
@@ -1419,15 +1503,108 @@ currentLatitude=parseFloat(latSlider.value);
 currentLongitude=parseFloat(lonSlider.value);
 currentTime=parseFloat(timeSlider.value);
 currentDay=parseFloat(daySlider.value);
+currentYear=2000; // Default year
 latValue.textContent=currentLatitude.toFixed(1)+"°";
 lonValue.textContent=currentLongitude.toFixed(1)+"°";
 latInput.value=currentLatitude.toFixed(4);
 lonInput.value=currentLongitude.toFixed(4);
 let h=Math.floor(currentTime/60), m=currentTime%60;
 timeValue.textContent=`${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}`;
-dayValue.textContent=`Day ${currentDay}: ${dayToStr(currentDay)}`;
+dayValue.textContent=`Day ${currentDay}: ${dayToStr(currentDay, currentYear)}`;
 updateSphere();
 animate();
+
+// ------------------- URL State Persistence -------------------
+function saveStateToURL() {
+  const params = new URLSearchParams();
+
+  // Save datetime string if present
+  const datetimeValue = document.getElementById('datetimeInput').value.trim();
+  if (datetimeValue) {
+    params.set('dt', datetimeValue);
+  }
+
+  // Save location string if present
+  const locationValue = document.getElementById('locationInput').value.trim();
+  if (locationValue) {
+    params.set('loc', locationValue);
+  }
+
+  window.history.replaceState({}, '', `#${params.toString()}`);
+}
+
+function loadStateFromURL() {
+  const hash = window.location.hash.substring(1);
+  if (!hash) return false;
+
+  const params = new URLSearchParams(hash);
+  let hasState = false;
+
+  // Load and parse datetime
+  if (params.has('dt')) {
+    const datetimeValue = params.get('dt');
+    document.getElementById('datetimeInput').value = datetimeValue;
+
+    const datetime = parser.parseFlexibleDateTime(datetimeValue);
+    if (datetime) {
+      updateSlidersFromDate(datetime);
+      hasState = true;
+    }
+  }
+
+  // Load location - we need to fetch coordinates from the geocoding API
+  if (params.has('loc')) {
+    const locationValue = params.get('loc');
+    document.getElementById('locationInput').value = locationValue;
+
+    // Fetch coordinates for this location
+    (async () => {
+      try {
+        const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(locationValue)}&limit=1&addressdetails=1`;
+        const response = await fetch(url, {
+          headers: {
+            'User-Agent': 'ArmillarySphere/1.0'
+          }
+        });
+        const places = await response.json();
+
+        if (places.length > 0) {
+          const lat = parseFloat(places[0].lat);
+          const lon = parseFloat(places[0].lon);
+
+          // Update latitude
+          const clampedLat = Math.max(-66, Math.min(66, lat));
+          currentLatitude = clampedLat;
+          latSlider.value = clampedLat;
+          latInput.value = clampedLat.toFixed(4);
+          latValue.textContent = clampedLat.toFixed(1) + "°";
+
+          // Update longitude
+          const clampedLon = Math.max(-180, Math.min(180, lon));
+          currentLongitude = clampedLon;
+          lonSlider.value = clampedLon;
+          lonInput.value = clampedLon.toFixed(4);
+          lonValue.textContent = clampedLon.toFixed(1) + "°";
+
+          // Update visualization
+          updateSphere();
+        }
+      } catch (error) {
+        console.error('Failed to load location from URL:', error);
+      }
+    })();
+
+    hasState = true;
+  }
+
+  return hasState;
+}
+
+// Expose functions and variables to global scope for autocomplete
+window.updateSphere = updateSphere;
+window.currentLatitude = currentLatitude;
+window.currentLongitude = currentLongitude;
+window.saveStateToURL = saveStateToURL;
 
 window.addEventListener('resize',()=>{
   camera.aspect=window.innerWidth/window.innerHeight;
@@ -1484,13 +1661,19 @@ function dateToYearDay(date) {
 
 function updateSlidersFromDate(date) {
   // Update day of year slider
-  // For year 2000 simulation (leap year)
   // More robust calculation that avoids timezone issues
   const month = date.getMonth();
   const day = date.getDate();
+  const year = date.getFullYear();
 
-  // Days in each month for leap year 2000
-  const monthDays = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  // Set the current year
+  currentYear = year;
+
+  // Days in each month (use leap year days if applicable)
+  const isLeapYear = (year % 4 === 0 && year % 100 !== 0) || (year % 400 === 0);
+  const monthDays = isLeapYear
+    ? [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+    : [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
 
   let dayOfYear = day;
   for (let i = 0; i < month; i++) {
@@ -1499,7 +1682,10 @@ function updateSlidersFromDate(date) {
 
   daySlider.value = dayOfYear;
   currentDay = dayOfYear;
-  dayValue.textContent = `Day ${currentDay}: ${dayToStr(currentDay)}`;
+
+  // Format the date string with actual year from input
+  const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  dayValue.textContent = `Day ${currentDay}: ${monthNames[month]} ${day}, ${year}`;
 
   // Update time slider
   const hours = date.getHours();
@@ -1512,6 +1698,7 @@ function updateSlidersFromDate(date) {
 
   // Update the visualization
   updateSphere();
+  saveStateToURL();
 }
 
 // Initialize datetime parser
@@ -1525,6 +1712,112 @@ nowButton.addEventListener('click', (e) => {
   parser.setNow();
 });
 
+// Load state from URL after parser is initialized
+loadStateFromURL();
+
+</script>
+
+<script>
+// ------------------- Location Autocomplete -------------------
+(function () {
+  const maxResults = 20;
+  const locationInput = document.querySelector("#locationInput");
+
+  if (locationInput) {
+    new autoComplete({
+      debounce: 300,
+      selector: "#locationInput",
+      data: {
+        src: async () => {
+          const query = document.querySelector("#locationInput").value;
+          if (query === "" || query.length < 3) {
+            return;
+          }
+
+          try {
+            // Using Nominatim (OpenStreetMap) geocoding API
+            const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=${maxResults}&addressdetails=1`;
+            const response = await fetch(url, {
+              headers: {
+                'User-Agent': 'ArmillarySphere/1.0' // Nominatim requires a user agent
+              }
+            });
+            const places = await response.json();
+            return places.map((place) => ({
+              name: place.display_name,
+              lat: parseFloat(place.lat),
+              lon: parseFloat(place.lon),
+            }));
+          } catch (error) {
+            console.error('Geocoding error:', error);
+            return [];
+          }
+        },
+        keys: ["name", "lat", "lon"],
+      },
+      resultsList: {
+        maxResults: maxResults,
+      },
+      resultItem: {
+        highlight: true,
+      },
+      shouldCacheSrc: false,
+      events: {
+        input: {
+          selection(event) {
+            const feedback = event.detail;
+            const selection = feedback.selection.value[feedback.selection.key];
+
+            // Set location name
+            document.querySelector("#locationInput").value = selection;
+
+            // Set latitude
+            const latField = document.querySelector("#latInput");
+            const lat = feedback.selection.value.lat;
+            latField.value = lat.toFixed(4);
+
+            // Update latitude slider and display
+            const latSlider = document.querySelector("#latSlider");
+            const clampedLat = Math.max(-66, Math.min(66, lat));
+            latSlider.value = clampedLat;
+            window.currentLatitude = clampedLat;
+            document.getElementById('latValue').textContent = clampedLat.toFixed(1) + "°";
+
+            // Set longitude
+            const lonField = document.querySelector("#lonInput");
+            const lon = feedback.selection.value.lon;
+            lonField.value = lon.toFixed(4);
+
+            // Update longitude slider and display
+            const lonSlider = document.querySelector("#lonSlider");
+            const clampedLon = Math.max(-180, Math.min(180, lon));
+            lonSlider.value = clampedLon;
+            window.currentLongitude = clampedLon;
+            document.getElementById('lonValue').textContent = clampedLon.toFixed(1) + "°";
+
+            // Trigger the slider input events to update the module's local variables
+            latSlider.dispatchEvent(new Event('input'));
+            lonSlider.dispatchEvent(new Event('input'));
+
+            // Update the sphere visualization
+            window.updateSphere();
+
+            // Save location to URL
+            saveStateToURL();
+          },
+        },
+        keyup(event) {
+          const latInput = document.querySelector("#latInput");
+          const lonInput = document.querySelector("#lonInput");
+          if (event.target.value !== latInput.dataset.originalValue) {
+            // Clear lat/lon when user types new location
+            // (but not on initial load)
+          }
+        },
+      },
+    });
+  }
+})();
 </script>
 </body>
 </html>
