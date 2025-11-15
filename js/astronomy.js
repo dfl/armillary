@@ -1,122 +1,193 @@
 // astronomy.js - Astronomical calculations
-
 import { calculateObliquity } from './epsilon.js';
 import * as ephemeris from 'ephemeris';
 
 export class AstronomyCalculator {
   constructor() {
     this.J2000_EPOCH = 2451545.0;
+    // nominal mean obliquity (radians) fallback — we still call calculateObliquity(JD) when needed
     this.OBLIQUITY = 23.44 * Math.PI / 180;
+  }
+
+  // -----------------------
+  // Helpers
+  // -----------------------
+  _deg(normDeg) {
+    // normalise to [0,360)
+    let d = normDeg % 360;
+    if (d < 0) d += 360;
+    return d;
+  }
+
+  _radToDeg(r) {
+    return r * 180 / Math.PI;
+  }
+
+  _degToRad(d) {
+    return d * Math.PI / 180;
   }
 
   /**
    * Calculate Local Sidereal Time
-   * Returns { LST: degrees, julianDate: JD }
+   * currentDay: day-of-year (1..365/366)
+   * currentTime: minutes since 00:00 UTC
+   * currentLongitude: degrees (east positive; negative for west)
+   * currentYear: full year number (e.g. 2025 or 1979)
+   *
+   * Returns { LST: degrees (0..360), julianDate }
    */
   calculateLST(currentDay, currentTime, currentLongitude, currentYear) {
-    // currentTime is already in UTC (minutes since midnight UTC)
-    // No longitude offset should be applied to UTC time!
+    // Build a UTC Date from day-of-year + minutes:
+    const isLeap = (currentYear % 4 === 0 && currentYear % 100 !== 0) || (currentYear % 400 === 0);
+    const { month, day } = this.dayOfYearToMonthDay(currentDay, isLeap);
 
-    // Calculate exact days from year 2000 to currentYear (accounting for leap years)
-    let yearOffset = 0;
-    const startYear = Math.min(2000, currentYear);
-    const endYear = Math.max(2000, currentYear);
+    const hours = Math.floor(currentTime / 60);
+    const minutes = Math.floor(currentTime % 60);
+    const dateUTC = new Date(Date.UTC(currentYear, month, day, hours, minutes, 0, 0));
 
-    for (let y = startYear; y < endYear; y++) {
-      const isLeap = (y % 4 === 0 && y % 100 !== 0) || (y % 400 === 0);
-      yearOffset += isLeap ? 366 : 365;
-    }
+    // Convert JS time to Julian Date
+    // JD = Unix epoch (ms) / 86400000 + 2440587.5
+    const julianDate = dateUTC.getTime() / 86400000 + 2440587.5;
 
-    if (currentYear < 2000) yearOffset = -yearOffset;
+    // Use standard approximate formula for GMST (in degrees)
+    // See: GMST ≈ 280.46061837 + 360.98564736629 * (JD - 2451545.0) + 0.000387933*T^2 - (T^3)/38710000
+    const T = (julianDate - this.J2000_EPOCH) / 36525.0;
+    const GMST = 280.46061837 +
+                 360.98564736629 * (julianDate - this.J2000_EPOCH) +
+                 0.000387933 * T * T -
+                 (T * T * T) / 38710000.0;
 
-    const daysFromJ2000 = yearOffset + (currentDay - 1) + (currentTime / 1440);
-    const julianDate = 2451544.5 + daysFromJ2000;
+    const GMST_norm = this._deg(GMST);
 
-    // Calculate GMST at 0h UT (midnight) for this date
-    const julianDate0h = 2451544.5 + yearOffset + (currentDay - 1);
-    const T = (julianDate0h - this.J2000_EPOCH) / 36525;
+    // Local Sidereal Time (degrees) = GMST + longitude (east positive)
+    // NOTE: we assume currentLongitude is degrees east (negative for west)
+    let LST = GMST_norm + currentLongitude;
+    LST = this._deg(LST);
 
-    // GMST at 0h UT
-    const GMST0 = 280.46061837 + 360.98564736629 * (julianDate0h - this.J2000_EPOCH) + 0.000387933 * T * T - 0.0000000258 * T * T * T;
-
-    // Add the time elapsed since midnight (in sidereal time units)
-    // Sidereal day is shorter than solar day, so we need to account for that
-    const hoursUT = currentTime / 60;
-    const GMSTnow = GMST0 + hoursUT * 15.04106858; // 15.04106858 deg/hour is sidereal rate
-
-    console.log('JD:', julianDate, 'GMST at 0h:', GMST0 % 360, 'Hours UT:', hoursUT, 'GMST now:', GMSTnow % 360);
-
-    // LST = GMST + longitude (in degrees)
-    let LST = (GMSTnow + currentLongitude) % 360;
-    if (LST < 0) LST += 360;
-
+    console.log('JD:', julianDate, 'GMST at 0h (deg):', GMST_norm, 'Hours UT:', currentTime / 60, 'GMST now (deg):', GMST_norm);
     console.log('Longitude:', currentLongitude, 'Final LST:', LST);
 
     return { LST, julianDate };
   }
 
   /**
-   * Get precise obliquity for a given Julian Date
+   * Get precise obliquity for a given Julian Date (returns radians)
    */
   getObliquity(julianDate) {
-    return calculateObliquity(julianDate);
+    try {
+      const eps = calculateObliquity(julianDate);
+      if (typeof eps === 'number' && !Number.isNaN(eps)) return eps;
+    } catch (e) {
+      console.warn('calculateObliquity failed, using nominal OBLIQUITY', e);
+    }
+    return this.OBLIQUITY;
   }
 
   /**
    * Calculate Midheaven (MC)
+   * Inputs:
+   *   lstRad: local sidereal time in RADIANS
+   *   obliquity: obliquity in RADIANS
+   * Returns MC in DEGREES (0..360)
+   *
+   * Formula used:
+   *   MC = atan2( sin(LST), cos(LST) * cos(epsilon) )  (radians) --> convert to degrees
    */
   calculateMC(lstRad, obliquity) {
-    let MC = (Math.atan2(Math.sin(lstRad), Math.cos(lstRad) * Math.cos(obliquity)) * 180 / Math.PI);
-    if (MC < 0) MC += 360;
-    return MC;
+    const x = Math.atan2(Math.sin(lstRad), Math.cos(lstRad) * Math.cos(obliquity));
+    let MCdeg = this._radToDeg(x);
+    MCdeg = this._deg(MCdeg);
+    return MCdeg;
   }
 
   /**
    * Calculate Ascendant (AC) and Descendant (DSC)
+   * Inputs:
+   *   lstRad: local sidereal time in RADIANS
+   *   latRad: observer latitude in RADIANS
+   *   obliquity: obliquity in RADIANS
+   *
+   * Returns { AC, DSC } in DEGREES (0..360)
+   *
+   * Uses commonly used formula for ecliptic ascendant (works for typical latitudes; polar edge cases should be handled by caller)
    */
   calculateAscendant(lstRad, latRad, obliquity) {
+    // The formula below computes the ecliptic longitude rising on the eastern horizon.
+    // Following the convention: AC = atan2( sin(L), cos(L)*cos(eps) - tan(lat)*sin(eps) )
+    // but different algebraic rearrangements exist. We use a stable form with atan2.
+    const sinL = Math.sin(lstRad);
+    const cosL = Math.cos(lstRad);
+    const sinE = Math.sin(obliquity);
+    const cosE = Math.cos(obliquity);
     const tanLat = Math.tan(latRad);
-    let DSC = (Math.atan2(-Math.cos(lstRad), Math.sin(lstRad) * Math.cos(obliquity) + tanLat * Math.sin(obliquity)) * 180 / Math.PI);
-    if (DSC < 0) DSC += 360;
-    const AC = (DSC + 180) % 360;
-    return { AC, DSC };
+
+    // Compute ASC as ecliptic longitude (radians)
+    const numerator = -cosL;
+    const denominator = sinL * cosE + tanLat * sinE;
+    let ascRad = Math.atan2(numerator, denominator);
+
+    // Convert to degrees and normalise
+    let DSCdeg = this._radToDeg(ascRad);
+    DSCdeg = this._deg(DSCdeg); // this is the ecliptic longitude of the descendant in this algebraic variant
+    // Ascendant is opposite point:
+    let ACdeg = (DSCdeg + 180) % 360;
+
+    return { AC: ACdeg, DSC: DSCdeg };
   }
 
   /**
-   * Calculate Sun's ecliptic longitude using ephemeris npm package
+   * Calculate Sun's ecliptic longitude (radians) using ephemeris npm package
+   * The function returns longitude in RADIANS (0..2π)
    */
   calculateSunPosition(currentDay, currentYear, month, day, hours, minutes) {
     try {
-      // Create date object for ephemeris (expects UTC time)
       const date = new Date(Date.UTC(currentYear, month, day, hours, minutes, 0));
 
-      // Calculate Sun position using ephemeris
-      const result = ephemeris.getAllPlanets(date, 0, 0); // lat/lon don't matter for ecliptic position
+      // ephemeris.getAllPlanets(date, lat, lon) -> results vary by package version.
+      // We try to read an apparent longitude in degrees, falling back gracefully.
+      const result = ephemeris.getAllPlanets(date, 0, 0);
 
-      if (result && result.observed && result.observed.sun && result.observed.sun.apparentLongitudeDd !== undefined) {
-        const sunLon = result.observed.sun.apparentLongitudeDd;
-        return sunLon * Math.PI / 180;
+      // Try a couple of reasonable property names that ephemeris packages sometimes use:
+      const sunObj = result && result.observed && result.observed.sun ? result.observed.sun : (result && result.sun ? result.sun : null);
+
+      if (sunObj) {
+        // many ephemeris libs provide apparentLongitudeDd or longitude or lon
+        const maybeLon = sunObj.apparentLongitudeDd ?? sunObj.longitude ?? sunObj.lon ?? sunObj.lambda;
+        if (typeof maybeLon === 'number' && !Number.isNaN(maybeLon)) {
+          let lonDeg = maybeLon;
+          // normalise
+          lonDeg = this._deg(lonDeg);
+          return this._degToRad(lonDeg);
+        }
       }
     } catch (e) {
-      console.warn('Ephemeris calculation failed, using approximation:', e);
+      console.warn('Ephemeris call failed:', e);
     }
 
-    // Fallback approximation
-    const sunLon = (280 + (currentDay - 1) * (360 / 365)) % 360;
-    console.warn('Using approximate Sun position:', sunLon);
-    return sunLon * Math.PI / 180;
+    // Fallback: simple mean-sun approximation based on day-of-year (not high accuracy)
+    // currentDay is day-of-year (1..365)
+    const approxLon = (280 + (currentDay - 1) * (360 / 365.2425)) % 360;
+    console.warn('Using approximate Sun position (deg):', approxLon);
+    return this._degToRad(approxLon);
   }
 
   /**
-   * Calculate sunrise and sunset times
+   * Calculate sunrise and sunset times (local)
+   * Inputs:
+   *   sunEclipticLon: in RADIANS
+   *   latitude, longitude: in DEGREES (longitude east-positive)
+   *   dayOfYear: integer
+   *
+   * Returns { sunrise: "HH:MM", sunset: "HH:MM", transit: "HH:MM" } in local time
    */
   calculateRiseSet(sunEclipticLon, latitude, longitude, dayOfYear) {
+    // Use nominal obliquity (radians) for these conversions
     const OBLIQUITY_RAD = this.OBLIQUITY;
     const SUN_ANGULAR_RADIUS = 0.267 * Math.PI / 180;
     const ATMOSPHERIC_REFRACTION = 0.567 * Math.PI / 180;
     const ALTITUDE_AT_RISE_SET = -(SUN_ANGULAR_RADIUS + ATMOSPHERIC_REFRACTION);
 
-    // Convert ecliptic longitude to equatorial coordinates
+    // Convert ecliptic longitude (radians) -> equatorial declination and RA
     const sinDec = Math.sin(OBLIQUITY_RAD) * Math.sin(sunEclipticLon);
     const declination = Math.asin(sinDec);
 
@@ -124,57 +195,62 @@ export class AstronomyCalculator {
       Math.sin(sunEclipticLon) * Math.cos(OBLIQUITY_RAD),
       Math.cos(sunEclipticLon)
     );
-    const RA_deg = rightAscension * 180 / Math.PI;
-    const RA_norm = RA_deg < 0 ? RA_deg + 360 : RA_deg;
+    let RA_deg = this._radToDeg(rightAscension);
+    if (RA_deg < 0) RA_deg += 360;
 
-    // Calculate hour angle when sun is at horizon
-    const latRad = latitude * Math.PI / 180;
-    const cosHourAngle = (Math.sin(ALTITUDE_AT_RISE_SET) - Math.sin(latRad) * Math.sin(declination)) /
-                         (Math.cos(latRad) * Math.cos(declination));
+    // Observer latitude in radians
+    const latRad = this._degToRad(latitude);
 
-    // Check for no sunrise/sunset (polar regions)
-    if (cosHourAngle > 1) {
+    // hour angle for sunrise/sunset
+    const cosH = (Math.sin(ALTITUDE_AT_RISE_SET) - Math.sin(latRad) * Math.sin(declination)) /
+                 (Math.cos(latRad) * Math.cos(declination));
+
+    if (cosH > 1) {
       return { sunrise: "No sunrise", sunset: "No sunset", transit: "--:--" };
     }
-    if (cosHourAngle < -1) {
+    if (cosH < -1) {
       return { sunrise: "24h sun", sunset: "24h sun", transit: "--:--" };
     }
 
-    const H_deg = Math.acos(cosHourAngle) * 180 / Math.PI;
+    const H_deg = this._radToDeg(Math.acos(cosH));
 
-    // Calculate Greenwich Sidereal Time at 0h UT
-    const julianDate0h = 2451544.5 + (dayOfYear - 1);
+    // Build JD at 0h UT for the given day (approx)
+    // We construct a UTC Date at year/dayOfYear -> midnight and compute JD
+    // For simplicity in this function we assume current year is J2000 reference year. This returns approximate rise/set times.
+    const isLeap = true; // not used; dayOfYear passed in by caller
+    // Create a provisional julianDate0h relative to J2000 using dayOfYear offset:
+    const julianDate0h = this.J2000_EPOCH + (dayOfYear - 1); // approximate; caller should supply dayOfYear for that year
+
     const T = (julianDate0h - this.J2000_EPOCH) / 36525;
-    const GST0 = 280.46061837 + 360.98564736629 * (julianDate0h - this.J2000_EPOCH) +
-                 0.000387933 * T * T - 0.0000000258 * T * T * T;
+    const GST0 = 280.46061837 +
+                 360.98564736629 * (julianDate0h - this.J2000_EPOCH) +
+                 0.000387933 * T * T -
+                 (T * T * T) / 38710000.0;
 
-    // Calculate transit time
-    let transitUT = ((RA_norm - longitude - GST0) / 360.98564736629) * 24;
-    while (transitUT < 0) transitUT += 24;
-    while (transitUT >= 24) transitUT -= 24;
+    // Transit time (UT) in hours: approximate using RA and GST0
+    // transitUT = ((RA_norm - longitude - GST0) / 360.98564736629) * 24
+    let transitUT = ((RA_deg - longitude - GST0) / 360.98564736629) * 24;
+    // normalise into [0,24)
+    transitUT = ((transitUT % 24) + 24) % 24;
 
-    // Sunrise and sunset times
-    const H_hours = H_deg / 15;
+    const H_hours = H_deg / 15.0;
     let sunriseUT = transitUT - H_hours;
     let sunsetUT = transitUT + H_hours;
 
-    while (sunriseUT < 0) sunriseUT += 24;
-    while (sunriseUT >= 24) sunriseUT -= 24;
-    while (sunsetUT < 0) sunsetUT += 24;
-    while (sunsetUT >= 24) sunsetUT -= 24;
-
-    // Convert to local solar time
-    const lonTimeOffset = longitude / 15;
+    const lonTimeOffset = longitude / 15.0; // hours
     let sunriseLocal = sunriseUT + lonTimeOffset;
     let sunsetLocal = sunsetUT + lonTimeOffset;
     let transitLocal = transitUT + lonTimeOffset;
 
-    while (sunriseLocal < 0) sunriseLocal += 24;
-    while (sunriseLocal >= 24) sunriseLocal -= 24;
-    while (sunsetLocal < 0) sunsetLocal += 24;
-    while (sunsetLocal >= 24) sunsetLocal -= 24;
-    while (transitLocal < 0) transitLocal += 24;
-    while (transitLocal >= 24) transitLocal -= 24;
+    const norm24 = (h) => {
+      let hh = h % 24;
+      if (hh < 0) hh += 24;
+      return hh;
+    };
+
+    sunriseLocal = norm24(sunriseLocal);
+    sunsetLocal  = norm24(sunsetLocal);
+    transitLocal = norm24(transitLocal);
 
     const formatTime = (hours) => {
       const h = Math.floor(hours);
@@ -190,16 +266,19 @@ export class AstronomyCalculator {
   }
 
   /**
-   * Convert to zodiac notation
+   * Convert to zodiac notation (e.g. "10♈05")
+   * longitude: degrees 0..360
    */
   toZodiacString(longitude) {
     const signs = ['♈\uFE0E', '♉\uFE0E', '♊\uFE0E', '♋\uFE0E', '♌\uFE0E', '♍\uFE0E', '♎\uFE0E', '♏\uFE0E', '♐\uFE0E', '♑\uFE0E', '♒\uFE0E', '♓\uFE0E'];
-    let signIndex = Math.floor(longitude / 30);
-    let degree = longitude % 30;
+    let lon = longitude % 360;
+    if (lon < 0) lon += 360;
+    let signIndex = Math.floor(lon / 30) % 12;
+    let degree = lon % 30;
     let wholeDegs = Math.floor(degree);
-    let decimalMinutes = (degree % 1) * 60;
+    let decimalMinutes = (degree - wholeDegs) * 60;
     let minutes = Math.floor(decimalMinutes);
-    let seconds = (decimalMinutes % 1) * 60;
+    let seconds = (decimalMinutes - minutes) * 60;
 
     if (seconds >= 30) {
       minutes++;
@@ -217,7 +296,7 @@ export class AstronomyCalculator {
   }
 
   /**
-   * Convert LST to time string
+   * Convert LST (degrees) to time string HH:MM (approx)
    */
   lstToTimeString(lst) {
     const hours = Math.floor(lst / 15);
@@ -226,7 +305,7 @@ export class AstronomyCalculator {
   }
 
   /**
-   * Convert day of year to month/day
+   * Convert day of year to month/day (month is 0-based for Date.UTC usage)
    */
   dayOfYearToMonthDay(dayOfYear, isLeapYear = true) {
     const monthDays = isLeapYear
