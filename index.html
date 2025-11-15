@@ -1430,8 +1430,22 @@ lonSlider.addEventListener('input',()=>{
   updateSphere();
 });
 
-timeSlider.addEventListener('input',()=>{currentTime=parseFloat(timeSlider.value);let h=Math.floor(currentTime/60);let m=currentTime%60;timeValue.textContent=`${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}`;updateSphere();});
-daySlider.addEventListener('input',()=>{currentDay=parseFloat(daySlider.value);dayValue.textContent=`Day ${currentDay}: ${dayToStr(currentDay, currentYear)}`;updateSphere();});
+timeSlider.addEventListener('input',()=>{
+  currentTime=parseFloat(timeSlider.value);
+  let h=Math.floor(currentTime/60);
+  let m=currentTime%60;
+  timeValue.textContent=`${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}`;
+  // Update day display to show decimal JD
+  const jd = currentDay + (currentTime / 1440);
+  dayValue.textContent=`Day ${jd.toFixed(4)}: ${dayToStr(currentDay, currentYear)}`;
+  updateSphere();
+});
+daySlider.addEventListener('input',()=>{
+  currentDay=parseFloat(daySlider.value);
+  const jd = currentDay + (currentTime / 1440); // Add fractional day from time
+  dayValue.textContent=`Day ${jd.toFixed(4)}: ${dayToStr(currentDay, currentYear)}`;
+  updateSphere();
+});
 
 // ------------------- Lat/Lon Text Input Listeners -------------------
 function parseLatInput() {
@@ -1513,7 +1527,8 @@ latInput.value=currentLatitude.toFixed(4);
 lonInput.value=currentLongitude.toFixed(4);
 let h=Math.floor(currentTime/60), m=currentTime%60;
 timeValue.textContent=`${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}`;
-dayValue.textContent=`Day ${currentDay}: ${dayToStr(currentDay, currentYear)}`;
+const jd = currentDay + (currentTime / 1440);
+dayValue.textContent=`Day ${jd.toFixed(4)}: ${dayToStr(currentDay, currentYear)}`;
 updateSphere();
 animate();
 
@@ -1699,10 +1714,6 @@ function updateSlidersFromDate(date) {
   daySlider.value = dayOfYear;
   currentDay = dayOfYear;
 
-  // Format the date string with actual year from input
-  const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  dayValue.textContent = `Day ${currentDay}: ${monthNames[month]} ${day}, ${year}`;
-
   // Update time slider
   const hours = date.getHours();
   const minutes = date.getMinutes();
@@ -1711,6 +1722,11 @@ function updateSlidersFromDate(date) {
   timeSlider.value = timeInMinutes;
   currentTime = timeInMinutes;
   timeValue.textContent = `${hours.toString().padStart(2,'0')}:${minutes.toString().padStart(2,'0')}`;
+
+  // Format the date string with actual year from input
+  const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const jd = currentDay + (currentTime / 1440);
+  dayValue.textContent = `Day ${jd.toFixed(4)}: ${monthNames[month]} ${day}, ${year}`;
 
   // Update the visualization
   updateSphere();
