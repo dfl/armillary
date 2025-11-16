@@ -555,15 +555,16 @@ export class ArmillaryScene {
         new THREE.SphereGeometry(0.12, 16, 16),
         new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.6 })
       );
-      this.zodiacGroup.add(mesh);
+      this.zodiacGroup.add(mesh);  // ALL in zodiacGroup
       this.spheres[name] = mesh;
     };
 
     addAngle("MC", 0x888888);
     addAngle("IC", 0x888888);
-    addAngle("ASC", 0x888888);
-    addAngle("DSC", 0x888888);
+    addAngle("ASC", 0x888800);
+    addAngle("DSC", 0x888800);
   }
+
 
   createAngleLabels() {
     const addAngleLabel = (name) => {
@@ -670,9 +671,9 @@ export class ArmillaryScene {
     // -----------------------------------------------------------
     // 4. Rotate the zodiac/ecliptic wheel
     // -----------------------------------------------------------
-    // this.zodiacGroup.rotation.x = this.obliquity; // Obliquity tilt (X)
-    this.zodiacGroup.rotation.z = THREE.MathUtils.degToRad(ACdeg); // ASC is on eastern horizon (Z)
-
+this.zodiacGroup.rotation.x = this.obliquity;
+this.zodiacGroup.rotation.z = lstRad + Math.PI;  // Match celestial rotation
+this.zodiacGroup.rotation.y = 0;
 
     // -----------------------------------------------------------
     // 5. Convert angle → cartesian (MATCHING zodiac wheel)
@@ -690,6 +691,7 @@ export class ArmillaryScene {
     // -----------------------------------------------------------
     // 6. Place MC / IC / ASC / DSC spheres
     // -----------------------------------------------------------
+
     this.spheres.MC.position.copy(placeOnZodiac(MCdeg));
     this.spheres.IC.position.copy(placeOnZodiac(ICdeg));
     this.spheres.ASC.position.copy(placeOnZodiac(ACdeg));
