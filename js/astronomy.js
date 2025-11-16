@@ -266,6 +266,44 @@ export class AstronomyCalculator {
   }
 
   /**
+   * Convert ecliptic coordinates (lon, lat in radians) to equatorial (RA, Dec in radians)
+   * obliquity: obliquity in radians
+   */
+  eclipticToEquatorial(eclipticLon, eclipticLat, obliquity) {
+    const sinDec = Math.sin(eclipticLat) * Math.cos(obliquity) +
+                   Math.cos(eclipticLat) * Math.sin(obliquity) * Math.sin(eclipticLon);
+    const dec = Math.asin(sinDec);
+
+    const ra = Math.atan2(
+      Math.sin(eclipticLon) * Math.cos(obliquity) - Math.tan(eclipticLat) * Math.sin(obliquity),
+      Math.cos(eclipticLon)
+    );
+
+    return { ra, dec };
+  }
+
+  /**
+   * Convert equatorial coordinates (RA, Dec in radians) to horizontal (alt, az in radians)
+   * ra, dec: right ascension and declination in radians
+   * lstRad: local sidereal time in radians
+   * latRad: observer latitude in radians
+   */
+  equatorialToHorizontal(ra, dec, lstRad, latRad) {
+    const hourAngle = lstRad - ra;
+
+    const sinAlt = Math.sin(dec) * Math.sin(latRad) +
+                   Math.cos(dec) * Math.cos(latRad) * Math.cos(hourAngle);
+    const alt = Math.asin(sinAlt);
+
+    const az = Math.atan2(
+      Math.sin(hourAngle),
+      Math.cos(hourAngle) * Math.sin(latRad) - Math.tan(dec) * Math.cos(latRad)
+    );
+
+    return { alt, az };
+  }
+
+  /**
    * Convert to zodiac notation (e.g. "10♈05")
    * longitude: degrees 0..360
    */

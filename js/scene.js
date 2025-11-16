@@ -555,7 +555,7 @@ export class ArmillaryScene {
         new THREE.SphereGeometry(0.12, 16, 16),
         new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.6 })
       );
-      this.zodiacGroup.add(mesh);  // ALL in zodiacGroup
+      this.zodiacGroup.add(mesh);  // Add to zodiacGroup for astrology visualization
       this.spheres[name] = mesh;
     };
 
@@ -640,14 +640,10 @@ export class ArmillaryScene {
     console.log("LST (deg):", THREE.MathUtils.radToDeg(lstRad));
 
 
-    this.celestial.rotation.order     =
-    this.zodiacGroup.rotation.order   =
-    "ZXY";    // safest for sky → local conversions
-
-
     // -----------------------------------------------------------
     // 2. Rotate the sky (celestial sphere)
     // -----------------------------------------------------------
+    this.celestial.rotation.order = "XZY";
     this.celestial.rotation.x = latRad;    // tilt sky for observer latitude
     this.celestial.rotation.z = lstRad;    // rotate sky by LST
     this.celestial.rotation.y = 0;
@@ -669,28 +665,67 @@ export class ArmillaryScene {
 
 
     // -----------------------------------------------------------
-    // 4. Rotate the zodiac/ecliptic wheel
+    // 4. Rotate the zodiac/ecliptic wheel to align with local frame
     // -----------------------------------------------------------
-this.zodiacGroup.rotation.x = this.obliquity;
-this.zodiacGroup.rotation.z = lstRad + Math.PI;  // Match celestial rotation
-this.zodiacGroup.rotation.y = 0;
+    // The zodiac wheel is part of the celestial sphere, tilted by obliquity from
+    // the celestial equator. The celestial sphere itself is tilted and rotated
+    // based on observer latitude and LST.
+    //
+    // For the ecliptic/zodiac, we need:
+    // - Tilt relative to celestial equator: obliquity
+    // - Tilt for observer latitude: latRad
+    // - Rotation for time: LST
+    //
+    // The combined tilt puts the ecliptic at the correct angle.
+    // The rotation places it at the correct orientation for the current time.
+
+    this.zodiacGroup.rotation.order = "XZY";
+
+    // Tilt: This tilts the ecliptic relative to the horizon
+    // Starting from horizontal, we tilt by (obliquity + latitude adjustment)
+    // The ecliptic pole should be at obliquity from celestial pole
+    // And celestial pole is at latitude angle from zenith
+    this.zodiacGroup.rotation.x = this.obliquity + latRad;
+
+    // Rotation: Rotate the ecliptic based on LST to position it correctly in time
+    // The ascendant is the ecliptic point rising in the east
+    // This requires rotating the ecliptic so ASC is at the eastern point
+    //
+    // The relationship: at any LST, the point with RA = LST is on the meridian
+    // For the ecliptic, we need to account for the conversion from ecliptic to equatorial
+    //
+    // Simpler approach: rotate by an angle that brings ASC to the eastern horizon
+    // Eastern horizon in our coordinates is +X direction (after accounting for tilts)
+    // We want ACdeg (on the wheel) to end up pointing east
+    // So we rotate by -(ACdeg - 90°) to bring ACdeg to the +X axis (east)
+    this.zodiacGroup.rotation.z = -THREE.MathUtils.degToRad(ACdeg - 90);
+
+    this.zodiacGroup.rotation.y = 0;
 
     // -----------------------------------------------------------
-    // 5. Convert angle → cartesian (MATCHING zodiac wheel)
+    // 5. Convert ecliptic longitude → cartesian on zodiac wheel
     // -----------------------------------------------------------
+    // In ecliptic longitude:
+    //   0° Aries = 0°
+    //   Degrees increase eastward along the ecliptic
+    // In our zodiac wheel local coordinates (before rotation):
+    //   +X axis = 0° ecliptic longitude (Aries)
+    //   +Y axis = 90° ecliptic longitude (Cancer)
+    //   Counterclockwise when viewed from north ecliptic pole
     const placeOnZodiac = (deg) => {
-        const rad = THREE.MathUtils.degToRad(deg);  // positive mapping
+        const rad = THREE.MathUtils.degToRad(deg);
         return new THREE.Vector3(
             this.CE_RADIUS * Math.cos(rad),
             this.CE_RADIUS * Math.sin(rad),
-            0.0   // keep on the plane; small z offsets can be added later
+            0.0
         );
     };
 
 
     // -----------------------------------------------------------
-    // 6. Place MC / IC / ASC / DSC spheres
+    // 6. Place MC / IC / ASC / DSC spheres on zodiac wheel
     // -----------------------------------------------------------
+    // Place them using their ecliptic longitudes on the zodiac plane
 
     this.spheres.MC.position.copy(placeOnZodiac(MCdeg));
     this.spheres.IC.position.copy(placeOnZodiac(ICdeg));
@@ -705,18 +740,17 @@ this.zodiacGroup.rotation.y = 0;
         const worldPos = new THREE.Vector3();
         this.spheres[key].getWorldPosition(worldPos);
 
-        // small offset
-        if (key === "MC") worldPos.y += 0.2;
-        if (key === "IC") worldPos.y -= 0.2;
-        if (key === "ASC") worldPos.x += 0.2;
-        if (key === "DSC") worldPos.x -= 0.2;
+        // small offset in the direction away from origin
+        const offsetDistance = 0.3;
+        const direction = worldPos.clone().normalize();
+        worldPos.add(direction.multiplyScalar(offsetDistance));
 
         this.angleLabels[key].position.copy(worldPos);
     }
 
 
     // -----------------------------------------------------------
-    // 8. SUN POSITION
+    // 8. SUN POSITION on zodiac wheel
     // -----------------------------------------------------------
     const isLeapYear = (currentYear % 4 === 0 && currentYear % 100 !== 0) || (currentYear % 400 === 0);
     const { month, day } = astroCalc.dayOfYearToMonthDay(currentDay, isLeapYear);
@@ -729,9 +763,10 @@ this.zodiacGroup.rotation.y = 0;
 
     const sunDeg = THREE.MathUtils.radToDeg(sunLonRad);
     console.log("Sun ecliptic lon (deg):", sunDeg);
+
+    // Place both sun representations on the zodiac wheel
     this.eclipticSunGroup.position.copy(placeOnZodiac(sunDeg));
 
-    // optional: far-away realistic sun
     const distance = this.CE_RADIUS * 50;
     const rad = THREE.MathUtils.degToRad(sunDeg);
     this.realisticSunGroup.position.set(
@@ -741,9 +776,16 @@ this.zodiacGroup.rotation.y = 0;
     );
 
 
+    // Debug: Check world positions of angles
     const w = new THREE.Vector3();
-    this.spheres.MC.getWorldPosition(w); console.log("MC world", w);
-    this.spheres.ASC.getWorldPosition(w); console.log("ASC world", w);
+    this.spheres.MC.getWorldPosition(w);
+    console.log("MC world:", w, "expected on meridian (x≈0)");
+    this.spheres.IC.getWorldPosition(w);
+    console.log("IC world:", w, "expected on meridian (x≈0)");
+    this.spheres.ASC.getWorldPosition(w);
+    console.log("ASC world:", w, "expected on horizon (y≈0, x>0)");
+    this.spheres.DSC.getWorldPosition(w);
+    console.log("DSC world:", w, "expected on horizon (y≈0, x<0)");
 
     // -----------------------------------------------------------
     // 9. UI updates
