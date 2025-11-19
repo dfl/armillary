@@ -479,10 +479,10 @@ export class ArmillaryScene {
 
     // Add constellation lines
     const lineMaterial = new THREE.LineBasicMaterial({
-      color: 0x6666ff,
+      color: 0x5555cc,
       transparent: true,
-      opacity: 0.6,
-      linewidth: 2
+      opacity: 0.3,
+      linewidth: 1
     });
 
     constellationLines.forEach(([star1, star2]) => {
@@ -515,10 +515,10 @@ export class ArmillaryScene {
       new THREE.BufferGeometry().setFromPoints(outerEclipticPoints),
       new THREE.LineDashedMaterial({
         color: 0x888888,
-        opacity: 0.6,
+        opacity: 0.3,
         transparent: true,
-        dashSize: 1.5,
-        gapSize: 1.0
+        dashSize: 2.0,
+        gapSize: 2.0
       })
     );
     this.outerEclipticLine.computeLineDistances();
@@ -542,7 +542,7 @@ export class ArmillaryScene {
 
       bgStarPositions.push(x, y, z);
 
-      const brightness = 0.3 + Math.random() * 0.5;
+      const brightness = 0.1 + Math.random() * 0.3;
       bgStarColors.push(brightness, brightness, brightness * 0.98);
     }
 
@@ -550,10 +550,10 @@ export class ArmillaryScene {
     bgStarGeometry.setAttribute('color', new THREE.Float32BufferAttribute(bgStarColors, 3));
 
     const bgStarMaterial = new THREE.PointsMaterial({
-      size: 0.03,
+      size: 0.025,
       vertexColors: true,
       transparent: true,
-      opacity: 0.8
+      opacity: 0.4
     });
 
     this.bgStarField = new THREE.Points(bgStarGeometry, bgStarMaterial);
