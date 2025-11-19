@@ -622,7 +622,7 @@ export class ArmillaryScene {
   createAngleSpheres() {
     const addAngle = (name, color) => {
       const mesh = new THREE.Mesh(
-        new THREE.SphereGeometry(0.12, 16, 16),
+        new THREE.SphereGeometry(0.08, 16, 16),
         new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.6 })
       );
       this.zodiacGroup.add(mesh);  // Add to zodiacGroup for astrology visualization
@@ -631,8 +631,8 @@ export class ArmillaryScene {
 
     addAngle("MC", 0x888888);
     addAngle("IC", 0x888888);
-    addAngle("ASC", 0x888800);
-    addAngle("DSC", 0x888800);
+    addAngle("ASC", 0x888888);
+    addAngle("DSC", 0x888888);
   }
 
 
