@@ -32,6 +32,10 @@ export class ArmillaryScene {
     this.moonMesh = null;
     this.moonGlowMeshes = [];
 
+    // Cache for sunrise/sunset calculation
+    this.cachedRiseSet = null;
+    this.riseSetCacheKey = null;
+
     this.initScene();
     this.initGroups();
     this.createFixedReferences();
@@ -812,9 +816,16 @@ export class ArmillaryScene {
     document.getElementById("acValue").textContent = astroCalc.toZodiacString(ACdeg);
     document.getElementById("sunPositionValue").textContent = astroCalc.toZodiacString(sunDeg);
 
-    const riseSetData = astroCalc.calculateRiseSet(sunLonRad, currentLatitude, currentLongitude, currentDay, currentYear, timezone);
-    document.getElementById("sunriseValue").textContent = riseSetData.sunrise;
-    document.getElementById("sunsetValue").textContent = riseSetData.sunset;
+    // Calculate rise/set only when date or location changes (not time of day)
+    const riseSetKey = `${currentDay}-${currentYear}-${currentLatitude.toFixed(2)}-${currentLongitude.toFixed(2)}-${timezone}`;
+    if (this.riseSetCacheKey !== riseSetKey) {
+      console.log('Recalculating sunrise/sunset for', riseSetKey);
+      this.cachedRiseSet = astroCalc.calculateRiseSet(sunLonRad, currentLatitude, currentLongitude, currentDay, currentYear, timezone);
+      this.riseSetCacheKey = riseSetKey;
+    }
+
+    document.getElementById("sunriseValue").textContent = this.cachedRiseSet.sunrise;
+    document.getElementById("sunsetValue").textContent = this.cachedRiseSet.sunset;
   }
 
   toggleStarfield(visible) {

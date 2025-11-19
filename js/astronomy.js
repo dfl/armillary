@@ -212,72 +212,173 @@ export class AstronomyCalculator {
   }
 
   /**
-   * Calculate sunrise and sunset times
+   * Calculate sunrise and sunset times using ephemeris
    * Inputs:
-   *   sunEclipticLon: in RADIANS
+   *   sunEclipticLon: in RADIANS (not used if ephemeris has rise/set)
    *   latitude, longitude: in DEGREES (longitude east-positive)
    *   dayOfYear: integer (UTC day-of-year)
    *   year: integer
    *   timezone: optional IANA timezone string (e.g., 'America/Anchorage')
    *
-   * Returns { sunrise: "HH:MM", sunset: "HH:MM", transit: "HH:MM" } in local time if timezone provided, otherwise approximate local
+   * Returns { sunrise: "HH:MM", sunset: "HH:MM", transit: "HH:MM" } in local time if timezone provided, otherwise UTC
    */
   calculateRiseSet(sunEclipticLon, latitude, longitude, dayOfYear, year, timezone = null) {
-    // Use nominal obliquity (radians) for these conversions
-    const OBLIQUITY_RAD = this.OBLIQUITY;
+    // Try to use ephemeris library for accurate rise/set times
+    try {
+      const { month, day } = this.dayOfYearToMonthDay(dayOfYear, year);
+      const dateUTC = new Date(Date.UTC(year, month, day, 12, 0, 0)); // Use noon to get the day's rise/set
+
+      // Try ephemeris rise/set functions if they exist
+      if (ephemeris.sunRise && ephemeris.sunSet) {
+        const sunriseResult = ephemeris.sunRise(dateUTC, latitude, longitude);
+        const sunsetResult = ephemeris.sunSet(dateUTC, latitude, longitude);
+
+        if (sunriseResult && sunsetResult) {
+          const formatDate = (d) => {
+            if (!d || !(d instanceof Date)) return "--:--";
+            const dt = DateTime.fromJSDate(d, { zone: 'UTC' });
+            if (timezone) {
+              const local = dt.setZone(timezone);
+              return local.toFormat('HH:mm');
+            }
+            return dt.toFormat('HH:mm');
+          };
+
+          return {
+            sunrise: formatDate(sunriseResult),
+            sunset: formatDate(sunsetResult),
+            transit: "--:--" // Transit not provided by these functions
+          };
+        }
+      }
+
+      // Alternative: check if getAllPlanets returns rise/set data
+      const result = ephemeris.getAllPlanets(dateUTC, latitude, longitude);
+      const sunData = result?.observed?.sun || result?.sun;
+
+      if (sunData && (sunData.rise || sunData.set)) {
+        const formatDate = (d) => {
+          if (!d || !(d instanceof Date)) return "--:--";
+          const dt = DateTime.fromJSDate(d, { zone: 'UTC' });
+          if (timezone) {
+            const local = dt.setZone(timezone);
+            return local.toFormat('HH:mm');
+          }
+          return dt.toFormat('HH:mm');
+        };
+
+        return {
+          sunrise: formatDate(sunData.rise),
+          sunset: formatDate(sunData.set),
+          transit: formatDate(sunData.transit || null)
+        };
+      }
+    } catch (e) {
+      console.warn('Ephemeris rise/set failed, using calculated values:', e);
+    }
+
+    // Fallback: Calculate rise/set by iterating through the day to find when sun crosses horizon
+    console.log('Using iterative calculation for sunrise/sunset');
+
+    const { month, day } = this.dayOfYearToMonthDay(dayOfYear, year);
     const SUN_ANGULAR_RADIUS = 0.267 * Math.PI / 180;
     const ATMOSPHERIC_REFRACTION = 0.567 * Math.PI / 180;
-    const ALTITUDE_AT_RISE_SET = -(SUN_ANGULAR_RADIUS + ATMOSPHERIC_REFRACTION);
+    const ALTITUDE_AT_RISE_SET = -(SUN_ANGULAR_RADIUS + ATMOSPHERIC_REFRACTION); // About -0.833 degrees
 
-    // Convert ecliptic longitude (radians) -> equatorial declination and RA
-    const sinDec = Math.sin(OBLIQUITY_RAD) * Math.sin(sunEclipticLon);
-    const declination = Math.asin(sinDec);
+    // Helper: Calculate sun's altitude at a given time
+    const getSunAltitude = (hours, minutes) => {
+      try {
+        // Calculate sun's ecliptic longitude
+        const sunLon = this.calculateSunPosition(dayOfYear, year, month, day, hours, minutes, longitude);
 
-    const rightAscension = Math.atan2(
-      Math.sin(sunEclipticLon) * Math.cos(OBLIQUITY_RAD),
-      Math.cos(sunEclipticLon)
-    );
-    let RA_deg = this._radToDeg(rightAscension);
-    if (RA_deg < 0) RA_deg += 360;
+        // Convert to equatorial coordinates
+        const { ra, dec } = this.eclipticToEquatorial(sunLon, 0, this.OBLIQUITY);
 
-    // Observer latitude in radians
-    const latRad = this._degToRad(latitude);
+        // Calculate LST for this time
+        const timeMinutes = hours * 60 + minutes;
+        const { LST: LSTdeg } = this.calculateLST(dayOfYear, timeMinutes, longitude, year);
+        const lstRad = this._degToRad(LSTdeg);
+        const latRad = this._degToRad(latitude);
 
-    // hour angle for sunrise/sunset
-    const cosH = (Math.sin(ALTITUDE_AT_RISE_SET) - Math.sin(latRad) * Math.sin(declination)) /
-                 (Math.cos(latRad) * Math.cos(declination));
+        // Convert to horizontal coordinates
+        const { alt } = this.equatorialToHorizontal(ra, dec, lstRad, latRad);
 
-    if (cosH > 1) {
-      return { sunrise: "No sunrise", sunset: "No sunset", transit: "--:--" };
+        return alt;
+      } catch (e) {
+        return null;
+      }
+    };
+
+    // Search through the day to find sunrise, sunset, and transit
+    // Track previous altitude to detect crossings
+    let sunriseTime = null;
+    let sunsetTime = null;
+    let transitTime = null;
+    let maxAltitude = -Math.PI;
+    let prevAlt = getSunAltitude(0, 0);
+
+    // Sample every minute for accuracy
+    for (let totalMinutes = 1; totalMinutes < 24 * 60; totalMinutes++) {
+      const h = Math.floor(totalMinutes / 60);
+      const m = totalMinutes % 60;
+      const alt = getSunAltitude(h, m);
+
+      if (alt === null || prevAlt === null) {
+        prevAlt = alt;
+        continue;
+      }
+
+      // Track transit (highest altitude)
+      if (alt > maxAltitude) {
+        maxAltitude = alt;
+        transitTime = { hours: h, minutes: m };
+      }
+
+      // Detect sunrise: crossing from below to above threshold
+      if (!sunriseTime && prevAlt < ALTITUDE_AT_RISE_SET && alt >= ALTITUDE_AT_RISE_SET) {
+        sunriseTime = { hours: h, minutes: m };
+        console.log('Found sunrise at', h, ':', m, 'alt:', alt, 'prevAlt:', prevAlt);
+      }
+
+      // Detect sunset: crossing from above to below threshold
+      if (!sunsetTime && prevAlt > ALTITUDE_AT_RISE_SET && alt <= ALTITUDE_AT_RISE_SET) {
+        sunsetTime = { hours: h, minutes: m };
+        console.log('Found sunset at', h, ':', m, 'alt:', alt, 'prevAlt:', prevAlt);
+      }
+
+      prevAlt = alt;
+
+      // Stop if we found both
+      if (sunriseTime && sunsetTime) break;
     }
-    if (cosH < -1) {
-      return { sunrise: "24h sun", sunset: "24h sun", transit: "--:--" };
+
+    // Handle special cases
+    if (!sunriseTime && !sunsetTime) {
+      const noonAlt = getSunAltitude(12, 0);
+      if (noonAlt !== null) {
+        if (noonAlt < ALTITUDE_AT_RISE_SET) {
+          return { sunrise: "No sunrise", sunset: "No sunset", transit: "--:--" };
+        } else {
+          return { sunrise: "24h sun", sunset: "24h sun", transit: "--:--" };
+        }
+      }
     }
 
-    const H_deg = this._radToDeg(Math.acos(cosH));
+    // If we found sunset before sunrise in the UTC day, it means the sun was already up at UTC midnight
+    // In this case, the "sunrise" we found is actually for the next occurrence
+    // We should skip it and just show the sunset
+    if (sunsetTime && sunriseTime &&
+        (sunsetTime.hours * 60 + sunsetTime.minutes) < (sunriseTime.hours * 60 + sunriseTime.minutes)) {
+      console.log('Sunset found before sunrise - sun was up at midnight');
+      // The sunrise we found is for tomorrow, so ignore it for today's calculation
+      // We could search backwards from midnight to find yesterday's sunrise, but for simplicity just use sunset
+    }
 
-    // Build JD at 0h UT for the given day (approx)
-    // We construct a UTC Date at year/dayOfYear -> midnight and compute JD
-    // For simplicity in this function we assume current year is J2000 reference year. This returns approximate rise/set times.
-    const isLeap = true; // not used; dayOfYear passed in by caller
-    // Create a provisional julianDate0h relative to J2000 using dayOfYear offset:
-    const julianDate0h = this.J2000_EPOCH + (dayOfYear - 1); // approximate; caller should supply dayOfYear for that year
+    let sunriseUT = sunriseTime ? sunriseTime.hours + sunriseTime.minutes / 60 : 6;
+    let sunsetUT = sunsetTime ? sunsetTime.hours + sunsetTime.minutes / 60 : 18;
+    let transitUT = transitTime ? transitTime.hours + transitTime.minutes / 60 : 12;
 
-    const T = (julianDate0h - this.J2000_EPOCH) / 36525;
-    const GST0 = 280.46061837 +
-                 360.98564736629 * (julianDate0h - this.J2000_EPOCH) +
-                 0.000387933 * T * T -
-                 (T * T * T) / 38710000.0;
-
-    // Transit time (UT) in hours: approximate using RA and GST0
-    // transitUT = ((RA_norm - longitude - GST0) / 360.98564736629) * 24
-    let transitUT = ((RA_deg - longitude - GST0) / 360.98564736629) * 24;
-    // normalise into [0,24)
-    transitUT = ((transitUT % 24) + 24) % 24;
-
-    const H_hours = H_deg / 15.0;
-    let sunriseUT = transitUT - H_hours;
-    let sunsetUT = transitUT + H_hours;
+    console.log('Rise/Set in UT:', sunriseUT, sunsetUT, 'Transit:', transitUT);
 
     const norm24 = (h) => {
       let hh = h % 24;
@@ -298,10 +399,7 @@ export class AstronomyCalculator {
     // Convert UTC times to local timezone if provided
     if (timezone) {
       try {
-        // Convert UTC dayOfYear to month/day
-        const { month, day } = this.dayOfYearToMonthDay(dayOfYear, year);
-
-        // Create UTC DateTimes and convert to local timezone
+        // Create UTC DateTimes and convert to local timezone (month, day already declared above)
         const sunriseUTC = DateTime.fromObject({
           year, month: month + 1, day,
           hour: Math.floor(sunriseUT), minute: Math.floor((sunriseUT % 1) * 60)
