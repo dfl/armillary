@@ -344,6 +344,12 @@ export class ArmillaryScene {
       canvas.width = 128;
       canvas.height = 128;
       const ctx = canvas.getContext('2d');
+
+      // Flip the canvas horizontally to mirror the glyph
+      ctx.translate(64, 64);
+      ctx.scale(-1, 1);
+      ctx.translate(-64, -64);
+
       ctx.fillStyle = 'white';
       ctx.font = 'bold 84px Arial';
       ctx.textAlign = 'center';
@@ -353,7 +359,8 @@ export class ArmillaryScene {
       const mat = new THREE.MeshBasicMaterial({ map: texture, transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthTest: false });
       const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 1.2), mat);
       mesh.position.set(zodiacRadius * Math.cos(angle), zodiacRadius * Math.sin(angle), 0);
-      // mesh.rotation.z = angle + Math.PI / 2;
+      // Rotate so the top of the glyph faces outward from the disc
+      mesh.rotation.z = angle - Math.PI / 2;
       this.zodiacGroup.add(mesh);
     });
   }
@@ -498,6 +505,10 @@ export class ArmillaryScene {
     this.eclipticSunGroup = new THREE.Group();
     this.eclipticSunGroup.add(sun);
 
+    // Store reference to the main sun mesh for color updates
+    this.eclipticSunMesh = sun;
+    this.eclipticSunGlowMeshes = [];
+
     eclipticSunGlowLayers.forEach(layer => {
       const glowMesh = new THREE.Mesh(
         new THREE.SphereGeometry(layer.size, 32, 32),
@@ -509,6 +520,7 @@ export class ArmillaryScene {
         })
       );
       this.eclipticSunGroup.add(glowMesh);
+      this.eclipticSunGlowMeshes.push(glowMesh);
     });
 
     this.zodiacGroup.add(this.eclipticSunGroup);
@@ -533,6 +545,10 @@ export class ArmillaryScene {
     this.realisticSunGroup = new THREE.Group();
     this.realisticSunGroup.add(realisticSun);
 
+    // Store reference to the realistic sun mesh for color updates
+    this.realisticSunMesh = realisticSun;
+    this.realisticSunGlowMeshes = [];
+
     sunGlowLayers.forEach(layer => {
       const glowMesh = new THREE.Mesh(
         new THREE.SphereGeometry(layer.size, 32, 32),
@@ -544,6 +560,7 @@ export class ArmillaryScene {
         })
       );
       this.realisticSunGroup.add(glowMesh);
+      this.realisticSunGlowMeshes.push(glowMesh);
     });
 
     this.zodiacGroup.add(this.realisticSunGroup);
@@ -730,6 +747,23 @@ export class ArmillaryScene {
     const distance = this.CE_RADIUS * 50;
     const sRad = THREE.MathUtils.degToRad(sunDeg);
     this.realisticSunGroup.position.set(Math.cos(sRad) * distance, Math.sin(sRad) * distance, 0);
+
+    // Check if sun is above or below horizon and update ecliptic sun colors only
+    const sunWorldPos = new THREE.Vector3();
+    this.eclipticSunGroup.getWorldPosition(sunWorldPos);
+    const isSunAboveHorizon = sunWorldPos.y > 0;
+
+    if (isSunAboveHorizon) {
+      // Orange colors when above horizon
+      this.eclipticSunMesh.material.color.setHex(0xffaa44);
+      this.eclipticSunGlowMeshes[0].material.color.setHex(0xffff99);
+      this.eclipticSunGlowMeshes[1].material.color.setHex(0xffcc66);
+    } else {
+      // Gray colors when below horizon (ecliptic sun only)
+      this.eclipticSunMesh.material.color.setHex(0x888888);
+      this.eclipticSunGlowMeshes[0].material.color.setHex(0x999999);
+      this.eclipticSunGlowMeshes[1].material.color.setHex(0x888888);
+    }
 
     // -----------------------------------------------------------
     // 7. UI Updates
