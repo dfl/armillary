@@ -190,23 +190,21 @@
   <div class="constellation-name" id="constellationName">Constellation</div>
 </div>
 
-<script type='text/javascript' src='./js/ephemeris-1.2.1.bundle.js' charset='utf-8'></script>
-<script src="https://cdn.jsdelivr.net/npm/@tarekraafat/autocomplete.js@10.2.9/dist/autoComplete.min.js"></script>
-
-<script type="importmap">
-{
-  "imports": {
-    "three": "https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.module.js",
-    "three/examples/jsm/": "https://cdn.jsdelivr.net/npm/three@0.158.0/examples/jsm/",
-    "chrono-node": "./node_modules/chrono-node/dist/esm/index.js"
-  }
-}
-</script>
-
 <script type="module">
 import * as THREE from 'three';
-import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import * as chrono from 'chrono-node';
+
+// Import ephemeris modules from yarn
+import $const from 'ephemeris/src/astronomy/moshier/constant.js';
+import $processor from 'ephemeris/src/astronomy/moshier/processor.js';
+import $body from 'ephemeris/src/astronomy/moshier/body.js';
+
+// Make ephemeris available globally for the existing code
+const $moshier = { body: $body };
+window.$const = $const;
+window.$processor = $processor;
+window.$moshier = $moshier;
 
 // ------------------- DateTimeParser -------------------
 class DateTimeParser {
@@ -1772,8 +1770,10 @@ loadStateFromURL();
 
 </script>
 
-<script>
+<script type="module">
 // ------------------- Location Autocomplete -------------------
+import autoComplete from '@tarekraafat/autocomplete.js';
+
 (function () {
   const maxResults = 20;
   const locationInput = document.querySelector("#locationInput");

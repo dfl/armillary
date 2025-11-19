@@ -26,6 +26,7 @@ export class ArmillaryScene {
     this.angleLabels = {};
     this.eclipticSunGroup = null;
     this.realisticSunGroup = null;
+    this.sunTexture = null; // Store texture reference for toggling
 
     this.initScene();
     this.initGroups();
@@ -345,21 +346,22 @@ export class ArmillaryScene {
       canvas.height = 128;
       const ctx = canvas.getContext('2d');
 
-      // Flip the canvas horizontally to mirror the glyph
-      ctx.translate(64, 64);
-      ctx.scale(-1, 1);
-      ctx.translate(-64, -64);
-
+      // RENDER TEXT NORMALLY
+      // Removed ctx.scale(-1, 1) which was causing the "backwards" mirror effect.
       ctx.fillStyle = 'white';
       ctx.font = 'bold 84px Arial';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(glyph, 64, 64);
+
       const texture = new THREE.CanvasTexture(canvas);
       const mat = new THREE.MeshBasicMaterial({ map: texture, transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthTest: false });
       const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 1.2), mat);
       mesh.position.set(zodiacRadius * Math.cos(angle), zodiacRadius * Math.sin(angle), 0);
-      // Rotate so the top of the glyph faces outward from the disc
+      
+      // ROTATION FIX:
+      // angle is direction from center.
+      // angle - Math.PI/2 ensures the local "Up" (top of glyph) aligns with the outward vector.
       mesh.rotation.z = angle - Math.PI / 2;
       this.zodiacGroup.add(mesh);
     });
@@ -485,20 +487,20 @@ export class ArmillaryScene {
 
   createSun() {
     const textureLoader = new THREE.TextureLoader();
-    const sunTexture = textureLoader.load(this.SUN_TEXTURE_PATH);
+    this.sunTexture = textureLoader.load(this.SUN_TEXTURE_PATH); // Store for referencing later
 
     const eclipticSunRadius = 0.15;
 
     const sun = new THREE.Mesh(
       new THREE.SphereGeometry(eclipticSunRadius, 32, 32),
       new THREE.MeshBasicMaterial({
-        map: sunTexture,
+        map: this.sunTexture,
         color: 0xffaa44
       })
     );
 
     const eclipticSunGlowLayers = [
-      { size: eclipticSunRadius * 1.15, opacity: 0.1, color: 0xffff99 },
+      { size: eclipticSunRadius * 1.15, opacity: 1, color: 0x00ff99 },
       { size: eclipticSunRadius * 1.4, opacity: 0.1, color: 0xffcc66 }
     ];
 
@@ -748,19 +750,30 @@ export class ArmillaryScene {
     const sRad = THREE.MathUtils.degToRad(sunDeg);
     this.realisticSunGroup.position.set(Math.cos(sRad) * distance, Math.sin(sRad) * distance, 0);
 
-    // Check if sun is above or below horizon and update ecliptic sun colors only
+    // FORCE MATRIX UPDATE:
+    // We must force the scene to solve the new positions immediately,
+    // otherwise .getWorldPosition() will return last frame's data.
+    this.scene.updateMatrixWorld(true);
+
+    // Check if sun is above or below horizon of the *previous frame* if we don't update matrix.
     const sunWorldPos = new THREE.Vector3();
     this.eclipticSunGroup.getWorldPosition(sunWorldPos);
     const isSunAboveHorizon = sunWorldPos.y > 0;
 
     if (isSunAboveHorizon) {
       // Orange colors when above horizon
+      // Restore the sun texture if it was removed
+      if (this.sunTexture) this.eclipticSunMesh.material.map = this.sunTexture;
       this.eclipticSunMesh.material.color.setHex(0xffaa44);
+      
       this.eclipticSunGlowMeshes[0].material.color.setHex(0xffff99);
       this.eclipticSunGlowMeshes[1].material.color.setHex(0xffcc66);
     } else {
       // Gray colors when below horizon (ecliptic sun only)
+      // Remove texture to get a true gray color (otherwise it's muddy yellow)
+      this.eclipticSunMesh.material.map = null;
       this.eclipticSunMesh.material.color.setHex(0x888888);
+      
       this.eclipticSunGlowMeshes[0].material.color.setHex(0x999999);
       this.eclipticSunGlowMeshes[1].material.color.setHex(0x888888);
     }
