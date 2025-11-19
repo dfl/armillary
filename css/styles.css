@@ -49,23 +49,22 @@ input[type="text"] {
   font-weight: bold;
 }
 #starInfo {
-  position: absolute;
-  bottom: 10px;
-  right: 10px;
+  position: fixed;
   color: white;
   font-family: sans-serif;
-  background: rgba(0,0,0,0.5);
+  background: rgba(0,0,0,0.8);
   padding: 12px;
   border-radius: 0.5rem;
-  min-width: 200px;
+  min-width: 150px;
+  max-width: 250px;
   z-index: 1000;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 500ms ease-in-out;
+  transition: opacity 0.15s ease-in-out;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.5);
 }
 #starInfo.visible {
   opacity: 1;
-  pointer-events: auto;
 }
 #starInfo .star-name {
   font-weight: bold;

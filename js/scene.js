@@ -689,11 +689,11 @@ export class ArmillaryScene {
         const halfWidth = window.innerWidth / 2;
         if (event.clientX < halfWidth) {
           // Left viewport
-          camera = this.leftCamera;
+          camera = this.rightCamera; // Swapped for cross-eyed
           mouseX = (event.clientX / halfWidth) * 2 - 1;
         } else {
           // Right viewport
-          camera = this.rightCamera;
+          camera = this.leftCamera; // Swapped for cross-eyed
           mouseX = ((event.clientX - halfWidth) / halfWidth) * 2 - 1;
         }
         mouseY = -(event.clientY / window.innerHeight) * 2 + 1;
@@ -717,7 +717,43 @@ export class ArmillaryScene {
         if (hoveredObject.userData.name && hoveredObject.userData.constellation) {
           document.getElementById('starName').textContent = hoveredObject.userData.name;
           document.getElementById('constellationName').textContent = hoveredObject.userData.constellation;
+
+          // Position tooltip near mouse with boundary checking
+          const offset = 15; // Distance from cursor
+          const padding = 10; // Padding from screen edges
+
+          // Get tooltip dimensions (need to make it visible first to measure)
+          starInfoElement.style.visibility = 'hidden';
           starInfoElement.classList.add('visible');
+          const rect = starInfoElement.getBoundingClientRect();
+          starInfoElement.style.visibility = '';
+
+          let left = event.clientX + offset;
+          let top = event.clientY + offset;
+
+          // Check right boundary
+          if (left + rect.width > window.innerWidth - padding) {
+            left = event.clientX - rect.width - offset;
+          }
+
+          // Check bottom boundary
+          if (top + rect.height > window.innerHeight - padding) {
+            top = event.clientY - rect.height - offset;
+          }
+
+          // Check left boundary
+          if (left < padding) {
+            left = padding;
+          }
+
+          // Check top boundary
+          if (top < padding) {
+            top = padding;
+          }
+
+          starInfoElement.style.left = left + 'px';
+          starInfoElement.style.top = top + 'px';
+
           this.renderer.domElement.style.cursor = 'pointer';
         }
       } else {
