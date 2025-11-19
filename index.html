@@ -879,7 +879,7 @@ const sunTextureEcliptic = textureLoader.load(
   // }
 );
 
-const eclipticSunRadius = 0.15;
+const eclipticSunRadius = 0.18;
 
 const sun = new THREE.Mesh(
   new THREE.SphereGeometry(eclipticSunRadius, 32, 32),
@@ -893,9 +893,9 @@ const sun = new THREE.Mesh(
 const eclipticSunGlowLayers = [
   { size: eclipticSunRadius * 1.15, opacity: 0.1, color: 0xffff99 },  // Inner corona
   { size: eclipticSunRadius * 1.4, opacity: 0.1, color: 0xffcc66 },   // Middle corona
-  { size: eclipticSunRadius * 2.0, opacity: 0, color: 0x444444 },     // Outer (below-horizon only)
-  { size: eclipticSunRadius * 3.0, opacity: 0, color: 0x333333 },     // Extended (below-horizon only)
-  { size: eclipticSunRadius * 4.5, opacity: 0, color: 0x222222 }      // Far (below-horizon only)
+  // { size: eclipticSunRadius * 2.0, opacity: 0, color: 0x444444 },     // Outer (below-horizon only)
+  // { size: eclipticSunRadius * 3.0, opacity: 0, color: 0x333333 },     // Extended (below-horizon only)
+  // { size: eclipticSunRadius * 4.5, opacity: 0, color: 0x222222 }      // Far (below-horizon only)
 ];
 
 const eclipticSunGroup = new THREE.Group();
@@ -922,7 +922,7 @@ eclipticSunGlowLayers.forEach(layer => {
 zodiacGroup.add(eclipticSunGroup); // Add to zodiacGroup so it's on the ecliptic plane
 
 // ------------------- Moon on Ecliptic -------------------
-const moonRadius = eclipticSunRadius; // Same size as sun (0.15)
+const moonRadius = 0.13; //eclipticSunRadius; // Same size as sun (0.15)
 
 // Load moon texture
 const moonTexture = textureLoader.load('./images/moon_texture.jpg');
@@ -1232,23 +1232,23 @@ function updateSphere(){
     // Normal opacity for first 2 layers, hide the extra layers
     eclipticSunGlowMeshes[0].material.opacity = 0.1;
     eclipticSunGlowMeshes[1].material.opacity = 0.1;
-    eclipticSunGlowMeshes[2].material.opacity = 0;
-    eclipticSunGlowMeshes[3].material.opacity = 0;
-    eclipticSunGlowMeshes[4].material.opacity = 0;
+    // eclipticSunGlowMeshes[2].material.opacity = 0;
+    // eclipticSunGlowMeshes[3].material.opacity = 0;
+    // eclipticSunGlowMeshes[4].material.opacity = 0;
   } else {
     // Very dark core with multiple gray glow layers when below horizon
-    eclipticSunMesh.material.color.setHex(0x0a0a0a);  // Darker
-    eclipticSunGlowMeshes[0].material.color.setHex(0x555555);
-    eclipticSunGlowMeshes[1].material.color.setHex(0x444444);
-    eclipticSunGlowMeshes[2].material.color.setHex(0x333333);
-    eclipticSunGlowMeshes[3].material.color.setHex(0x222222);
-    eclipticSunGlowMeshes[4].material.color.setHex(0x1a1a1a);
+    eclipticSunMesh.material.color.setHex(0x875A24);  // Darker
+    // eclipticSunGlowMeshes[0].material.color.setHex(0x555555);
+    // eclipticSunGlowMeshes[1].material.color.setHex(0x444444);
+    // eclipticSunGlowMeshes[2].material.color.setHex(0x333333);
+    // eclipticSunGlowMeshes[3].material.color.setHex(0x222222);
+    // eclipticSunGlowMeshes[4].material.color.setHex(0x1a1a1a);
     // High opacity for all glow layers when below horizon
-    eclipticSunGlowMeshes[0].material.opacity = 0.6;
-    eclipticSunGlowMeshes[1].material.opacity = 0.5;
-    eclipticSunGlowMeshes[2].material.opacity = 0.4;
-    eclipticSunGlowMeshes[3].material.opacity = 0.3;
-    eclipticSunGlowMeshes[4].material.opacity = 0.2;
+    // eclipticSunGlowMeshes[0].material.opacity = 0.6;
+    // eclipticSunGlowMeshes[1].material.opacity = 0.5;
+    // eclipticSunGlowMeshes[2].material.opacity = 0.4;
+    // eclipticSunGlowMeshes[3].material.opacity = 0.3;
+    // eclipticSunGlowMeshes[4].material.opacity = 0.2;
   }
 
   // Convert sun's ecliptic longitude to degrees and display
@@ -1510,7 +1510,7 @@ function updateSphere(){
 const spheres={};
 function addAngle(name,color){
   const mesh=new THREE.Mesh(
-    new THREE.SphereGeometry(0.12,16,16),
+    new THREE.SphereGeometry(0.06,16,16),
     new THREE.MeshBasicMaterial({color,transparent:true,opacity:0.6})
   );
   zodiacGroup.add(mesh); // Add to zodiacGroup so they rotate with the ecliptic
