@@ -75,8 +75,9 @@ export class ArmillaryScene {
     this.scene.background = new THREE.Color(0x111111);
 
     // Create main camera for normal (non-stereo) view and controls
+    // Position camera to view from north (East/ASC on left, West/DSC on right)
     this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
-    this.camera.position.set(0, 2.5, -6);
+    this.camera.position.set(0, 2.75, 6);
     this.camera.lookAt(0, 0, 0);
 
     // Create stereo cameras (left and right eye)
@@ -682,6 +683,7 @@ export class ArmillaryScene {
       const material = new THREE.SpriteMaterial({ map: texture, depthTest: false });
       const sprite = new THREE.Sprite(material);
       sprite.scale.set(0.8, 0.4, 1);
+      sprite.userData.angleName = name; // Store angle name for tooltip
       this.scene.add(sprite);
       return sprite;
     };
@@ -731,12 +733,16 @@ export class ArmillaryScene {
       const sunIntersects = raycaster.intersectObjects(this.eclipticSunGroup.children, false);
       const moonIntersects = raycaster.intersectObjects(this.moonGroup.children, false);
 
-      // Check angle spheres
+      // Check angle spheres and labels
       const angleIntersects = raycaster.intersectObjects([
         this.spheres.MC,
         this.spheres.IC,
         this.spheres.ASC,
-        this.spheres.DSC
+        this.spheres.DSC,
+        this.angleLabels.MC,
+        this.angleLabels.IC,
+        this.angleLabels.ASC,
+        this.angleLabels.DSC
       ], false);
 
       const starInfoElement = document.getElementById('starInfo');
