@@ -97,6 +97,73 @@ starfieldToggle.addEventListener('change', () => {
   scene.toggleStarfield(starfieldToggle.checked);
 });
 
+// Stereo view toggle
+const stereoToggle = document.getElementById('stereoToggle');
+stereoToggle.addEventListener('change', () => {
+  scene.toggleStereo(stereoToggle.checked);
+});
+
+// Eye separation slider
+const eyeSeparationSlider = document.getElementById('eyeSeparationSlider');
+const eyeSeparationValue = document.getElementById('eyeSeparationValue');
+eyeSeparationSlider.addEventListener('input', () => {
+  const separation = parseFloat(eyeSeparationSlider.value);
+  scene.setEyeSeparation(separation);
+  eyeSeparationValue.textContent = separation.toFixed(2);
+});
+
+// Keyboard shortcuts
+window.addEventListener('keydown', (e) => {
+  // Only process if not typing in an input field
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+    return;
+  }
+
+  // 's' to toggle stereo view
+  if (e.key === 's') {
+    stereoToggle.checked = !stereoToggle.checked;
+    scene.toggleStereo(stereoToggle.checked);
+  }
+
+  // '[' to move time back 1 hour
+  if (e.key === '[') {
+    const timeSlider = document.getElementById('timeSlider');
+    const daySlider = document.getElementById('daySlider');
+    let newTime = parseInt(timeSlider.value) - 60;
+    let currentDay = parseInt(daySlider.value);
+
+    if (newTime < 0) {
+      newTime += 1440; // Move to previous day
+      currentDay -= 1;
+      if (currentDay < 1) currentDay = 365; // Wrap to end of year
+      daySlider.value = currentDay;
+      daySlider.dispatchEvent(new Event('input'));
+    }
+
+    timeSlider.value = newTime;
+    timeSlider.dispatchEvent(new Event('input'));
+  }
+
+  // ']' to move time forward 1 hour
+  if (e.key === ']') {
+    const timeSlider = document.getElementById('timeSlider');
+    const daySlider = document.getElementById('daySlider');
+    let newTime = parseInt(timeSlider.value) + 60;
+    let currentDay = parseInt(daySlider.value);
+
+    if (newTime >= 1440) {
+      newTime -= 1440; // Move to next day
+      currentDay += 1;
+      if (currentDay > 365) currentDay = 1; // Wrap to start of year
+      daySlider.value = currentDay;
+      daySlider.dispatchEvent(new Event('input'));
+    }
+
+    timeSlider.value = newTime;
+    timeSlider.dispatchEvent(new Event('input'));
+  }
+});
+
 // Initialize UI values
 uiManager.initialize();
 

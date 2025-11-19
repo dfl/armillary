@@ -13,8 +13,12 @@ export class ArmillaryScene {
 
     this.scene = null;
     this.camera = null;
+    this.leftCamera = null;
+    this.rightCamera = null;
     this.renderer = null;
     this.controls = null;
+    this.stereoEnabled = false;
+    this.eyeSeparation = 0.3; // Distance between eyes for stereo effect
 
     this.tiltGroup = null;
     this.celestial = null;
@@ -54,21 +58,26 @@ export class ArmillaryScene {
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x111111);
 
+    // Create main camera for normal (non-stereo) view and controls
     this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
     this.camera.position.set(0, 2.5, -6);
     this.camera.lookAt(0, 0, 0);
 
+    // Create stereo cameras (left and right eye)
+    const aspect = (window.innerWidth / 2) / window.innerHeight; // Half width for each eye
+    this.leftCamera = new THREE.PerspectiveCamera(60, aspect, 0.1, 1000);
+    this.rightCamera = new THREE.PerspectiveCamera(60, aspect, 0.1, 1000);
+
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
     this.renderer.setSize(window.innerWidth, window.innerHeight);
+    this.renderer.setScissorTest(true); // Enable scissor test for split viewport
     document.body.appendChild(this.renderer.domElement);
 
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.enableDamping = true;
 
     window.addEventListener('resize', () => {
-      this.camera.aspect = window.innerWidth / window.innerHeight;
-      this.camera.updateProjectionMatrix();
-      this.renderer.setSize(window.innerWidth, window.innerHeight);
+      this.onWindowResize();
     });
   }
 
@@ -673,10 +682,32 @@ export class ArmillaryScene {
     const mouse = new THREE.Vector2();
 
     const onStarHover = (event) => {
-      mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-      mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+      let camera, mouseX, mouseY;
 
-      raycaster.setFromCamera(mouse, this.camera);
+      if (this.stereoEnabled) {
+        // In stereo mode, determine which viewport (left or right) the mouse is in
+        const halfWidth = window.innerWidth / 2;
+        if (event.clientX < halfWidth) {
+          // Left viewport
+          camera = this.leftCamera;
+          mouseX = (event.clientX / halfWidth) * 2 - 1;
+        } else {
+          // Right viewport
+          camera = this.rightCamera;
+          mouseX = ((event.clientX - halfWidth) / halfWidth) * 2 - 1;
+        }
+        mouseY = -(event.clientY / window.innerHeight) * 2 + 1;
+      } else {
+        // Normal single viewport
+        camera = this.camera;
+        mouseX = (event.clientX / window.innerWidth) * 2 - 1;
+        mouseY = -(event.clientY / window.innerHeight) * 2 + 1;
+      }
+
+      mouse.x = mouseX;
+      mouse.y = mouseY;
+
+      raycaster.setFromCamera(mouse, camera);
       const intersects = raycaster.intersectObjects(this.starGroup.children, false);
 
       const starInfoElement = document.getElementById('starInfo');
@@ -852,10 +883,75 @@ export class ArmillaryScene {
     this.bgStarField.visible = visible;
   }
 
+  toggleStereo(enabled) {
+    this.stereoEnabled = enabled;
+    this.onWindowResize(); // Update camera aspects
+  }
+
+  setEyeSeparation(separation) {
+    this.eyeSeparation = separation;
+  }
+
+  onWindowResize() {
+    if (this.stereoEnabled) {
+      // Split viewport mode - each camera gets half the width
+      const aspect = (window.innerWidth / 2) / window.innerHeight;
+      this.leftCamera.aspect = aspect;
+      this.leftCamera.updateProjectionMatrix();
+      this.rightCamera.aspect = aspect;
+      this.rightCamera.updateProjectionMatrix();
+    } else {
+      // Normal single viewport
+      this.camera.aspect = window.innerWidth / window.innerHeight;
+      this.camera.updateProjectionMatrix();
+    }
+    this.renderer.setSize(window.innerWidth, window.innerHeight);
+  }
+
+  updateStereoCameras() {
+    // Copy main camera position and rotation to stereo cameras
+    this.leftCamera.position.copy(this.camera.position);
+    this.leftCamera.rotation.copy(this.camera.rotation);
+    this.rightCamera.position.copy(this.camera.position);
+    this.rightCamera.rotation.copy(this.camera.rotation);
+
+    // Offset cameras horizontally (left/right) for stereo effect
+    // We offset along the camera's local X-axis
+    const cameraRight = new THREE.Vector3();
+    this.camera.getWorldDirection(cameraRight);
+    cameraRight.cross(this.camera.up).normalize();
+
+    this.leftCamera.position.add(cameraRight.clone().multiplyScalar(-this.eyeSeparation / 2));
+    this.rightCamera.position.add(cameraRight.clone().multiplyScalar(this.eyeSeparation / 2));
+  }
+
   animate() {
     requestAnimationFrame(() => this.animate());
     this.controls.update();
-    this.renderer.render(this.scene, this.camera);
+
+    if (this.stereoEnabled) {
+      // Update stereo camera positions based on main camera
+      this.updateStereoCameras();
+
+      const width = window.innerWidth;
+      const height = window.innerHeight;
+      const halfWidth = width / 2;
+
+      // Render right eye to left half (swapped for cross-eyed viewing)
+      this.renderer.setViewport(0, 0, halfWidth, height);
+      this.renderer.setScissor(0, 0, halfWidth, height);
+      this.renderer.render(this.scene, this.rightCamera);
+
+      // Render left eye to right half (swapped for cross-eyed viewing)
+      this.renderer.setViewport(halfWidth, 0, halfWidth, height);
+      this.renderer.setScissor(halfWidth, 0, halfWidth, height);
+      this.renderer.render(this.scene, this.leftCamera);
+    } else {
+      // Normal single viewport rendering
+      this.renderer.setViewport(0, 0, window.innerWidth, window.innerHeight);
+      this.renderer.setScissor(0, 0, window.innerWidth, window.innerHeight);
+      this.renderer.render(this.scene, this.camera);
+    }
   }
 
   addDiagnosticMarkers() {
