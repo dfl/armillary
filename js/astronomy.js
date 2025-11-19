@@ -138,6 +138,55 @@ export class AstronomyCalculator {
   }
 
   /**
+   * Calculate Vertex (VTX) and Anti-Vertex (AVX)
+   * The Vertex is the intersection of the ecliptic and the Prime Vertical (east-west great circle through zenith)
+   * Inputs:
+   *   lstRad: local sidereal time in RADIANS
+   *   latRad: observer latitude in RADIANS
+   *   obliquity: obliquity in RADIANS
+   *
+   * Returns { VTX, AVX } in DEGREES (0..360)
+   *
+   * The Vertex is traditionally the western intersection point (setting on the Prime Vertical)
+   * The Anti-Vertex is the opposite point (eastern intersection, rising on the Prime Vertical)
+   */
+  calculateVertex(lstRad, latRad, obliquity) {
+    const sinE = Math.sin(obliquity);
+    const cosE = Math.cos(obliquity);
+    const coLat = Math.PI / 2 - latRad; // co-latitude
+
+    // For the Prime Vertical, the hour angle is ±90° from the meridian
+    // We use the western point (hour angle = +90° = π/2) for the Vertex
+    const hourAngle = Math.PI / 2;
+
+    // Calculate the RA of the Prime Vertical point
+    // RA = LST - hour_angle (for western point)
+    // Since hour angle = π/2, RA = LST - π/2
+    const raVertex = lstRad - hourAngle;
+
+    // At the Prime Vertical, the declination can be calculated from:
+    // sin(dec) = cos(lat) * sin(HA)
+    // For HA = 90°, sin(dec) = cos(lat)
+    const sinDec = Math.cos(latRad);
+    const dec = Math.asin(sinDec);
+
+    // Convert equatorial (RA, Dec) to ecliptic longitude
+    // Using the inverse transformation:
+    // tan(λ) = (sin(RA)*cos(ε) + tan(δ)*sin(ε)) / cos(RA)
+    const numerator = Math.sin(raVertex) * cosE + Math.tan(dec) * sinE;
+    const denominator = Math.cos(raVertex);
+
+    let vtxRad = Math.atan2(numerator, denominator);
+    let VTXdeg = this._radToDeg(vtxRad);
+    VTXdeg = this._deg(VTXdeg);
+
+    // Anti-Vertex is opposite
+    let AVXdeg = (VTXdeg + 180) % 360;
+
+    return { VTX: VTXdeg, AVX: AVXdeg };
+  }
+
+  /**
    * Calculate Sun's ecliptic longitude (radians) using ephemeris npm package
    * The function returns longitude in RADIANS (0..2π)
    *

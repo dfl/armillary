@@ -61,7 +61,9 @@ export class ArmillaryScene {
       MC: "",
       IC: "",
       ASC: "",
-      DSC: ""
+      DSC: "",
+      VTX: "",
+      AVX: ""
     };
 
     this.initScene();
@@ -700,6 +702,8 @@ export class ArmillaryScene {
     addAngle("IC", 0x888888);
     addAngle("ASC", 0x888888);
     addAngle("DSC", 0x888888);
+    addAngle("VTX", 0xaa88ff);  // Purple color for Vertex
+    addAngle("AVX", 0xaa88ff);  // Purple color for Anti-Vertex
   }
 
 
@@ -728,7 +732,9 @@ export class ArmillaryScene {
       MC: addAngleLabel('MC'),
       IC: addAngleLabel('IC'),
       ASC: addAngleLabel('ASC'),
-      DSC: addAngleLabel('DSC')
+      DSC: addAngleLabel('DSC'),
+      VTX: addAngleLabel('VTX'),
+      AVX: addAngleLabel('AVX')
     };
   }
 
@@ -776,10 +782,14 @@ export class ArmillaryScene {
         this.spheres.IC,
         this.spheres.ASC,
         this.spheres.DSC,
+        this.spheres.VTX,
+        this.spheres.AVX,
         this.angleLabels.MC,
         this.angleLabels.IC,
         this.angleLabels.ASC,
-        this.angleLabels.DSC
+        this.angleLabels.DSC,
+        this.angleLabels.VTX,
+        this.angleLabels.AVX
       ], false);
 
       // Check reference circles (Horizon, Meridian, Prime Vertical, Celestial Equator, Ecliptic)
@@ -817,7 +827,9 @@ export class ArmillaryScene {
           MC: "Midheaven",
           IC: "Imum Coeli",
           ASC: "Ascendant",
-          DSC: "Descendant"
+          DSC: "Descendant",
+          VTX: "Vertex",
+          AVX: "Anti-Vertex"
         };
 
         document.getElementById('starName').textContent = `${angleName} ${this.anglePositions[angleName]}`;
@@ -941,11 +953,12 @@ export class ArmillaryScene {
 
 
     // -----------------------------------------------------------
-    // 4. Calculate Angles (ASC/MC)
+    // 4. Calculate Angles (ASC/MC/VTX)
     // -----------------------------------------------------------
     const MCdeg = astroCalc.calculateMC(lstRad, this.obliquity);
     const ICdeg = (MCdeg + 180) % 360;
     let { AC: ACdeg, DSC: DCdeg } = astroCalc.calculateAscendant(lstRad, latRad, this.obliquity);
+    let { VTX: VTXdeg, AVX: AVXdeg } = astroCalc.calculateVertex(lstRad, latRad, this.obliquity);
 
     // Southern Hemisphere correction
     if (currentLatitude < 0) {
@@ -971,19 +984,23 @@ export class ArmillaryScene {
     this.spheres.IC.position.copy(placeOnZodiac(ICdeg));
     this.spheres.ASC.position.copy(placeOnZodiac(ACdeg));
     this.spheres.DSC.position.copy(placeOnZodiac(DCdeg));
+    this.spheres.VTX.position.copy(placeOnZodiac(VTXdeg));
+    this.spheres.AVX.position.copy(placeOnZodiac(AVXdeg));
 
     // Store angle positions for tooltips
     this.anglePositions.MC = astroCalc.toZodiacString(MCdeg);
     this.anglePositions.IC = astroCalc.toZodiacString(ICdeg);
     this.anglePositions.ASC = astroCalc.toZodiacString(ACdeg);
     this.anglePositions.DSC = astroCalc.toZodiacString(DCdeg);
+    this.anglePositions.VTX = astroCalc.toZodiacString(VTXdeg);
+    this.anglePositions.AVX = astroCalc.toZodiacString(AVXdeg);
 
     // Update Labels (offset for visibility)
-    for (const key of ["MC", "IC", "ASC", "DSC"]) {
+    for (const key of ["MC", "IC", "ASC", "DSC", "VTX", "AVX"]) {
         const worldPos = new THREE.Vector3();
         this.spheres[key].getWorldPosition(worldPos);
         const direction = worldPos.clone().normalize();
-        worldPos.add(direction.multiplyScalar(0.3)); 
+        worldPos.add(direction.multiplyScalar(0.3));
         this.angleLabels[key].position.copy(worldPos);
     }
 
