@@ -129,7 +129,7 @@ window.addEventListener('keydown', (e) => {
   if (e.key === '[') {
     const timeSlider = document.getElementById('timeSlider');
     const daySlider = document.getElementById('daySlider');
-    let newTime = parseInt(timeSlider.value) - 60;
+    let newTime = parseInt(timeSlider.value) - 48;
     let currentDay = parseInt(daySlider.value);
 
     if (newTime < 0) {
@@ -148,7 +148,7 @@ window.addEventListener('keydown', (e) => {
   if (e.key === ']') {
     const timeSlider = document.getElementById('timeSlider');
     const daySlider = document.getElementById('daySlider');
-    let newTime = parseInt(timeSlider.value) + 60;
+    let newTime = parseInt(timeSlider.value) + 48;
     let currentDay = parseInt(daySlider.value);
 
     if (newTime >= 1440) {
