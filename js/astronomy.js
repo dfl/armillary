@@ -67,7 +67,7 @@ export class AstronomyCalculator {
     let LST = GMST_norm + currentLongitude;
     LST = this._deg(LST);
 
-    console.log('JD:', julianDate, 'GMST at 0h (deg):', GMST_norm, 'Hours UT:', currentTime / 60, 'LST (deg):', LST);
+    // console.log('JD:', julianDate, 'GMST at 0h (deg):', GMST_norm, 'Hours UT:', currentTime / 60, 'LST (deg):', LST);
 
     return { LST, julianDate };
   }
@@ -278,7 +278,7 @@ export class AstronomyCalculator {
     }
 
     // Fallback: Calculate rise/set by iterating through the day to find when sun crosses horizon
-    console.log('Using iterative calculation for sunrise/sunset');
+    // console.log('Using iterative calculation for sunrise/sunset');
 
     const { month, day } = this.dayOfYearToMonthDay(dayOfYear, year);
     const SUN_ANGULAR_RADIUS = 0.267 * Math.PI / 180;
@@ -337,13 +337,13 @@ export class AstronomyCalculator {
       // Detect sunrise: crossing from below to above threshold
       if (!sunriseTime && prevAlt < ALTITUDE_AT_RISE_SET && alt >= ALTITUDE_AT_RISE_SET) {
         sunriseTime = { hours: h, minutes: m };
-        console.log('Found sunrise at', h, ':', m, 'alt:', alt, 'prevAlt:', prevAlt);
+        // console.log('Found sunrise at', h, ':', m, 'alt:', alt, 'prevAlt:', prevAlt);
       }
 
       // Detect sunset: crossing from above to below threshold
       if (!sunsetTime && prevAlt > ALTITUDE_AT_RISE_SET && alt <= ALTITUDE_AT_RISE_SET) {
         sunsetTime = { hours: h, minutes: m };
-        console.log('Found sunset at', h, ':', m, 'alt:', alt, 'prevAlt:', prevAlt);
+        // console.log('Found sunset at', h, ':', m, 'alt:', alt, 'prevAlt:', prevAlt);
       }
 
       prevAlt = alt;
@@ -369,7 +369,7 @@ export class AstronomyCalculator {
     // We should skip it and just show the sunset
     if (sunsetTime && sunriseTime &&
         (sunsetTime.hours * 60 + sunsetTime.minutes) < (sunriseTime.hours * 60 + sunriseTime.minutes)) {
-      console.log('Sunset found before sunrise - sun was up at midnight');
+      // console.log('Sunset found before sunrise - sun was up at midnight');
       // The sunrise we found is for tomorrow, so ignore it for today's calculation
       // We could search backwards from midnight to find yesterday's sunrise, but for simplicity just use sunset
     }
@@ -378,7 +378,7 @@ export class AstronomyCalculator {
     let sunsetUT = sunsetTime ? sunsetTime.hours + sunsetTime.minutes / 60 : 18;
     let transitUT = transitTime ? transitTime.hours + transitTime.minutes / 60 : 12;
 
-    console.log('Rise/Set in UT:', sunriseUT, sunsetUT, 'Transit:', transitUT);
+    // console.log('Rise/Set in UT:', sunriseUT, sunsetUT, 'Transit:', transitUT);
 
     const norm24 = (h) => {
       let hh = h % 24;
