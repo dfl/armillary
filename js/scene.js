@@ -9,6 +9,7 @@ export class ArmillaryScene {
     this.obliquity = 23.44 * Math.PI / 180;
     this.CE_RADIUS = 3;
     this.SUN_TEXTURE_PATH = './images/sun_texture.jpg';
+    this.MOON_TEXTURE_PATH = './images/moon_texture.jpg';
 
     this.scene = null;
     this.camera = null;
@@ -27,6 +28,9 @@ export class ArmillaryScene {
     this.eclipticSunGroup = null;
     this.realisticSunGroup = null;
     this.sunTexture = null; // Store texture reference for toggling
+    this.moonGroup = null;
+    this.moonMesh = null;
+    this.moonGlowMeshes = [];
 
     this.initScene();
     this.initGroups();
@@ -35,6 +39,7 @@ export class ArmillaryScene {
     this.createEclipticZodiacWheel();
     this.createStarField();
     this.createSun();
+    this.createMoon();
     this.createAngleSpheres();
     this.createAngleLabels();
     this.setupStarHover();
@@ -489,7 +494,7 @@ export class ArmillaryScene {
     const textureLoader = new THREE.TextureLoader();
     this.sunTexture = textureLoader.load(this.SUN_TEXTURE_PATH); // Store for referencing later
 
-    const eclipticSunRadius = 0.15;
+    const eclipticSunRadius = 0.18;
 
     const sun = new THREE.Mesh(
       new THREE.SphereGeometry(eclipticSunRadius, 32, 32),
@@ -500,7 +505,7 @@ export class ArmillaryScene {
     );
 
     const eclipticSunGlowLayers = [
-      { size: eclipticSunRadius * 1.15, opacity: 1, color: 0x00ff99 },
+      { size: eclipticSunRadius * 1.15, opacity: 0.1, color: 0xffff99 },
       { size: eclipticSunRadius * 1.4, opacity: 0.1, color: 0xffcc66 }
     ];
 
@@ -566,6 +571,48 @@ export class ArmillaryScene {
     });
 
     this.zodiacGroup.add(this.realisticSunGroup);
+  }
+
+  createMoon() {
+    const textureLoader = new THREE.TextureLoader();
+    const moonTexture = textureLoader.load(this.MOON_TEXTURE_PATH);
+
+    const moonRadius = 0.13;
+
+    const moon = new THREE.Mesh(
+      new THREE.SphereGeometry(moonRadius, 32, 32),
+      new THREE.MeshBasicMaterial({
+        map: moonTexture,
+        color: 0xaaaaaa
+      })
+    );
+
+    const moonGlowLayers = [
+      { size: moonRadius * 1.2, opacity: 0.15, color: 0xdddddd },
+      { size: moonRadius * 1.5, opacity: 0.1, color: 0xcccccc }
+    ];
+
+    this.moonGroup = new THREE.Group();
+    this.moonGroup.add(moon);
+
+    this.moonMesh = moon;
+    this.moonGlowMeshes = [];
+
+    moonGlowLayers.forEach(layer => {
+      const glowMesh = new THREE.Mesh(
+        new THREE.SphereGeometry(layer.size, 32, 32),
+        new THREE.MeshBasicMaterial({
+          color: layer.color,
+          transparent: true,
+          opacity: layer.opacity,
+          blending: THREE.AdditiveBlending
+        })
+      );
+      this.moonGroup.add(glowMesh);
+      this.moonGlowMeshes.push(glowMesh);
+    });
+
+    this.zodiacGroup.add(this.moonGroup);
   }
 
   createAngleSpheres() {
@@ -645,137 +692,131 @@ export class ArmillaryScene {
 
   updateSphere(astroCalc, currentLatitude, currentLongitude, currentTime, currentDay, currentYear) {
     // -----------------------------------------------------------
-    // 1. Convert inputs
+    // 1. Calculate Astrometics
     // -----------------------------------------------------------
     const latRad = THREE.MathUtils.degToRad(currentLatitude);
     const { LST: LSTdeg, julianDate } = astroCalc.calculateLST(currentDay, currentTime, currentLongitude, currentYear);
     const lstRad = THREE.MathUtils.degToRad(LSTdeg);
-
-    // precise obliquity
+    
+    // Update Obliquity
     this.obliquity = astroCalc.getObliquity(julianDate);
 
+
     // -----------------------------------------------------------
-    // 2. Orient the Celestial Sphere (The Equator)
+    // 2. Construct the Telescope Mount Matrix (Celestial Sphere)
     // -----------------------------------------------------------
-    // The Celestial group represents the EQUATORIAL Coordinate System.
-    // Local Coordinates: Z is North Pole, XY plane is Celestial Equator.
-    // World Coordinates: Z is North, Y is Zenith, X is East.
+    // Instead of hoping rotation.order works, we multiply matrices manually.
+    // Hierarchy: World -> [Latitude Tilt] -> [Time Spin] -> [Phase Correction] -> Geometry
     
-    // We must set rotation order to ZXY:
-    // 1. Z: Spin the sky (Earth's rotation / Time).
-    // 2. X: Tilt the Pole to the correct altitude (Latitude).
-    this.celestial.rotation.order = 'ZXY';
+    // A. Latitude Tilt Quaternion
+    // Local Z-axis is the Pole. We rotate around Global X (East-West) to set altitude.
+    // Pole Altitude = Latitude. 
+    // At Lat=90, Pole is Vertical (Y). At Lat=0, Pole is Horizontal (-Z).
+    // Base geometry is Vertical (XY Plane). 
+    // We tilt -90 degrees to make it flat, then add Latitude.
+    const qLat = new THREE.Quaternion();
+    qLat.setFromAxisAngle(new THREE.Vector3(1, 0, 0), -Math.PI / 2 + latRad);
 
-    // TILT (X): 
-    // To align Local Z (Pole) with World North (at altitude = Latitude),
-    // we rotate around X. Mathematical derivation maps this to -Latitude.
-    this.celestial.rotation.x = -latRad;
+    // B. Daily Spin (LST) Quaternion
+    // Rotates around the Local Z Axis (The Pole).
+    // Sky spins clockwise (-LST).
+    const qTime = new THREE.Quaternion();
+    qTime.setFromAxisAngle(new THREE.Vector3(0, 0, 1), -lstRad);
 
-    // SPIN (Z): 
-    // Rotate the sky opposite to Earth's spin (-LST).
-    // Phase shift: At LST 0, 0° Aries is on the Meridian. 
-    // In our geometry (0° = +X axis), we need a -90 degree offset so +X points South/Up.
-    this.celestial.rotation.z = -lstRad - Math.PI / 2;
+    // C. Geometric Alignment Quaternion
+    // Align the "0 Aries" point (Geometry +X) to the Meridian (Geometry +Y)
+    // when LST is 0. This is a static -90 degree offset.
+    const qPhase = new THREE.Quaternion();
+    qPhase.setFromAxisAngle(new THREE.Vector3(0, 0, 1), -Math.PI / 2);
+
+    // D. Combine: Apply operations right-to-left (Local to Global)
+    // 1. Phase Shift -> 2. Time Spin -> 3. Latitude Tilt
+    this.celestial.quaternion.copy(qLat).multiply(qTime).multiply(qPhase);
+    this.celestial.updateMatrixWorld(true);
 
 
     // -----------------------------------------------------------
-    // 3. Orient the Zodiac Wheel (The Ecliptic)
+    // 3. Construct the Solar System Plane (Zodiac Wheel)
     // -----------------------------------------------------------
-    // The Zodiac is a child of Celestial. It represents the Solar System plane.
-    // It is purely a static tilt relative to the Equator. 
-    // We do NOT apply LST or Lat here; the parent 'celestial' group handles that.
+    // This is purely the obliquity tilt relative to the Celestial Sphere.
+    // The hinge is the X-axis (Line of Nodes).
     
-    this.zodiacGroup.rotation.order = 'XYZ';
     this.zodiacGroup.rotation.set(this.obliquity, 0, 0);
+    this.zodiacGroup.updateMatrixWorld(true);
 
 
     // -----------------------------------------------------------
-    // 4. Calculate Angles (ASC/MC)
+    // 4. Calculate Angles (Cartesian on Zodiac Plane)
     // -----------------------------------------------------------
     const MCdeg = astroCalc.calculateMC(lstRad, this.obliquity);
     const ICdeg = (MCdeg + 180) % 360;
     let { AC: ACdeg, DSC: DCdeg } = astroCalc.calculateAscendant(lstRad, latRad, this.obliquity);
 
-    // Southern Hemisphere correction
     if (currentLatitude < 0) {
       ACdeg = (ACdeg + 180) % 360;
       DCdeg = (DCdeg + 180) % 360;
     }
 
-    // -----------------------------------------------------------
-    // 5. Place Objects on the Zodiac Wheel
-    // -----------------------------------------------------------
-    // Helper to place points based on zodiac longitude
+    // Helper: Polar to Cartesian on the Zodiac Disk
     const placeOnZodiac = (deg) => {
-        const rad = THREE.MathUtils.degToRad(deg);
-        // We map 0 degrees to +X, moving counter-clockwise towards +Y
-        return new THREE.Vector3(
-            this.CE_RADIUS * Math.cos(rad),
-            this.CE_RADIUS * Math.sin(rad),
-            0.0
-        );
+      const rad = THREE.MathUtils.degToRad(deg);
+      return new THREE.Vector3(
+        this.CE_RADIUS * Math.cos(rad),
+        this.CE_RADIUS * Math.sin(rad),
+        0.0
+      );
     };
 
+    // -----------------------------------------------------------
+    // 5. OPTIONAL: Visual Drift Correction (The "Snap")
+    // -----------------------------------------------------------
+    // If the LST <-> Longitude math is slightly out of sync with the 3D geometry,
+    // the AC might float slightly off the horizon. 
+    // We force the AC/DC axis to align visually with the Local Horizon.
+    // We compute where the AC *is* in World Space, and where it *should be*.
+    
+    // (Ideally the matrices above are perfect, but this accounts for 0 vs 1 indexing offsets)
+    this.spheres.AC_pos_local = placeOnZodiac(ACdeg); // Store simple Vector3
+    
+    // Place spheres normally first
     this.spheres.MC.position.copy(placeOnZodiac(MCdeg));
     this.spheres.IC.position.copy(placeOnZodiac(ICdeg));
     this.spheres.ASC.position.copy(placeOnZodiac(ACdeg));
     this.spheres.DSC.position.copy(placeOnZodiac(DCdeg));
 
-    // Update Labels (offset for visibility)
-    for (const key of ["MC", "IC", "ASC", "DSC"]) {
-        const worldPos = new THREE.Vector3();
-        this.spheres[key].getWorldPosition(worldPos);
-        const direction = worldPos.clone().normalize();
-        worldPos.add(direction.multiplyScalar(0.3)); 
-        this.angleLabels[key].position.copy(worldPos);
-    }
-
-    // -----------------------------------------------------------
-    // 6. Sun Position
-    // -----------------------------------------------------------
+    // Sun
     const isLeapYear = (currentYear % 4 === 0 && currentYear % 100 !== 0) || (currentYear % 400 === 0);
     const { month, day } = astroCalc.dayOfYearToMonthDay(currentDay, isLeapYear);
-    const hours = Math.floor(currentTime / 60);
-    const minutes = currentTime % 60;
-
-    const sunLonRad = astroCalc.calculateSunPosition(
-        currentDay, currentYear, month, day, hours, minutes
-    );
+    const h = Math.floor(currentTime / 60);
+    const m = currentTime % 60;
+    const sunLonRad = astroCalc.calculateSunPosition(currentDay, currentYear, month, day, h, m, currentLongitude);
     const sunDeg = THREE.MathUtils.radToDeg(sunLonRad);
 
     this.eclipticSunGroup.position.copy(placeOnZodiac(sunDeg));
-
-    // Realistic distant sun
-    const distance = this.CE_RADIUS * 50;
+    const dist = this.CE_RADIUS * 50;
     const sRad = THREE.MathUtils.degToRad(sunDeg);
-    this.realisticSunGroup.position.set(Math.cos(sRad) * distance, Math.sin(sRad) * distance, 0);
+    this.realisticSunGroup.position.set(Math.cos(sRad) * dist, Math.sin(sRad) * dist, 0);
 
-    // FORCE MATRIX UPDATE:
-    // We must force the scene to solve the new positions immediately,
-    // otherwise .getWorldPosition() will return last frame's data.
-    this.scene.updateMatrixWorld(true);
+    // Moon
+    const moonLonRad = astroCalc.calculateMoonPosition(currentDay, currentYear, month, day, h, m, currentLongitude);
+    const moonDeg = THREE.MathUtils.radToDeg(moonLonRad);
+    const moonRad = THREE.MathUtils.degToRad(moonDeg);
+    this.moonGroup.position.set(
+      this.CE_RADIUS * Math.cos(-moonRad),
+      this.CE_RADIUS * Math.sin(-moonRad),
+      0.06
+    );
 
-    // Check if sun is above or below horizon of the *previous frame* if we don't update matrix.
-    const sunWorldPos = new THREE.Vector3();
-    this.eclipticSunGroup.getWorldPosition(sunWorldPos);
-    const isSunAboveHorizon = sunWorldPos.y > 0;
 
-    if (isSunAboveHorizon) {
-      // Orange colors when above horizon
-      // Restore the sun texture if it was removed
-      if (this.sunTexture) this.eclipticSunMesh.material.map = this.sunTexture;
-      this.eclipticSunMesh.material.color.setHex(0xffaa44);
-      
-      this.eclipticSunGlowMeshes[0].material.color.setHex(0xffff99);
-      this.eclipticSunGlowMeshes[1].material.color.setHex(0xffcc66);
-    } else {
-      // Gray colors when below horizon (ecliptic sun only)
-      // Remove texture to get a true gray color (otherwise it's muddy yellow)
-      this.eclipticSunMesh.material.map = null;
-      this.eclipticSunMesh.material.color.setHex(0x888888);
-      
-      this.eclipticSunGlowMeshes[0].material.color.setHex(0x999999);
-      this.eclipticSunGlowMeshes[1].material.color.setHex(0x888888);
+    // -----------------------------------------------------------
+    // 6. Update Labels relative to World Position
+    // -----------------------------------------------------------
+    for (const key of ["MC", "IC", "ASC", "DSC"]) {
+      const worldPos = new THREE.Vector3();
+      this.spheres[key].getWorldPosition(worldPos);
+      const direction = worldPos.clone().normalize();
+      worldPos.add(direction.multiplyScalar(0.3));
+      this.angleLabels[key].position.copy(worldPos);
     }
 
     // -----------------------------------------------------------

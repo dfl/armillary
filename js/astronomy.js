@@ -30,7 +30,7 @@ export class AstronomyCalculator {
   /**
    * Calculate Local Sidereal Time
    * currentDay: day-of-year (1..365/366)
-   * currentTime: minutes since 00:00 UTC
+   * currentTime: minutes since 00:00 UTC (UI provides UTC time)
    * currentLongitude: degrees (east positive; negative for west)
    * currentYear: full year number (e.g. 2025 or 1979)
    *
@@ -43,6 +43,8 @@ export class AstronomyCalculator {
 
     const hours = Math.floor(currentTime / 60);
     const minutes = Math.floor(currentTime % 60);
+
+    // currentTime is already in UTC (provided by UI), so use it directly
     const dateUTC = new Date(Date.UTC(currentYear, month, day, hours, minutes, 0, 0));
 
     // Convert JS time to Julian Date
@@ -64,8 +66,7 @@ export class AstronomyCalculator {
     let LST = GMST_norm + currentLongitude;
     LST = this._deg(LST);
 
-    console.log('JD:', julianDate, 'GMST at 0h (deg):', GMST_norm, 'Hours UT:', currentTime / 60, 'GMST now (deg):', GMST_norm);
-    console.log('Longitude:', currentLongitude, 'Final LST:', LST);
+    console.log('JD:', julianDate, 'GMST at 0h (deg):', GMST_norm, 'Hours UT:', currentTime / 60, 'LST (deg):', LST);
 
     return { LST, julianDate };
   }
@@ -138,9 +139,12 @@ export class AstronomyCalculator {
   /**
    * Calculate Sun's ecliptic longitude (radians) using ephemeris npm package
    * The function returns longitude in RADIANS (0..2π)
+   *
+   * NOTE: hours and minutes are already UTC time (provided by UI)
    */
-  calculateSunPosition(currentDay, currentYear, month, day, hours, minutes) {
+  calculateSunPosition(currentDay, currentYear, month, day, hours, minutes, longitude = 0) {
     try {
+      // hours and minutes are already in UTC, use them directly
       const date = new Date(Date.UTC(currentYear, month, day, hours, minutes, 0));
 
       // ephemeris.getAllPlanets(date, lat, lon) -> results vary by package version.
@@ -168,6 +172,41 @@ export class AstronomyCalculator {
     // currentDay is day-of-year (1..365)
     const approxLon = (280 + (currentDay - 1) * (360 / 365.2425)) % 360;
     console.warn('Using approximate Sun position (deg):', approxLon);
+    return this._degToRad(approxLon);
+  }
+
+  /**
+   * Calculate Moon's ecliptic longitude (radians) using ephemeris npm package
+   * The function returns longitude in RADIANS (0..2π)
+   *
+   * NOTE: hours and minutes are already UTC time (provided by UI)
+   */
+  calculateMoonPosition(currentDay, currentYear, month, day, hours, minutes, longitude = 0) {
+    try {
+      // hours and minutes are already in UTC, use them directly
+      const date = new Date(Date.UTC(currentYear, month, day, hours, minutes, 0));
+
+      // ephemeris.getAllPlanets(date, lat, lon) -> results vary by package version.
+      const result = ephemeris.getAllPlanets(date, 0, 0);
+
+      // Try to read Moon's longitude
+      const moonObj = result && result.observed && result.observed.moon ? result.observed.moon : (result && result.moon ? result.moon : null);
+
+      if (moonObj) {
+        const maybeLon = moonObj.apparentLongitudeDd ?? moonObj.longitude ?? moonObj.lon ?? moonObj.lambda;
+        if (typeof maybeLon === 'number' && !Number.isNaN(maybeLon)) {
+          let lonDeg = maybeLon;
+          lonDeg = this._deg(lonDeg);
+          return this._degToRad(lonDeg);
+        }
+      }
+    } catch (e) {
+      console.warn('Moon ephemeris call failed:', e);
+    }
+
+    // Fallback: simple approximation - Moon moves ~13.176° per day
+    const approxLon = (currentDay * 13.176) % 360;
+    console.warn('Using approximate Moon position (deg):', approxLon);
     return this._degToRad(approxLon);
   }
 
