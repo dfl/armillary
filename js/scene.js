@@ -28,6 +28,12 @@ export class ArmillaryScene {
     this.bgStarField = null;
     this.starMeshes = {}; // Store star meshes for hover detection
 
+    // Store reference circles for hover detection
+    this.horizonOutline = null;
+    this.meridianOutline = null;
+    this.primeVerticalOutline = null;
+    this.celestialEquatorOutline = null;
+
     this.spheres = {};
     this.angleLabels = {};
     this.eclipticSunGroup = null;
@@ -127,12 +133,13 @@ export class ArmillaryScene {
       const angle = (i / 64) * Math.PI * 2;
       horizonOutlinePoints.push(new THREE.Vector3(this.CE_RADIUS * Math.cos(angle), this.CE_RADIUS * Math.sin(angle), 0));
     }
-    const horizonOutline = new THREE.Line(
+    this.horizonOutline = new THREE.Line(
       new THREE.BufferGeometry().setFromPoints(horizonOutlinePoints),
       new THREE.LineBasicMaterial({ color: 0x00ff00, opacity: 0.5, transparent: true })
     );
-    horizonOutline.rotation.x = -Math.PI / 2;
-    this.scene.add(horizonOutline);
+    this.horizonOutline.rotation.x = -Math.PI / 2;
+    this.horizonOutline.userData.circleName = "Horizon";
+    this.scene.add(this.horizonOutline);
 
     // Compass rose
     this.createCompassRose();
@@ -143,12 +150,13 @@ export class ArmillaryScene {
       const angle = (i / 64) * Math.PI * 2;
       meridianOutlinePoints.push(new THREE.Vector3(this.CE_RADIUS * Math.cos(angle), this.CE_RADIUS * Math.sin(angle), 0));
     }
-    const meridianOutline = new THREE.Line(
+    this.meridianOutline = new THREE.Line(
       new THREE.BufferGeometry().setFromPoints(meridianOutlinePoints),
       new THREE.LineBasicMaterial({ color: 0x00ff00, opacity: 0.5, transparent: true })
     );
-    meridianOutline.rotation.y = Math.PI / 2;
-    this.scene.add(meridianOutline);
+    this.meridianOutline.rotation.y = Math.PI / 2;
+    this.meridianOutline.userData.circleName = "Meridian";
+    this.scene.add(this.meridianOutline);
 
     // Prime vertical outline
     const pvOutlinePoints = [];
@@ -156,11 +164,12 @@ export class ArmillaryScene {
       const angle = (i / 64) * Math.PI * 2;
       pvOutlinePoints.push(new THREE.Vector3(this.CE_RADIUS * Math.cos(angle), this.CE_RADIUS * Math.sin(angle), 0));
     }
-    const pvOutline = new THREE.Line(
+    this.primeVerticalOutline = new THREE.Line(
       new THREE.BufferGeometry().setFromPoints(pvOutlinePoints),
       new THREE.LineBasicMaterial({ color: 0x00ff00, opacity: 0.5, transparent: true })
     );
-    this.scene.add(pvOutline);
+    this.primeVerticalOutline.userData.circleName = "Prime Vertical";
+    this.scene.add(this.primeVerticalOutline);
 
     // Compass labels
     this.addCompassLabels();
@@ -290,12 +299,13 @@ export class ArmillaryScene {
       const a = (i / 128) * Math.PI * 2;
       ceqPoints.push(new THREE.Vector3(this.CE_RADIUS * Math.cos(a), this.CE_RADIUS * Math.sin(a), 0));
     }
-    const ceqOutline = new THREE.Line(
+    this.celestialEquatorOutline = new THREE.Line(
       new THREE.BufferGeometry().setFromPoints(ceqPoints),
       new THREE.LineDashedMaterial({ color: 0x00ffff, opacity: 0.6, transparent: true, dashSize: 0.5, gapSize: 0.3 })
     );
-    ceqOutline.computeLineDistances();
-    this.celestial.add(ceqOutline);
+    this.celestialEquatorOutline.computeLineDistances();
+    this.celestialEquatorOutline.userData.circleName = "Celestial Equator";
+    this.celestial.add(this.celestialEquatorOutline);
 
     // Celestial poles
     const polarLineMaterial = new THREE.LineBasicMaterial({ color: 0x00ffff, opacity: 0.6, transparent: true });
@@ -698,6 +708,7 @@ export class ArmillaryScene {
 
   setupStarHover() {
     const raycaster = new THREE.Raycaster();
+    raycaster.params.Line.threshold = 0.05; // Make line detection more precise
     const mouse = new THREE.Vector2();
 
     const onStarHover = (event) => {
@@ -745,6 +756,14 @@ export class ArmillaryScene {
         this.angleLabels.DSC
       ], false);
 
+      // Check reference circles (Horizon, Meridian, Prime Vertical, Celestial Equator)
+      const circleIntersects = raycaster.intersectObjects([
+        this.horizonOutline,
+        this.meridianOutline,
+        this.primeVerticalOutline,
+        this.celestialEquatorOutline
+      ], false);
+
       const starInfoElement = document.getElementById('starInfo');
 
       // Check sun first (priority)
@@ -776,6 +795,23 @@ export class ArmillaryScene {
 
         document.getElementById('starName').textContent = `${angleName} ${this.anglePositions[angleName]}`;
         document.getElementById('constellationName').textContent = fullNames[angleName];
+
+        this.positionTooltip(starInfoElement, event);
+        this.renderer.domElement.style.cursor = 'pointer';
+      }
+      // Check reference circles fourth
+      else if (circleIntersects.length > 0) {
+        const circle = circleIntersects[0].object;
+        const circleName = circle.userData.circleName;
+        const descriptions = {
+          "Horizon": "Observer's local horizon plane",
+          "Meridian": "North-South great circle through zenith",
+          "Prime Vertical": "East-West great circle through zenith",
+          "Celestial Equator": "Projection of Earth's equator onto celestial sphere"
+        };
+
+        document.getElementById('starName').textContent = circleName;
+        document.getElementById('constellationName').textContent = descriptions[circleName];
 
         this.positionTooltip(starInfoElement, event);
         this.renderer.domElement.style.cursor = 'pointer';
