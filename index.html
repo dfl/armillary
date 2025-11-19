@@ -921,6 +921,48 @@ eclipticSunGlowLayers.forEach(layer => {
 
 zodiacGroup.add(eclipticSunGroup); // Add to zodiacGroup so it's on the ecliptic plane
 
+// ------------------- Moon on Ecliptic -------------------
+const moonRadius = eclipticSunRadius; // Same size as sun (0.15)
+
+// Load moon texture
+const moonTexture = textureLoader.load('./images/moon_texture.jpg');
+
+const moon = new THREE.Mesh(
+  new THREE.SphereGeometry(moonRadius, 32, 32),
+  new THREE.MeshBasicMaterial({
+    map: moonTexture,
+    color: 0xffffff // White to show texture naturally
+  })
+);
+
+// Add subtle glow for moon
+const moonGlowLayers = [
+  { size: moonRadius * 1.2, opacity: 0.15, color: 0xdddddd },
+  { size: moonRadius * 1.5, opacity: 0.1, color: 0xcccccc }
+];
+
+const moonGroup = new THREE.Group();
+moonGroup.add(moon);
+
+const moonMesh = moon;
+const moonGlowMeshes = [];
+
+moonGlowLayers.forEach(layer => {
+  const glowMesh = new THREE.Mesh(
+    new THREE.SphereGeometry(layer.size, 32, 32),
+    new THREE.MeshBasicMaterial({
+      color: layer.color,
+      transparent: true,
+      opacity: layer.opacity,
+      blending: THREE.AdditiveBlending
+    })
+  );
+  moonGroup.add(glowMesh);
+  moonGlowMeshes.push(glowMesh);
+});
+
+zodiacGroup.add(moonGroup); // Add to zodiacGroup so it's on the ecliptic plane
+
 // ------------------- Realistic Sun (far out in space) -------------------
 // Astronomical constants for realistic proportions:
 // - Sun's actual diameter: 1,392,700 km
@@ -1140,6 +1182,39 @@ function updateSphere(){
     sunDistanceFromEarth * Math.sin(-sunLonRad),
     0
   );
+
+  // ------------------- Moon Position Calculation -------------------
+  let moonLonRad;
+
+  if (typeof $moshier !== 'undefined') {
+    try {
+      // Use ephemeris to calculate moon position
+      const moonBody = $moshier.body.moon;
+      $processor.calc(date, moonBody);
+
+      if (moonBody.position && moonBody.position.apparentLongitude !== undefined) {
+        moonLonRad = THREE.MathUtils.degToRad(moonBody.position.apparentLongitude);
+      } else if (moonBody.position && moonBody.position.polar) {
+        moonLonRad = THREE.MathUtils.degToRad(moonBody.position.polar[0]);
+      } else {
+        // Fallback to simple approximation
+        console.warn('Unexpected moon ephemeris data structure, using approximation');
+        const moonLon = (currentDay * 13.176) % 360; // Moon moves ~13.176° per day
+        moonLonRad = THREE.MathUtils.degToRad(moonLon);
+      }
+    } catch (e) {
+      console.warn('Moon ephemeris calculation failed, using approximation:', e);
+      const moonLon = (currentDay * 13.176) % 360;
+      moonLonRad = THREE.MathUtils.degToRad(moonLon);
+    }
+  } else {
+    // Simple approximation - moon moves ~13.176° per day
+    const moonLon = (currentDay * 13.176) % 360;
+    moonLonRad = THREE.MathUtils.degToRad(moonLon);
+  }
+
+  // Position Moon on ecliptic
+  moonGroup.position.set(CE_RADIUS*Math.cos(-moonLonRad), CE_RADIUS*Math.sin(-moonLonRad), 0.06);
 
   // Update sun colors based on whether it's above or below the horizon
   // First update the scene's world matrices so we can get accurate world positions
