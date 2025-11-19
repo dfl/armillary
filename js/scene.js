@@ -798,6 +798,27 @@ export class ArmillaryScene {
     const sRad = THREE.MathUtils.degToRad(sunDeg);
     this.realisticSunGroup.position.set(Math.cos(sRad) * distance, Math.sin(sRad) * distance, 0);
 
+    // Update sun color based on whether it's above or below the horizon
+    // Force matrix update to get accurate world position
+    this.scene.updateMatrixWorld(true);
+
+    const sunWorldPos = new THREE.Vector3();
+    this.eclipticSunGroup.getWorldPosition(sunWorldPos);
+    const isSunAboveHorizon = sunWorldPos.y > 0;
+
+    console.log('Sun world Y:', sunWorldPos.y, 'Above horizon:', isSunAboveHorizon);
+
+    if (isSunAboveHorizon) {
+      // Bright sun with texture when above horizon
+      this.eclipticSunMesh.material.color.setHex(0xffaa44);
+      console.log('Setting sun to bright color with texture');
+    } else {
+      // Dark gray without texture when below horizon
+      this.eclipticSunMesh.material.color.setHex(0xA04C28);
+      console.log('Setting sun to dark color without texture');
+    }
+    this.eclipticSunMesh.material.needsUpdate = true;
+
     // Moon position
     const moonLonRad = astroCalc.calculateMoonPosition(
       currentDay, currentYear, month, day, hours, minutes, currentLongitude

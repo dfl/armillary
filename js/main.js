@@ -1,24 +1,24 @@
 // main.js - Main entry point
 
-console.log('main.js loading...');
+// console.log('main.js loading...');
 
 import { AstronomyCalculator } from './astronomy.js';
 import { DateTimeParser, UIManager, initializeLocationAutocomplete } from './ui.js';
 import { ArmillaryScene } from './scene.js';
 import { DateTime } from 'luxon';
 
-console.log('All imports loaded');
+// console.log('All imports loaded');
 
 // Initialize components
-console.log('Creating AstronomyCalculator...');
+// console.log('Creating AstronomyCalculator...');
 const astroCalc = new AstronomyCalculator();
-console.log('Creating ArmillaryScene...');
+// console.log('Creating ArmillaryScene...');
 const scene = new ArmillaryScene();
-console.log('Scene created');
+// console.log('Scene created');
 
 // Update function
 const updateVisualization = () => {
-  console.log('updateVisualization called with currentYear:', uiManager.currentYear);
+  // console.log('updateVisualization called with currentYear:', uiManager.currentYear);
 
   // Convert local time to UTC if timezone is set
   let utcTime, utcDay, utcYear;
@@ -49,7 +49,7 @@ const updateVisualization = () => {
     }
     utcYear = utcDt.year;
 
-    console.log('Converting local', `${h}:${m}`, 'day', day, '-> UTC', `${utcDt.hour}:${utcDt.minute}`, 'day', utcDt.day);
+    // console.log('Converting local', `${h}:${m}`, 'day', day, '-> UTC', `${utcDt.hour}:${utcDt.minute}`, 'day', utcDt.day);
   } else {
     // No timezone - values are already UTC/naive
     utcTime = uiManager.currentTime;
