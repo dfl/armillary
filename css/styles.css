@@ -1,0 +1,137 @@
+body { margin: 0; overflow: hidden; }
+input[type="text"] {
+  border-radius: 0.5rem;
+  border: 1px solid #ddd;
+  padding: 0.25rem 0.5rem;
+}
+#ui {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  color: white;
+  font-family: sans-serif;
+  background: rgba(0,0,0,0.5);
+  padding: 8px;
+  border-radius: 0.5rem;
+}
+#angles {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  color: white;
+  font-family: sans-serif;
+  background: rgba(0,0,0,0.5);
+  padding: 12px;
+  border-radius: 0.5rem;
+  min-width: 150px;
+}
+#angles div {
+  margin: 4px 0;
+}
+.angle-label {
+  font-weight: bold;
+}
+#sunTimes {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  color: white;
+  font-family: sans-serif;
+  background: rgba(0,0,0,0.5);
+  padding: 12px;
+  border-radius: 0.5rem;
+  min-width: 150px;
+}
+#sunTimes div {
+  margin: 4px 0;
+}
+.time-label {
+  font-weight: bold;
+}
+#starInfo {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  color: white;
+  font-family: sans-serif;
+  background: rgba(0,0,0,0.5);
+  padding: 12px;
+  border-radius: 0.5rem;
+  min-width: 200px;
+  z-index: 1000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 500ms ease-in-out;
+}
+#starInfo.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+#starInfo .star-name {
+  font-weight: bold;
+  font-size: 18px;
+  margin-bottom: 4px;
+}
+#starInfo .constellation-name {
+  font-size: 14px;
+  color: #aaaaff;
+}
+
+/* Autocomplete custom styles */
+.autoComplete_wrapper {
+  display: inline-block;
+  position: relative;
+}
+
+#locationInput {
+  border-radius: 0.5rem;
+  border: 1px solid #ddd;
+  padding: 0.5rem 0.5rem 0.5rem 2.25rem;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%23666' viewBox='0 0 16 16'%3E%3Cpath d='M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: 0.75rem center;
+  background-size: 1rem;
+}
+
+#autoComplete_list_1 {
+  position: absolute;
+  max-height: 300px;
+  overflow-y: auto;
+  background-color: #000;
+  border: 1px solid #333;
+  border-radius: 0.5rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  z-index: 9999;
+  list-style: none;
+  margin: 2px 0 0 0;
+  padding: 0;
+}
+
+#autoComplete_list_1 li {
+  padding: 8px 12px;
+  color: #fff;
+  cursor: pointer;
+  border-bottom: 1px solid #333;
+}
+
+#autoComplete_list_1 li:first-child {
+  border-top-left-radius: 0.5rem;
+  border-top-right-radius: 0.5rem;
+}
+
+#autoComplete_list_1 li:last-child {
+  border-bottom: none;
+  border-bottom-left-radius: 0.5rem;
+  border-bottom-right-radius: 0.5rem;
+}
+
+#autoComplete_list_1 li:hover,
+#autoComplete_list_1 li[aria-selected="true"] {
+  background-color: #333;
+}
+
+#autoComplete_list_1 mark {
+  background-color: transparent;
+  color: #fff;
+  font-weight: bold;
+}

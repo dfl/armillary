@@ -692,132 +692,110 @@ export class ArmillaryScene {
 
   updateSphere(astroCalc, currentLatitude, currentLongitude, currentTime, currentDay, currentYear) {
     // -----------------------------------------------------------
-    // 1. Calculate Astrometics
+    // 1. Convert inputs
     // -----------------------------------------------------------
     const latRad = THREE.MathUtils.degToRad(currentLatitude);
     const { LST: LSTdeg, julianDate } = astroCalc.calculateLST(currentDay, currentTime, currentLongitude, currentYear);
     const lstRad = THREE.MathUtils.degToRad(LSTdeg);
-    
-    // Update Obliquity
+
+    // precise obliquity
     this.obliquity = astroCalc.getObliquity(julianDate);
 
-
     // -----------------------------------------------------------
-    // 2. Construct the Telescope Mount Matrix (Celestial Sphere)
+    // 2. Orient the Celestial Sphere (The Equator)
     // -----------------------------------------------------------
-    // Instead of hoping rotation.order works, we multiply matrices manually.
-    // Hierarchy: World -> [Latitude Tilt] -> [Time Spin] -> [Phase Correction] -> Geometry
+    // The Celestial group represents the EQUATORIAL Coordinate System.
+    // Local Coordinates: Z is North Pole, XY plane is Celestial Equator.
+    // World Coordinates: Z is North, Y is Zenith, X is East.
     
-    // A. Latitude Tilt Quaternion
-    // Local Z-axis is the Pole. We rotate around Global X (East-West) to set altitude.
-    // Pole Altitude = Latitude. 
-    // At Lat=90, Pole is Vertical (Y). At Lat=0, Pole is Horizontal (-Z).
-    // Base geometry is Vertical (XY Plane). 
-    // We tilt -90 degrees to make it flat, then add Latitude.
-    const qLat = new THREE.Quaternion();
-    qLat.setFromAxisAngle(new THREE.Vector3(1, 0, 0), -Math.PI / 2 + latRad);
+    // We must set rotation order to ZXY:
+    // 1. Z: Spin the sky (Earth's rotation / Time).
+    // 2. X: Tilt the Pole to the correct altitude (Latitude).
+    this.celestial.rotation.order = 'ZXY';
 
-    // B. Daily Spin (LST) Quaternion
-    // Rotates around the Local Z Axis (The Pole).
-    // Sky spins clockwise (-LST).
-    const qTime = new THREE.Quaternion();
-    qTime.setFromAxisAngle(new THREE.Vector3(0, 0, 1), -lstRad);
+    // TILT (X): 
+    // To align Local Z (Pole) with World North (at altitude = Latitude),
+    // we rotate around X. Mathematical derivation maps this to -Latitude.
+    this.celestial.rotation.x = -latRad;
 
-    // C. Geometric Alignment Quaternion
-    // Align the "0 Aries" point (Geometry +X) to the Meridian (Geometry +Y)
-    // when LST is 0. This is a static -90 degree offset.
-    const qPhase = new THREE.Quaternion();
-    qPhase.setFromAxisAngle(new THREE.Vector3(0, 0, 1), -Math.PI / 2);
-
-    // D. Combine: Apply operations right-to-left (Local to Global)
-    // 1. Phase Shift -> 2. Time Spin -> 3. Latitude Tilt
-    this.celestial.quaternion.copy(qLat).multiply(qTime).multiply(qPhase);
-    this.celestial.updateMatrixWorld(true);
+    // SPIN (Z): 
+    // Rotate the sky opposite to Earth's spin (-LST).
+    // Phase shift: At LST 0, 0° Aries is on the Meridian. 
+    // In our geometry (0° = +X axis), we need a -90 degree offset so +X points South/Up.
+    this.celestial.rotation.z = -lstRad - Math.PI / 2;
 
 
     // -----------------------------------------------------------
-    // 3. Construct the Solar System Plane (Zodiac Wheel)
+    // 3. Orient the Zodiac Wheel (The Ecliptic)
     // -----------------------------------------------------------
-    // This is purely the obliquity tilt relative to the Celestial Sphere.
-    // The hinge is the X-axis (Line of Nodes).
+    // The Zodiac is a child of Celestial. It represents the Solar System plane.
+    // It is purely a static tilt relative to the Equator. 
+    // We do NOT apply LST or Lat here; the parent 'celestial' group handles that.
     
+    this.zodiacGroup.rotation.order = 'XYZ';
     this.zodiacGroup.rotation.set(this.obliquity, 0, 0);
-    this.zodiacGroup.updateMatrixWorld(true);
 
 
     // -----------------------------------------------------------
-    // 4. Calculate Angles (Cartesian on Zodiac Plane)
+    // 4. Calculate Angles (ASC/MC)
     // -----------------------------------------------------------
     const MCdeg = astroCalc.calculateMC(lstRad, this.obliquity);
     const ICdeg = (MCdeg + 180) % 360;
     let { AC: ACdeg, DSC: DCdeg } = astroCalc.calculateAscendant(lstRad, latRad, this.obliquity);
 
+    // Southern Hemisphere correction
     if (currentLatitude < 0) {
       ACdeg = (ACdeg + 180) % 360;
       DCdeg = (DCdeg + 180) % 360;
     }
 
-    // Helper: Polar to Cartesian on the Zodiac Disk
+    // -----------------------------------------------------------
+    // 5. Place Objects on the Zodiac Wheel
+    // -----------------------------------------------------------
+    // Helper to place points based on zodiac longitude
     const placeOnZodiac = (deg) => {
-      const rad = THREE.MathUtils.degToRad(deg);
-      return new THREE.Vector3(
-        this.CE_RADIUS * Math.cos(rad),
-        this.CE_RADIUS * Math.sin(rad),
-        0.0
-      );
+        const rad = THREE.MathUtils.degToRad(deg);
+        // We map 0 degrees to +X, moving counter-clockwise towards +Y
+        return new THREE.Vector3(
+            this.CE_RADIUS * Math.cos(rad),
+            this.CE_RADIUS * Math.sin(rad),
+            0.0
+        );
     };
 
-    // -----------------------------------------------------------
-    // 5. OPTIONAL: Visual Drift Correction (The "Snap")
-    // -----------------------------------------------------------
-    // If the LST <-> Longitude math is slightly out of sync with the 3D geometry,
-    // the AC might float slightly off the horizon. 
-    // We force the AC/DC axis to align visually with the Local Horizon.
-    // We compute where the AC *is* in World Space, and where it *should be*.
-    
-    // (Ideally the matrices above are perfect, but this accounts for 0 vs 1 indexing offsets)
-    this.spheres.AC_pos_local = placeOnZodiac(ACdeg); // Store simple Vector3
-    
-    // Place spheres normally first
     this.spheres.MC.position.copy(placeOnZodiac(MCdeg));
     this.spheres.IC.position.copy(placeOnZodiac(ICdeg));
     this.spheres.ASC.position.copy(placeOnZodiac(ACdeg));
     this.spheres.DSC.position.copy(placeOnZodiac(DCdeg));
 
-    // Sun
+    // Update Labels (offset for visibility)
+    for (const key of ["MC", "IC", "ASC", "DSC"]) {
+        const worldPos = new THREE.Vector3();
+        this.spheres[key].getWorldPosition(worldPos);
+        const direction = worldPos.clone().normalize();
+        worldPos.add(direction.multiplyScalar(0.3)); 
+        this.angleLabels[key].position.copy(worldPos);
+    }
+
+    // -----------------------------------------------------------
+    // 6. Sun Position
+    // -----------------------------------------------------------
     const isLeapYear = (currentYear % 4 === 0 && currentYear % 100 !== 0) || (currentYear % 400 === 0);
     const { month, day } = astroCalc.dayOfYearToMonthDay(currentDay, isLeapYear);
-    const h = Math.floor(currentTime / 60);
-    const m = currentTime % 60;
-    const sunLonRad = astroCalc.calculateSunPosition(currentDay, currentYear, month, day, h, m, currentLongitude);
+    const hours = Math.floor(currentTime / 60);
+    const minutes = currentTime % 60;
+
+    const sunLonRad = astroCalc.calculateSunPosition(
+        currentDay, currentYear, month, day, hours, minutes
+    );
     const sunDeg = THREE.MathUtils.radToDeg(sunLonRad);
 
     this.eclipticSunGroup.position.copy(placeOnZodiac(sunDeg));
-    const dist = this.CE_RADIUS * 50;
+
+    // Realistic distant sun
+    const distance = this.CE_RADIUS * 50;
     const sRad = THREE.MathUtils.degToRad(sunDeg);
-    this.realisticSunGroup.position.set(Math.cos(sRad) * dist, Math.sin(sRad) * dist, 0);
-
-    // Moon
-    const moonLonRad = astroCalc.calculateMoonPosition(currentDay, currentYear, month, day, h, m, currentLongitude);
-    const moonDeg = THREE.MathUtils.radToDeg(moonLonRad);
-    const moonRad = THREE.MathUtils.degToRad(moonDeg);
-    this.moonGroup.position.set(
-      this.CE_RADIUS * Math.cos(-moonRad),
-      this.CE_RADIUS * Math.sin(-moonRad),
-      0.06
-    );
-
-
-    // -----------------------------------------------------------
-    // 6. Update Labels relative to World Position
-    // -----------------------------------------------------------
-    for (const key of ["MC", "IC", "ASC", "DSC"]) {
-      const worldPos = new THREE.Vector3();
-      this.spheres[key].getWorldPosition(worldPos);
-      const direction = worldPos.clone().normalize();
-      worldPos.add(direction.multiplyScalar(0.3));
-      this.angleLabels[key].position.copy(worldPos);
-    }
+    this.realisticSunGroup.position.set(Math.cos(sRad) * distance, Math.sin(sRad) * distance, 0);
 
     // -----------------------------------------------------------
     // 7. UI Updates
