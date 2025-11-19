@@ -889,12 +889,13 @@ const sun = new THREE.Mesh(
   })
 );
 
-// Add glow layers for ecliptic sun (similar to distant sun but scaled)
+// Add glow layers for ecliptic sun (more layers for below-horizon glow)
 const eclipticSunGlowLayers = [
   { size: eclipticSunRadius * 1.15, opacity: 0.1, color: 0xffff99 },  // Inner corona
   { size: eclipticSunRadius * 1.4, opacity: 0.1, color: 0xffcc66 },   // Middle corona
-  // { size: eclipticSunRadius * 2.0, opacity: 0.05, color: 0xff9933 },   // Outer corona
-  // { size: eclipticSunRadius * 3.0, opacity: 0.05, color: 0xff6600 }   // Extended corona
+  { size: eclipticSunRadius * 2.0, opacity: 0, color: 0x444444 },     // Outer (below-horizon only)
+  { size: eclipticSunRadius * 3.0, opacity: 0, color: 0x333333 },     // Extended (below-horizon only)
+  { size: eclipticSunRadius * 4.5, opacity: 0, color: 0x222222 }      // Far (below-horizon only)
 ];
 
 const eclipticSunGroup = new THREE.Group();
@@ -1153,11 +1154,26 @@ function updateSphere(){
     eclipticSunMesh.material.color.setHex(0xffaa44);
     eclipticSunGlowMeshes[0].material.color.setHex(0xffff99);
     eclipticSunGlowMeshes[1].material.color.setHex(0xffcc66);
+    // Normal opacity for first 2 layers, hide the extra layers
+    eclipticSunGlowMeshes[0].material.opacity = 0.1;
+    eclipticSunGlowMeshes[1].material.opacity = 0.1;
+    eclipticSunGlowMeshes[2].material.opacity = 0;
+    eclipticSunGlowMeshes[3].material.opacity = 0;
+    eclipticSunGlowMeshes[4].material.opacity = 0;
   } else {
-    // Gray colors when sun is below horizon
-    eclipticSunMesh.material.color.setHex(0x888888);
-    eclipticSunGlowMeshes[0].material.color.setHex(0x999999);
-    eclipticSunGlowMeshes[1].material.color.setHex(0x888888);
+    // Very dark core with multiple gray glow layers when below horizon
+    eclipticSunMesh.material.color.setHex(0x0a0a0a);  // Darker
+    eclipticSunGlowMeshes[0].material.color.setHex(0x555555);
+    eclipticSunGlowMeshes[1].material.color.setHex(0x444444);
+    eclipticSunGlowMeshes[2].material.color.setHex(0x333333);
+    eclipticSunGlowMeshes[3].material.color.setHex(0x222222);
+    eclipticSunGlowMeshes[4].material.color.setHex(0x1a1a1a);
+    // High opacity for all glow layers when below horizon
+    eclipticSunGlowMeshes[0].material.opacity = 0.6;
+    eclipticSunGlowMeshes[1].material.opacity = 0.5;
+    eclipticSunGlowMeshes[2].material.opacity = 0.4;
+    eclipticSunGlowMeshes[3].material.opacity = 0.3;
+    eclipticSunGlowMeshes[4].material.opacity = 0.2;
   }
 
   // Convert sun's ecliptic longitude to degrees and display
