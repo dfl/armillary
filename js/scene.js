@@ -710,7 +710,7 @@ export class ArmillaryScene {
     // -----------------------------------------------------------
     // The Celestial group represents the EQUATORIAL Coordinate System.
     // Local Coordinates: Z is North Pole, XY plane is Celestial Equator.
-    // World Coordinates: Z is North, Y is Zenith, X is East.
+    // World Coordinates: Z is North, Y is Zenith, X is West (East is -X).
     
     // We must set rotation order to ZXY:
     // 1. Z: Spin the sky (Earth's rotation / Time).
@@ -725,8 +725,9 @@ export class ArmillaryScene {
     // SPIN (Z): 
     // Rotate the sky opposite to Earth's spin (-LST).
     // Phase shift: At LST 0, 0° Aries is on the Meridian. 
-    // In our geometry (0° = +X axis), we need a -90 degree offset so +X points South/Up.
-    this.celestial.rotation.z = -lstRad - Math.PI / 2;
+    // In our geometry (0° = +X axis), we need to rotate it to the Zenith (+Y axis).
+    // So we need +90 degrees offset.
+    this.celestial.rotation.z = Math.PI / 2 - lstRad;
 
 
     // -----------------------------------------------------------
