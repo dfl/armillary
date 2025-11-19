@@ -33,6 +33,7 @@ export class ArmillaryScene {
     this.meridianOutline = null;
     this.primeVerticalOutline = null;
     this.celestialEquatorOutline = null;
+    this.outerEclipticLine = null;
 
     this.spheres = {};
     this.angleLabels = {};
@@ -499,6 +500,31 @@ export class ArmillaryScene {
     this.celestial.add(this.starGroup);
     this.celestial.add(this.constellationLineGroup);
 
+    // Outer ecliptic line (gray dashed circle in the star field)
+    const outerEclipticRadius = this.CE_RADIUS * 10.0;
+    const outerEclipticPoints = [];
+    for (let i = 0; i <= 128; i++) {
+      const a = (i / 128) * Math.PI * 2;
+      outerEclipticPoints.push(new THREE.Vector3(
+        outerEclipticRadius * Math.cos(a),
+        outerEclipticRadius * Math.sin(a),
+        0
+      ));
+    }
+    this.outerEclipticLine = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints(outerEclipticPoints),
+      new THREE.LineDashedMaterial({
+        color: 0x888888,
+        opacity: 0.6,
+        transparent: true,
+        dashSize: 1.5,
+        gapSize: 1.0
+      })
+    );
+    this.outerEclipticLine.computeLineDistances();
+    this.outerEclipticLine.userData.circleName = "Ecliptic";
+    this.zodiacGroup.add(this.outerEclipticLine);
+
     // Background stars
     const bgStarCount = 1000;
     const bgStarGeometry = new THREE.BufferGeometry();
@@ -756,12 +782,13 @@ export class ArmillaryScene {
         this.angleLabels.DSC
       ], false);
 
-      // Check reference circles (Horizon, Meridian, Prime Vertical, Celestial Equator)
+      // Check reference circles (Horizon, Meridian, Prime Vertical, Celestial Equator, Ecliptic)
       const circleIntersects = raycaster.intersectObjects([
         this.horizonOutline,
         this.meridianOutline,
         this.primeVerticalOutline,
-        this.celestialEquatorOutline
+        this.celestialEquatorOutline,
+        this.outerEclipticLine
       ], false);
 
       const starInfoElement = document.getElementById('starInfo');
@@ -807,7 +834,8 @@ export class ArmillaryScene {
           "Horizon": "Observer's local horizon plane",
           "Meridian": "North-South great circle through zenith",
           "Prime Vertical": "East-West great circle through zenith",
-          "Celestial Equator": "Projection of Earth's equator onto celestial sphere"
+          "Celestial Equator": "Projection of Earth's equator onto celestial sphere",
+          "Ecliptic": "Path of the Sun through the zodiac constellations"
         };
 
         document.getElementById('starName').textContent = circleName;
