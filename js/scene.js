@@ -817,15 +817,15 @@ export class ArmillaryScene {
     document.getElementById("sunPositionValue").textContent = astroCalc.toZodiacString(sunDeg);
 
     // Calculate rise/set only when date or location changes (not time of day)
-    const riseSetKey = `${currentDay}-${currentYear}-${currentLatitude.toFixed(2)}-${currentLongitude.toFixed(2)}-${timezone}`;
-    if (this.riseSetCacheKey !== riseSetKey) {
-      console.log('Recalculating sunrise/sunset for', riseSetKey);
-      this.cachedRiseSet = astroCalc.calculateRiseSet(sunLonRad, currentLatitude, currentLongitude, currentDay, currentYear, timezone);
-      this.riseSetCacheKey = riseSetKey;
-    }
+    // const riseSetKey = `${currentDay}-${currentYear}-${currentLatitude.toFixed(2)}-${currentLongitude.toFixed(2)}-${timezone}`;
+    // if (this.riseSetCacheKey !== riseSetKey) {
+    //   console.log('Recalculating sunrise/sunset for', riseSetKey);
+    //   this.cachedRiseSet = astroCalc.calculateRiseSet(sunLonRad, currentLatitude, currentLongitude, currentDay, currentYear, timezone);
+    //   this.riseSetCacheKey = riseSetKey;
+    // }
 
-    document.getElementById("sunriseValue").textContent = this.cachedRiseSet.sunrise;
-    document.getElementById("sunsetValue").textContent = this.cachedRiseSet.sunset;
+    // document.getElementById("sunriseValue").textContent = this.cachedRiseSet.sunrise;
+    // document.getElementById("sunsetValue").textContent = this.cachedRiseSet.sunset;
   }
 
   toggleStarfield(visible) {
