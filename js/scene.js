@@ -41,6 +41,22 @@ export class ArmillaryScene {
     this.cachedRiseSet = null;
     this.riseSetCacheKey = null;
 
+    // Store lunar phase info for tooltip
+    this.lunarPhase = { phase: "", illumination: 0 };
+
+    // Store sun/moon positions for tooltips
+    this.sunZodiacPosition = "";
+    this.moonZodiacPosition = "";
+    this.sunRiseSet = { sunrise: "--", sunset: "--" };
+
+    // Store angle positions for tooltips
+    this.anglePositions = {
+      MC: "",
+      IC: "",
+      ASC: "",
+      DSC: ""
+    };
+
     this.initScene();
     this.initGroups();
     this.createFixedReferences();
@@ -638,6 +654,7 @@ export class ArmillaryScene {
         new THREE.SphereGeometry(0.08, 16, 16),
         new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.6 })
       );
+      mesh.userData.angleName = name; // Store angle name for tooltip
       this.zodiacGroup.add(mesh);  // Add to zodiacGroup for astrology visualization
       this.spheres[name] = mesh;
     };
@@ -708,52 +725,63 @@ export class ArmillaryScene {
       mouse.y = mouseY;
 
       raycaster.setFromCamera(mouse, camera);
-      const intersects = raycaster.intersectObjects(this.starGroup.children, false);
+
+      // Check for stars, sun, moon, and angle spheres
+      const starIntersects = raycaster.intersectObjects(this.starGroup.children, false);
+      const sunIntersects = raycaster.intersectObjects(this.eclipticSunGroup.children, false);
+      const moonIntersects = raycaster.intersectObjects(this.moonGroup.children, false);
+
+      // Check angle spheres
+      const angleIntersects = raycaster.intersectObjects([
+        this.spheres.MC,
+        this.spheres.IC,
+        this.spheres.ASC,
+        this.spheres.DSC
+      ], false);
 
       const starInfoElement = document.getElementById('starInfo');
 
-      if (intersects.length > 0) {
-        const hoveredObject = intersects[0].object;
+      // Check sun first (priority)
+      if (sunIntersects.length > 0) {
+        document.getElementById('starName').textContent = `☉ Sun ${this.sunZodiacPosition}`;
+        document.getElementById('constellationName').textContent = `↑ ${this.sunRiseSet.sunrise} | ↓ ${this.sunRiseSet.sunset}`;
+
+        this.positionTooltip(starInfoElement, event);
+        this.renderer.domElement.style.cursor = 'pointer';
+      }
+      // Check moon second
+      else if (moonIntersects.length > 0) {
+        document.getElementById('starName').textContent = `☽ Moon ${this.moonZodiacPosition}`;
+        document.getElementById('constellationName').textContent = `${this.lunarPhase.phase} (${this.lunarPhase.illumination}% lit)`;
+
+        this.positionTooltip(starInfoElement, event);
+        this.renderer.domElement.style.cursor = 'pointer';
+      }
+      // Check angles third
+      else if (angleIntersects.length > 0) {
+        const angle = angleIntersects[0].object;
+        const angleName = angle.userData.angleName;
+        const fullNames = {
+          MC: "Midheaven",
+          IC: "Imum Coeli",
+          ASC: "Ascendant",
+          DSC: "Descendant"
+        };
+
+        document.getElementById('starName').textContent = `${angleName} ${this.anglePositions[angleName]}`;
+        document.getElementById('constellationName').textContent = fullNames[angleName];
+
+        this.positionTooltip(starInfoElement, event);
+        this.renderer.domElement.style.cursor = 'pointer';
+      }
+      // Check stars last
+      else if (starIntersects.length > 0) {
+        const hoveredObject = starIntersects[0].object;
         if (hoveredObject.userData.name && hoveredObject.userData.constellation) {
           document.getElementById('starName').textContent = hoveredObject.userData.name;
           document.getElementById('constellationName').textContent = hoveredObject.userData.constellation;
 
-          // Position tooltip near mouse with boundary checking
-          const offset = 15; // Distance from cursor
-          const padding = 10; // Padding from screen edges
-
-          // Get tooltip dimensions (need to make it visible first to measure)
-          starInfoElement.style.visibility = 'hidden';
-          starInfoElement.classList.add('visible');
-          const rect = starInfoElement.getBoundingClientRect();
-          starInfoElement.style.visibility = '';
-
-          let left = event.clientX + offset;
-          let top = event.clientY + offset;
-
-          // Check right boundary
-          if (left + rect.width > window.innerWidth - padding) {
-            left = event.clientX - rect.width - offset;
-          }
-
-          // Check bottom boundary
-          if (top + rect.height > window.innerHeight - padding) {
-            top = event.clientY - rect.height - offset;
-          }
-
-          // Check left boundary
-          if (left < padding) {
-            left = padding;
-          }
-
-          // Check top boundary
-          if (top < padding) {
-            top = padding;
-          }
-
-          starInfoElement.style.left = left + 'px';
-          starInfoElement.style.top = top + 'px';
-
+          this.positionTooltip(starInfoElement, event);
           this.renderer.domElement.style.cursor = 'pointer';
         }
       } else {
@@ -763,6 +791,44 @@ export class ArmillaryScene {
     };
 
     this.renderer.domElement.addEventListener('mousemove', onStarHover);
+  }
+
+  positionTooltip(tooltipElement, event) {
+    // Position tooltip near mouse with boundary checking
+    const offset = 15; // Distance from cursor
+    const padding = 10; // Padding from screen edges
+
+    // Get tooltip dimensions (need to make it visible first to measure)
+    tooltipElement.style.visibility = 'hidden';
+    tooltipElement.classList.add('visible');
+    const rect = tooltipElement.getBoundingClientRect();
+    tooltipElement.style.visibility = '';
+
+    let left = event.clientX + offset;
+    let top = event.clientY + offset;
+
+    // Check right boundary
+    if (left + rect.width > window.innerWidth - padding) {
+      left = event.clientX - rect.width - offset;
+    }
+
+    // Check bottom boundary
+    if (top + rect.height > window.innerHeight - padding) {
+      top = event.clientY - rect.height - offset;
+    }
+
+    // Check left boundary
+    if (left < padding) {
+      left = padding;
+    }
+
+    // Check top boundary
+    if (top < padding) {
+      top = padding;
+    }
+
+    tooltipElement.style.left = left + 'px';
+    tooltipElement.style.top = top + 'px';
   }
 
   updateSphere(astroCalc, currentLatitude, currentLongitude, currentTime, currentDay, currentYear, timezone = null) {
@@ -836,6 +902,12 @@ export class ArmillaryScene {
     this.spheres.ASC.position.copy(placeOnZodiac(ACdeg));
     this.spheres.DSC.position.copy(placeOnZodiac(DCdeg));
 
+    // Store angle positions for tooltips
+    this.anglePositions.MC = astroCalc.toZodiacString(MCdeg);
+    this.anglePositions.IC = astroCalc.toZodiacString(ICdeg);
+    this.anglePositions.ASC = astroCalc.toZodiacString(ACdeg);
+    this.anglePositions.DSC = astroCalc.toZodiacString(DCdeg);
+
     // Update Labels (offset for visibility)
     for (const key of ["MC", "IC", "ASC", "DSC"]) {
         const worldPos = new THREE.Vector3();
@@ -857,6 +929,9 @@ export class ArmillaryScene {
         currentDay, currentYear, month, day, hours, minutes
     );
     const sunDeg = THREE.MathUtils.radToDeg(sunLonRad);
+
+    // Store sun zodiac position for tooltip
+    this.sunZodiacPosition = astroCalc.toZodiacString(sunDeg);
 
     this.eclipticSunGroup.position.copy(placeOnZodiac(sunDeg));
 
@@ -893,24 +968,34 @@ export class ArmillaryScene {
     const moonDeg = THREE.MathUtils.radToDeg(moonLonRad);
     this.moonGroup.position.copy(placeOnZodiac(moonDeg));
 
+    // Store moon zodiac position for tooltip
+    this.moonZodiacPosition = astroCalc.toZodiacString(moonDeg);
+
+    // Calculate lunar phase
+    this.lunarPhase = astroCalc.calculateLunarPhase(sunLonRad, moonLonRad);
+
     // -----------------------------------------------------------
     // 7. UI Updates
     // -----------------------------------------------------------
     document.getElementById("lstValue").textContent = astroCalc.lstToTimeString(LSTdeg);
     document.getElementById("mcValue").textContent = astroCalc.toZodiacString(MCdeg);
     document.getElementById("acValue").textContent = astroCalc.toZodiacString(ACdeg);
-    document.getElementById("sunPositionValue").textContent = astroCalc.toZodiacString(sunDeg);
 
     // Calculate rise/set only when date or location changes (not time of day)
-    // const riseSetKey = `${currentDay}-${currentYear}-${currentLatitude.toFixed(2)}-${currentLongitude.toFixed(2)}-${timezone}`;
-    // if (this.riseSetCacheKey !== riseSetKey) {
-    //   console.log('Recalculating sunrise/sunset for', riseSetKey);
-    //   this.cachedRiseSet = astroCalc.calculateRiseSet(sunLonRad, currentLatitude, currentLongitude, currentDay, currentYear, timezone);
-    //   this.riseSetCacheKey = riseSetKey;
-    // }
+    const riseSetKey = `${currentDay}-${currentYear}-${currentLatitude.toFixed(2)}-${currentLongitude.toFixed(2)}-${timezone}`;
+    if (this.riseSetCacheKey !== riseSetKey) {
+      console.log('Recalculating sunrise/sunset for', riseSetKey);
+      this.cachedRiseSet = astroCalc.calculateRiseSet(sunLonRad, currentLatitude, currentLongitude, currentDay, currentYear, timezone);
+      this.riseSetCacheKey = riseSetKey;
+    }
 
-    // document.getElementById("sunriseValue").textContent = this.cachedRiseSet.sunrise;
-    // document.getElementById("sunsetValue").textContent = this.cachedRiseSet.sunset;
+    // Store rise/set for tooltip
+    if (this.cachedRiseSet) {
+      this.sunRiseSet = {
+        sunrise: this.cachedRiseSet.sunrise,
+        sunset: this.cachedRiseSet.sunset
+      };
+    }
   }
 
   toggleStarfield(visible) {

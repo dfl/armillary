@@ -31,23 +31,6 @@ input[type="text"] {
 .angle-label {
   font-weight: bold;
 }
-#sunTimes {
-  position: absolute;
-  bottom: 10px;
-  left: 10px;
-  color: white;
-  font-family: sans-serif;
-  background: rgba(0,0,0,0.5);
-  padding: 12px;
-  border-radius: 0.5rem;
-  min-width: 150px;
-}
-#sunTimes div {
-  margin: 4px 0;
-}
-.time-label {
-  font-weight: bold;
-}
 #starInfo {
   position: fixed;
   color: white;
@@ -74,6 +57,7 @@ input[type="text"] {
 #starInfo .constellation-name {
   font-size: 14px;
   color: #aaaaff;
+  white-space: pre-line;
 }
 
 /* Autocomplete custom styles */

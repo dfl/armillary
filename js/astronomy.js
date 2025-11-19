@@ -212,6 +212,45 @@ export class AstronomyCalculator {
   }
 
   /**
+   * Calculate lunar phase from sun and moon ecliptic longitudes
+   * sunLon, moonLon: in RADIANS
+   * Returns: { phase: "New Moon"|"Waxing Crescent"|etc., illumination: 0-100 }
+   */
+  calculateLunarPhase(sunLonRad, moonLonRad) {
+    // Calculate phase angle (elongation)
+    let phaseDeg = this._radToDeg(moonLonRad - sunLonRad);
+    phaseDeg = this._deg(phaseDeg); // Normalize to 0-360
+
+    // Calculate illumination percentage
+    const illumination = (1 - Math.cos(this._degToRad(phaseDeg))) / 2 * 100;
+
+    // Determine phase name
+    let phaseName;
+    if (phaseDeg < 22.5 || phaseDeg >= 337.5) {
+      phaseName = "New Moon";
+    } else if (phaseDeg < 67.5) {
+      phaseName = "Waxing Crescent";
+    } else if (phaseDeg < 112.5) {
+      phaseName = "First Quarter";
+    } else if (phaseDeg < 157.5) {
+      phaseName = "Waxing Gibbous";
+    } else if (phaseDeg < 202.5) {
+      phaseName = "Full Moon";
+    } else if (phaseDeg < 247.5) {
+      phaseName = "Waning Gibbous";
+    } else if (phaseDeg < 292.5) {
+      phaseName = "Last Quarter";
+    } else {
+      phaseName = "Waning Crescent";
+    }
+
+    return {
+      phase: phaseName,
+      illumination: Math.round(illumination)
+    };
+  }
+
+  /**
    * Calculate sunrise and sunset times using ephemeris
    * Inputs:
    *   sunEclipticLon: in RADIANS (not used if ephemeris has rise/set)
