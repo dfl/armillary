@@ -900,6 +900,10 @@ const eclipticSunGlowLayers = [
 const eclipticSunGroup = new THREE.Group();
 eclipticSunGroup.add(sun);
 
+// Store references for color updates based on horizon position
+const eclipticSunMesh = sun;
+const eclipticSunGlowMeshes = [];
+
 eclipticSunGlowLayers.forEach(layer => {
   const glowMesh = new THREE.Mesh(
     new THREE.SphereGeometry(layer.size, 32, 32),
@@ -911,6 +915,7 @@ eclipticSunGlowLayers.forEach(layer => {
     })
   );
   eclipticSunGroup.add(glowMesh);
+  eclipticSunGlowMeshes.push(glowMesh);
 });
 
 zodiacGroup.add(eclipticSunGroup); // Add to zodiacGroup so it's on the ecliptic plane
@@ -1134,6 +1139,26 @@ function updateSphere(){
     sunDistanceFromEarth * Math.sin(-sunLonRad),
     0
   );
+
+  // Update sun colors based on whether it's above or below the horizon
+  // First update the scene's world matrices so we can get accurate world positions
+  scene.updateMatrixWorld(true);
+
+  const sunWorldPos = new THREE.Vector3();
+  eclipticSunGroup.getWorldPosition(sunWorldPos);
+  const isSunAboveHorizon = sunWorldPos.y > 0;
+
+  if (isSunAboveHorizon) {
+    // Orange colors when sun is above horizon
+    eclipticSunMesh.material.color.setHex(0xffaa44);
+    eclipticSunGlowMeshes[0].material.color.setHex(0xffff99);
+    eclipticSunGlowMeshes[1].material.color.setHex(0xffcc66);
+  } else {
+    // Gray colors when sun is below horizon
+    eclipticSunMesh.material.color.setHex(0x888888);
+    eclipticSunGlowMeshes[0].material.color.setHex(0x999999);
+    eclipticSunGlowMeshes[1].material.color.setHex(0x888888);
+  }
 
   // Convert sun's ecliptic longitude to degrees and display
   const sunLonDeg = THREE.MathUtils.radToDeg(sunLonRad);
