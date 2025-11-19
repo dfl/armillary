@@ -151,30 +151,25 @@ export class AstronomyCalculator {
    * The Anti-Vertex is the opposite point (eastern intersection, rising on the Prime Vertical)
    */
   calculateVertex(lstRad, latRad, obliquity) {
+    // Vertex is the intersection of the Prime Vertical and the Ecliptic in the West.
+    // It is calculated as the Ascendant for a location with latitude = (90 - observer_latitude)
+    // and sidereal time = (LST + 180 degrees).
+
+    const lstRadPrime = lstRad + Math.PI;
+
+    // tan(90 - lat) = cot(lat) = 1/tan(lat)
+    // JS handles 1/0 as Infinity, which works correctly in atan2
+    const tanCoLat = 1.0 / Math.tan(latRad);
+
+    const sinL = Math.sin(lstRadPrime);
+    const cosL = Math.cos(lstRadPrime);
     const sinE = Math.sin(obliquity);
     const cosE = Math.cos(obliquity);
-    const coLat = Math.PI / 2 - latRad; // co-latitude
 
-    // For the Prime Vertical, the hour angle is ±90° from the meridian
-    // We use the western point (hour angle = +90° = π/2) for the Vertex
-    const hourAngle = Math.PI / 2;
-
-    // Calculate the RA of the Prime Vertical point
-    // RA = LST - hour_angle (for western point)
-    // Since hour angle = π/2, RA = LST - π/2
-    const raVertex = lstRad - hourAngle;
-
-    // At the Prime Vertical, the declination can be calculated from:
-    // sin(dec) = cos(lat) * sin(HA)
-    // For HA = 90°, sin(dec) = cos(lat)
-    const sinDec = Math.cos(latRad);
-    const dec = Math.asin(sinDec);
-
-    // Convert equatorial (RA, Dec) to ecliptic longitude
-    // Using the inverse transformation:
-    // tan(λ) = (sin(RA)*cos(ε) + tan(δ)*sin(ε)) / cos(RA)
-    const numerator = Math.sin(raVertex) * cosE + Math.tan(dec) * sinE;
-    const denominator = Math.cos(raVertex);
+    // Using the Ascendant formula: atan2(-cosL, sinL*cosE + tanLat*sinE)
+    // but with transformed coordinates
+    const numerator = -cosL;
+    const denominator = sinL * cosE + tanCoLat * sinE;
 
     let vtxRad = Math.atan2(numerator, denominator);
     let VTXdeg = this._radToDeg(vtxRad);
