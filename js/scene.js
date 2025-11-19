@@ -16,6 +16,7 @@ export class ArmillaryScene {
     this.renderer = null;
     this.controls = null;
 
+    this.tiltGroup = null;
     this.celestial = null;
     this.zodiacGroup = null;
     this.starGroup = null;
@@ -72,8 +73,11 @@ export class ArmillaryScene {
   }
 
   initGroups() {
+    this.tiltGroup = new THREE.Group();
+    this.scene.add(this.tiltGroup);
+
     this.celestial = new THREE.Group();
-    this.scene.add(this.celestial);
+    this.tiltGroup.add(this.celestial);
 
     this.zodiacGroup = new THREE.Group();
     this.zodiacGroup.rotation.x = this.obliquity;
@@ -708,22 +712,16 @@ export class ArmillaryScene {
     // -----------------------------------------------------------
     // 2. Orient the Celestial Sphere (The Equator)
     // -----------------------------------------------------------
-    // The Celestial group represents the EQUATORIAL Coordinate System.
-    // Local Coordinates: Z is North Pole, XY plane is Celestial Equator.
-    // World Coordinates: Z is North, Y is Zenith, X is West (East is -X).
-    
-    // We must set rotation order to ZXY:
-    // 1. Z: Spin the sky (Earth's rotation / Time).
-    // 2. X: Tilt the Pole to the correct altitude (Latitude).
-    this.celestial.rotation.order = 'ZXY';
+    // Hierarchy: World -> TiltGroup -> CelestialGroup -> ZodiacGroup
 
     // TILT (X): 
-    // To align Local Z (Pole) with World North (at altitude = Latitude),
-    // we rotate around X. Mathematical derivation maps this to -Latitude.
-    this.celestial.rotation.x = -latRad;
+    // Rotate the entire celestial sphere assembly to match Latitude.
+    // Axis: World X (East-West).
+    this.tiltGroup.rotation.x = -latRad;
 
     // SPIN (Z): 
     // Rotate the sky opposite to Earth's spin (-LST).
+    // Axis: Celestial Pole (Local Z of TiltGroup).
     // Phase shift: At LST 0, 0° Aries is on the Meridian. 
     // In our geometry (0° = +X axis), we need to rotate it to the Zenith (+Y axis).
     // So we need +90 degrees offset.
@@ -735,10 +733,8 @@ export class ArmillaryScene {
     // -----------------------------------------------------------
     // The Zodiac is a child of Celestial. It represents the Solar System plane.
     // It is purely a static tilt relative to the Equator. 
-    // We do NOT apply LST or Lat here; the parent 'celestial' group handles that.
     
-    this.zodiacGroup.rotation.order = 'XYZ';
-    this.zodiacGroup.rotation.set(this.obliquity, 0, 0);
+    this.zodiacGroup.rotation.x = this.obliquity;
 
 
     // -----------------------------------------------------------
