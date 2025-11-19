@@ -731,10 +731,10 @@ export class ArmillaryScene {
     this.angleLabels = {
       MC: addAngleLabel('MC'),
       IC: addAngleLabel('IC'),
-      ASC: addAngleLabel('ASC'),
-      DSC: addAngleLabel('DSC'),
-      VTX: addAngleLabel('VTX'),
-      AVX: addAngleLabel('AVX')
+      ASC: addAngleLabel('AC'),
+      DSC: addAngleLabel('DC'),
+      VTX: addAngleLabel('VX'),
+      AVX: addAngleLabel('AV')
     };
   }
 
@@ -829,7 +829,7 @@ export class ArmillaryScene {
           ASC: "Ascendant",
           DSC: "Descendant",
           VTX: "Vertex",
-          AVX: "Anti-Vertex"
+          AVX: "Antivertex"
         };
 
         document.getElementById('starName').textContent = `${angleName} ${this.anglePositions[angleName]}`;
