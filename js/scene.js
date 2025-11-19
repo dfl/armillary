@@ -246,8 +246,8 @@ export class ArmillaryScene {
 
     addCompassLabel('N', 0, compassRadius, 0);
     addCompassLabel('S', 0, -compassRadius, Math.PI);
-    addCompassLabel('E', compassRadius, 0, -Math.PI / 2);
-    addCompassLabel('W', -compassRadius, 0, Math.PI / 2);
+    addCompassLabel('E', -compassRadius, 0, Math.PI / 2);  // Swapped: E is now at -X (left when facing N)
+    addCompassLabel('W', compassRadius, 0, -Math.PI / 2);   // Swapped: W is now at +X (right when facing N)
   }
 
   createCelestialEquator() {
@@ -690,7 +690,7 @@ export class ArmillaryScene {
     this.renderer.domElement.addEventListener('mousemove', onStarHover);
   }
 
-  updateSphere(astroCalc, currentLatitude, currentLongitude, currentTime, currentDay, currentYear) {
+  updateSphere(astroCalc, currentLatitude, currentLongitude, currentTime, currentDay, currentYear, timezone = null) {
     // -----------------------------------------------------------
     // 1. Convert inputs
     // -----------------------------------------------------------
@@ -797,6 +797,13 @@ export class ArmillaryScene {
     const sRad = THREE.MathUtils.degToRad(sunDeg);
     this.realisticSunGroup.position.set(Math.cos(sRad) * distance, Math.sin(sRad) * distance, 0);
 
+    // Moon position
+    const moonLonRad = astroCalc.calculateMoonPosition(
+      currentDay, currentYear, month, day, hours, minutes, currentLongitude
+    );
+    const moonDeg = THREE.MathUtils.radToDeg(moonLonRad);
+    this.moonGroup.position.copy(placeOnZodiac(moonDeg));
+
     // -----------------------------------------------------------
     // 7. UI Updates
     // -----------------------------------------------------------
@@ -805,7 +812,7 @@ export class ArmillaryScene {
     document.getElementById("acValue").textContent = astroCalc.toZodiacString(ACdeg);
     document.getElementById("sunPositionValue").textContent = astroCalc.toZodiacString(sunDeg);
 
-    const riseSetData = astroCalc.calculateRiseSet(sunLonRad, currentLatitude, currentLongitude, currentDay);
+    const riseSetData = astroCalc.calculateRiseSet(sunLonRad, currentLatitude, currentLongitude, currentDay, currentYear, timezone);
     document.getElementById("sunriseValue").textContent = riseSetData.sunrise;
     document.getElementById("sunsetValue").textContent = riseSetData.sunset;
   }

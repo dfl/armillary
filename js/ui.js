@@ -229,16 +229,33 @@ export class UIManager {
       let h = Math.floor(this.currentTime / 60);
       let m = this.currentTime % 60;
       this.elements.timeValue.textContent = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
-      const jd = this.currentDay + (this.currentTime / 1440);
-      this.elements.dayValue.textContent = `Day ${jd.toFixed(4)}: ${this.dayToStr(this.currentDay, this.currentYear)}`;
+
+      // Update day display
+      if (this.currentTimezone) {
+        const { month, day } = this.dayOfYearToMonthDay(this.currentDay, this.currentYear);
+        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        this.elements.dayValue.textContent = `${monthNames[month]} ${day}, ${this.currentYear} (local)`;
+      } else {
+        this.elements.dayValue.textContent = this.dayToStr(this.currentDay, this.currentYear);
+      }
+
       this.updateCallback();
     });
 
     // Day slider
     this.elements.daySlider.addEventListener('input', () => {
       this.currentDay = parseFloat(this.elements.daySlider.value);
-      const jd = this.currentDay + (this.currentTime / 1440);
-      this.elements.dayValue.textContent = `Day ${jd.toFixed(4)}: ${this.dayToStr(this.currentDay, this.currentYear)}`;
+
+      // Update display
+      if (this.currentTimezone) {
+        const { month, day } = this.dayOfYearToMonthDay(this.currentDay, this.currentYear);
+        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        this.elements.dayValue.textContent = `${monthNames[month]} ${day}, ${this.currentYear} (local)`;
+      } else {
+        const jd = this.currentDay + (this.currentTime / 1440);
+        this.elements.dayValue.textContent = `Day ${jd.toFixed(4)}: ${this.dayToStr(this.currentDay, this.currentYear)}`;
+      }
+
       this.updateCallback();
     });
 
@@ -305,57 +322,91 @@ export class UIManager {
     return `Dec 31, ${year}`;
   }
 
-  updateSlidersFromDate(date) {
-    // Use UTC methods to extract components (they represent the correct values)
-    const month = date.getUTCMonth();
-    const day = date.getUTCDate();
-    const year = date.getUTCFullYear();
-    const utcHours = date.getUTCHours();
-    const utcMinutes = date.getUTCMinutes();
-
-    // For UI display: if we have a timezone, convert UTC back to local time
-    let displayHours, displayMinutes;
-    if (this.currentTimezone) {
-      // Convert UTC to local timezone for display
-      const dt = DateTime.fromJSDate(date, { zone: 'UTC' }).setZone(this.currentTimezone);
-      displayHours = dt.hour;
-      displayMinutes = dt.minute;
-      console.log('Displaying local time:', `${displayHours}:${displayMinutes}`, 'in timezone:', this.currentTimezone);
-    } else {
-      // No timezone - display UTC time (which represents naive local time)
-      displayHours = utcHours;
-      displayMinutes = utcMinutes;
-    }
-
-    console.log('updateSlidersFromDate: UTC:', `${utcHours}:${utcMinutes}`, 'Display:', `${displayHours}:${displayMinutes}`);
-
-    this.currentYear = year;
-
+  dayOfYearToMonthDay(dayOfYear, year) {
     const isLeapYear = (year % 4 === 0 && year % 100 !== 0) || (year % 400 === 0);
     const monthDays = isLeapYear
       ? [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
       : [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
 
-    let dayOfYear = day;
-    for (let i = 0; i < month; i++) {
-      dayOfYear += monthDays[i];
+    let remainingDays = dayOfYear;
+    let month = 0;
+    let day = 1;
+
+    for (let i = 0; i < 12; i++) {
+      if (remainingDays <= monthDays[i]) {
+        month = i;
+        day = remainingDays;
+        break;
+      }
+      remainingDays -= monthDays[i];
     }
 
-    this.elements.daySlider.value = dayOfYear;
-    this.currentDay = dayOfYear;
+    return { month, day }; // month is 0-based (0=Jan, 11=Dec)
+  }
 
-    // Store UTC time for calculations (astronomy calculations expect UT)
-    const utcTimeInMinutes = utcHours * 60 + utcMinutes;
-    this.currentTime = utcTimeInMinutes;
+  updateSlidersFromDate(date) {
+    // Use UTC methods to extract components
+    const utcMonth = date.getUTCMonth();
+    const utcDay = date.getUTCDate();
+    const utcYear = date.getUTCFullYear();
+    const utcHours = date.getUTCHours();
+    const utcMinutes = date.getUTCMinutes();
 
-    // Display local time in UI
-    const displayTimeInMinutes = displayHours * 60 + displayMinutes;
-    this.elements.timeSlider.value = displayTimeInMinutes;
-    this.elements.timeValue.textContent = `${displayHours.toString().padStart(2, '0')}:${displayMinutes.toString().padStart(2, '0')}`;
+    // If we have a timezone, convert to local time and store LOCAL values in sliders
+    if (this.currentTimezone) {
+      const dt = DateTime.fromJSDate(date, { zone: 'UTC' }).setZone(this.currentTimezone);
 
-    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    const jd = this.currentDay + (this.currentTime / 1440);
-    this.elements.dayValue.textContent = `Day ${jd.toFixed(4)}: ${monthNames[month]} ${day}, ${year}`;
+      this.currentYear = dt.year;
+
+      // Calculate LOCAL day-of-year
+      const isLeapYear = (dt.year % 4 === 0 && dt.year % 100 !== 0) || (dt.year % 400 === 0);
+      const monthDays = isLeapYear
+        ? [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+        : [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+
+      let localDayOfYear = dt.day;
+      for (let i = 0; i < dt.month - 1; i++) {
+        localDayOfYear += monthDays[i];
+      }
+
+      this.currentDay = localDayOfYear;  // LOCAL day-of-year
+      this.elements.daySlider.value = localDayOfYear;
+
+      // Store LOCAL time
+      const localTimeInMinutes = dt.hour * 60 + dt.minute;
+      this.currentTime = localTimeInMinutes;  // LOCAL time
+      this.elements.timeSlider.value = localTimeInMinutes;
+      this.elements.timeValue.textContent = `${dt.hour.toString().padStart(2, '0')}:${dt.minute.toString().padStart(2, '0')}`;
+
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      this.elements.dayValue.textContent = `${monthNames[dt.month - 1]} ${dt.day}, ${dt.year} (local)`;
+
+      console.log('Set to local time:', `${dt.hour}:${dt.minute}`, `day ${dt.day}`, 'in timezone:', this.currentTimezone);
+    } else {
+      // No timezone - work in UTC/naive time
+      this.currentYear = utcYear;
+
+      const isLeapYear = (utcYear % 4 === 0 && utcYear % 100 !== 0) || (utcYear % 400 === 0);
+      const monthDays = isLeapYear
+        ? [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+        : [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+
+      let dayOfYear = utcDay;
+      for (let i = 0; i < utcMonth; i++) {
+        dayOfYear += monthDays[i];
+      }
+
+      this.currentDay = dayOfYear;
+      this.elements.daySlider.value = dayOfYear;
+
+      const utcTimeInMinutes = utcHours * 60 + utcMinutes;
+      this.currentTime = utcTimeInMinutes;
+      this.elements.timeSlider.value = utcTimeInMinutes;
+      this.elements.timeValue.textContent = `${utcHours.toString().padStart(2, '0')}:${utcMinutes.toString().padStart(2, '0')}`;
+
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      this.elements.dayValue.textContent = `${monthNames[utcMonth]} ${utcDay}, ${utcYear}`;
+    }
 
     this.updateCallback();
     this.saveStateToURL();

@@ -1,6 +1,7 @@
 // astronomy.js - Astronomical calculations
 import { calculateObliquity } from './epsilon.js';
 import * as ephemeris from 'ephemeris';
+import { DateTime } from 'luxon';
 
 export class AstronomyCalculator {
   constructor() {
@@ -211,15 +212,17 @@ export class AstronomyCalculator {
   }
 
   /**
-   * Calculate sunrise and sunset times (local)
+   * Calculate sunrise and sunset times
    * Inputs:
    *   sunEclipticLon: in RADIANS
    *   latitude, longitude: in DEGREES (longitude east-positive)
-   *   dayOfYear: integer
+   *   dayOfYear: integer (UTC day-of-year)
+   *   year: integer
+   *   timezone: optional IANA timezone string (e.g., 'America/Anchorage')
    *
-   * Returns { sunrise: "HH:MM", sunset: "HH:MM", transit: "HH:MM" } in local time
+   * Returns { sunrise: "HH:MM", sunset: "HH:MM", transit: "HH:MM" } in local time if timezone provided, otherwise approximate local
    */
-  calculateRiseSet(sunEclipticLon, latitude, longitude, dayOfYear) {
+  calculateRiseSet(sunEclipticLon, latitude, longitude, dayOfYear, year, timezone = null) {
     // Use nominal obliquity (radians) for these conversions
     const OBLIQUITY_RAD = this.OBLIQUITY;
     const SUN_ANGULAR_RADIUS = 0.267 * Math.PI / 180;
@@ -276,26 +279,61 @@ export class AstronomyCalculator {
     let sunriseUT = transitUT - H_hours;
     let sunsetUT = transitUT + H_hours;
 
-    const lonTimeOffset = longitude / 15.0; // hours
-    let sunriseLocal = sunriseUT + lonTimeOffset;
-    let sunsetLocal = sunsetUT + lonTimeOffset;
-    let transitLocal = transitUT + lonTimeOffset;
-
     const norm24 = (h) => {
       let hh = h % 24;
       if (hh < 0) hh += 24;
       return hh;
     };
 
-    sunriseLocal = norm24(sunriseLocal);
-    sunsetLocal  = norm24(sunsetLocal);
-    transitLocal = norm24(transitLocal);
+    sunriseUT = norm24(sunriseUT);
+    sunsetUT = norm24(sunsetUT);
+    transitUT = norm24(transitUT);
 
     const formatTime = (hours) => {
       const h = Math.floor(hours);
       const m = Math.floor((hours - h) * 60);
       return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
     };
+
+    // Convert UTC times to local timezone if provided
+    if (timezone) {
+      try {
+        // Convert UTC dayOfYear to month/day
+        const { month, day } = this.dayOfYearToMonthDay(dayOfYear, year);
+
+        // Create UTC DateTimes and convert to local timezone
+        const sunriseUTC = DateTime.fromObject({
+          year, month: month + 1, day,
+          hour: Math.floor(sunriseUT), minute: Math.floor((sunriseUT % 1) * 60)
+        }, { zone: 'UTC' });
+        const sunsetUTC = DateTime.fromObject({
+          year, month: month + 1, day,
+          hour: Math.floor(sunsetUT), minute: Math.floor((sunsetUT % 1) * 60)
+        }, { zone: 'UTC' });
+        const transitUTC = DateTime.fromObject({
+          year, month: month + 1, day,
+          hour: Math.floor(transitUT), minute: Math.floor((transitUT % 1) * 60)
+        }, { zone: 'UTC' });
+
+        const sunriseLocal = sunriseUTC.setZone(timezone);
+        const sunsetLocal = sunsetUTC.setZone(timezone);
+        const transitLocal = transitUTC.setZone(timezone);
+
+        return {
+          sunrise: sunriseLocal.toFormat('HH:mm'),
+          sunset: sunsetLocal.toFormat('HH:mm'),
+          transit: transitLocal.toFormat('HH:mm')
+        };
+      } catch (e) {
+        console.warn('Timezone conversion failed:', e, 'Falling back to longitude offset');
+      }
+    }
+
+    // Fallback: use longitude offset approximation
+    const lonTimeOffset = longitude / 15.0; // hours
+    let sunriseLocal = norm24(sunriseUT + lonTimeOffset);
+    let sunsetLocal = norm24(sunsetUT + lonTimeOffset);
+    let transitLocal = norm24(transitUT + lonTimeOffset);
 
     return {
       sunrise: formatTime(sunriseLocal),
