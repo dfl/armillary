@@ -925,13 +925,13 @@ export class ArmillaryScene {
     this.obliquity = astroCalc.getObliquity(julianDate);
 
     // Handle Sidereal Mode
+    let ayanamsha = 0;
     const siderealCheckbox = document.getElementById('siderealMode');
     if (siderealCheckbox && siderealCheckbox.checked) {
-        const ayanamsha = astroCalc.calculateAyanamsha(currentYear);
-        this.zodiacGroup.rotation.z = ayanamsha;
-    } else {
-        this.zodiacGroup.rotation.z = 0;
+        ayanamsha = astroCalc.calculateAyanamsha(currentYear);
     }
+    const ayanamshaDeg = THREE.MathUtils.radToDeg(ayanamsha);
+    this.zodiacGroup.rotation.z = ayanamsha;
 
     // -----------------------------------------------------------
     // 2. Orient the Celestial Sphere (The Equator)
@@ -980,7 +980,7 @@ export class ArmillaryScene {
     // -----------------------------------------------------------
     // Helper to place points based on zodiac longitude
     const placeOnZodiac = (deg) => {
-        const rad = THREE.MathUtils.degToRad(deg);
+        const rad = THREE.MathUtils.degToRad(deg) - ayanamsha;
         // We map 0 degrees to +X, moving counter-clockwise towards +Y
         return new THREE.Vector3(
             this.CE_RADIUS * Math.cos(rad),
@@ -997,12 +997,12 @@ export class ArmillaryScene {
     this.spheres.AVX.position.copy(placeOnZodiac(AVXdeg));
 
     // Store angle positions for tooltips
-    this.anglePositions.MC = astroCalc.toZodiacString(MCdeg);
-    this.anglePositions.IC = astroCalc.toZodiacString(ICdeg);
-    this.anglePositions.ASC = astroCalc.toZodiacString(ACdeg);
-    this.anglePositions.DSC = astroCalc.toZodiacString(DCdeg);
-    this.anglePositions.VTX = astroCalc.toZodiacString(VTXdeg);
-    this.anglePositions.AVX = astroCalc.toZodiacString(AVXdeg);
+    this.anglePositions.MC = astroCalc.toZodiacString(MCdeg - ayanamshaDeg);
+    this.anglePositions.IC = astroCalc.toZodiacString(ICdeg - ayanamshaDeg);
+    this.anglePositions.ASC = astroCalc.toZodiacString(ACdeg - ayanamshaDeg);
+    this.anglePositions.DSC = astroCalc.toZodiacString(DCdeg - ayanamshaDeg);
+    this.anglePositions.VTX = astroCalc.toZodiacString(VTXdeg - ayanamshaDeg);
+    this.anglePositions.AVX = astroCalc.toZodiacString(AVXdeg - ayanamshaDeg);
 
     // Update Labels (offset for visibility)
     for (const key of ["MC", "IC", "ASC", "DSC", "VTX", "AVX"]) {
@@ -1027,13 +1027,13 @@ export class ArmillaryScene {
     const sunDeg = THREE.MathUtils.radToDeg(sunLonRad);
 
     // Store sun zodiac position for tooltip
-    this.sunZodiacPosition = astroCalc.toZodiacString(sunDeg);
+    this.sunZodiacPosition = astroCalc.toZodiacString(sunDeg - ayanamshaDeg);
 
     this.eclipticSunGroup.position.copy(placeOnZodiac(sunDeg));
 
     // Realistic distant sun
     const distance = this.CE_RADIUS * 50;
-    const sRad = THREE.MathUtils.degToRad(sunDeg);
+    const sRad = THREE.MathUtils.degToRad(sunDeg) - ayanamsha;
     this.realisticSunGroup.position.set(Math.cos(sRad) * distance, Math.sin(sRad) * distance, 0);
 
     // Update sun color based on whether it's above or below the horizon
@@ -1065,7 +1065,7 @@ export class ArmillaryScene {
     this.moonGroup.position.copy(placeOnZodiac(moonDeg));
 
     // Store moon zodiac position for tooltip
-    this.moonZodiacPosition = astroCalc.toZodiacString(moonDeg);
+    this.moonZodiacPosition = astroCalc.toZodiacString(moonDeg - ayanamshaDeg);
 
     // Calculate lunar phase
     this.lunarPhase = astroCalc.calculateLunarPhase(sunLonRad, moonLonRad);
@@ -1074,8 +1074,8 @@ export class ArmillaryScene {
     // 7. UI Updates
     // -----------------------------------------------------------
     document.getElementById("lstValue").textContent = astroCalc.lstToTimeString(LSTdeg);
-    document.getElementById("mcValue").textContent = astroCalc.toZodiacString(MCdeg);
-    document.getElementById("acValue").textContent = astroCalc.toZodiacString(ACdeg);
+    document.getElementById("mcValue").textContent = astroCalc.toZodiacString(MCdeg - ayanamshaDeg);
+    document.getElementById("acValue").textContent = astroCalc.toZodiacString(ACdeg - ayanamshaDeg);
 
     // Calculate rise/set only when date or location changes (not time of day)
     const riseSetKey = `${currentDay}-${currentYear}-${currentLatitude.toFixed(2)}-${currentLongitude.toFixed(2)}-${timezone}`;
