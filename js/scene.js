@@ -408,8 +408,9 @@ export class ArmillaryScene {
   }
 
   createEclipticZodiacWheel() {
+    const sphereRadius = this.CE_RADIUS * 1.6;
     const ecliptic = new THREE.Mesh(
-      new THREE.CircleGeometry(this.CE_RADIUS, 128),
+      new THREE.CircleGeometry(sphereRadius, 128),
       new THREE.MeshBasicMaterial({ color: 0x888888, side: THREE.DoubleSide, transparent: true, opacity: 0.1 })
     );
     this.zodiacGroup.add(ecliptic);
@@ -417,7 +418,7 @@ export class ArmillaryScene {
     const eclipticOutlinePoints = [];
     for (let i = 0; i <= 64; i++) {
       const angle = (i / 64) * Math.PI * 2;
-      eclipticOutlinePoints.push(new THREE.Vector3(this.CE_RADIUS * Math.cos(angle), this.CE_RADIUS * Math.sin(angle), 0));
+      eclipticOutlinePoints.push(new THREE.Vector3(sphereRadius * Math.cos(angle), sphereRadius * Math.sin(angle), 0));
     }
     const eclipticOutline = new THREE.Line(
       new THREE.BufferGeometry().setFromPoints(eclipticOutlinePoints),
@@ -432,7 +433,7 @@ export class ArmillaryScene {
       const radialLine = new THREE.Line(
         new THREE.BufferGeometry().setFromPoints([
           new THREE.Vector3(0, 0, 0),
-          new THREE.Vector3(this.CE_RADIUS * Math.cos(angle), this.CE_RADIUS * Math.sin(angle), 0)
+          new THREE.Vector3(sphereRadius * Math.cos(angle), sphereRadius * Math.sin(angle), 0)
         ]),
         radialLineMaterial
       );
@@ -976,6 +977,7 @@ export class ArmillaryScene {
   }
 
   createAngleSpheres() {
+    const sphereRadius = this.CE_RADIUS * 1.6;
     const addAngle = (name, color) => {
       const mesh = new THREE.Mesh(
         new THREE.SphereGeometry(0.08 * (this.CE_RADIUS / 1.5), 16, 16),
@@ -1561,12 +1563,13 @@ export class ArmillaryScene {
     // 5. Place Objects on the Zodiac Wheel
     // -----------------------------------------------------------
     // Helper to place points based on zodiac longitude
+    const sphereRadius = this.CE_RADIUS * 1.6;
     const placeOnZodiac = (deg) => {
         const rad = THREE.MathUtils.degToRad(deg) - ayanamsha;
         // We map 0 degrees to +X, moving counter-clockwise towards +Y
         return new THREE.Vector3(
-            this.CE_RADIUS * Math.cos(rad),
-            this.CE_RADIUS * Math.sin(rad),
+            sphereRadius * Math.cos(rad),
+            sphereRadius * Math.sin(rad),
             0.0
         );
     };
@@ -1587,12 +1590,32 @@ export class ArmillaryScene {
     this.anglePositions.AVX = astroCalc.toZodiacString(AVXdeg - ayanamshaDeg);
 
     // Update Labels (offset for visibility)
+    const sphereRadius = this.CE_RADIUS * 1.6;
     for (const key of ["MC", "IC", "ASC", "DSC", "VTX", "AVX"]) {
         const worldPos = new THREE.Vector3();
         this.spheres[key].getWorldPosition(worldPos);
-        const direction = worldPos.clone().normalize();
-        worldPos.add(direction.multiplyScalar(this.CE_RADIUS * 0.2));
-        this.angleLabels[key].position.copy(worldPos);
+        // Calculate direction from center of zodiac group (which is where spheres are relative to)
+        // But spheres are children of zodiacGroup, so we need to be careful with coordinate spaces.
+        // The labels are in scene space (or armillaryRoot space? No, scene.add(sprite) in createAngleLabels).
+        
+        // Actually, let's just project outwards from the sphere position relative to the zodiac center.
+        // The spheres are at CE_RADIUS distance. We want labels at sphereRadius + offset.
+        
+        // Get the sphere's position in world space
+        const sphereWorldPos = new THREE.Vector3();
+        this.spheres[key].getWorldPosition(sphereWorldPos);
+        
+        // Get the zodiac group's center in world space
+        const centerWorldPos = new THREE.Vector3();
+        this.zodiacGroup.getWorldPosition(centerWorldPos);
+        
+        // Direction from center to sphere
+        const direction = new THREE.Vector3().subVectors(sphereWorldPos, centerWorldPos).normalize();
+        
+        // New position: Center + Direction * (sphereRadius * 1.1)
+        const labelPos = centerWorldPos.clone().add(direction.multiplyScalar(sphereRadius * 1.1));
+        
+        this.angleLabels[key].position.copy(labelPos);
     }
 
     // -----------------------------------------------------------
