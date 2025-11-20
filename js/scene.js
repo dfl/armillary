@@ -266,7 +266,7 @@ export class ArmillaryScene {
   }
 
   addCompassLabels() {
-    const compassRadius = this.CE_RADIUS * 1.7;
+    const compassRadius = this.CE_RADIUS * 1.1;
     const scale = this.CE_RADIUS / 1.5;
     const addCompassLabel = (text, x, z, rotZ = 0) => {
       const canvas = document.createElement('canvas');
@@ -360,7 +360,7 @@ export class ArmillaryScene {
     const sphereRadius = this.CE_RADIUS * 1.6;
     const ecliptic = new THREE.Mesh(
       new THREE.CircleGeometry(sphereRadius, 128),
-      new THREE.MeshBasicMaterial({ color: 0x888888, side: THREE.DoubleSide, transparent: true, opacity: 0.1 })
+      new THREE.MeshBasicMaterial({ color: 0x888888, side: THREE.DoubleSide, transparent: true, opacity: 0.1, depthWrite: false })
     );
     this.zodiacGroup.add(ecliptic);
 
@@ -390,7 +390,7 @@ export class ArmillaryScene {
     }
 
     // Zodiac glyphs
-    const zodiacRadius = this.CE_RADIUS * 1.6;
+    const zodiacRadius = this.CE_RADIUS * 1.35;
     const zodiacGlyphs = Array.from({ length: 12 }, (_, i) => String.fromCodePoint(0x2648 + i) + '\uFE0E');
 
     const scale = this.CE_RADIUS / 1.5;
