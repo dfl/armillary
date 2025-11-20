@@ -705,7 +705,7 @@ export class ArmillaryScene {
 
     // Base size for Earth (for scaling)
     const earthDiameter = 1.0;
-    const baseRadius = 0.05; // Base radius in scene units
+    const baseRadius = 0.15; // Base radius in scene units (increased for visibility at distance)
 
     planetData.forEach(planet => {
       // Calculate radius based on relative diameter
