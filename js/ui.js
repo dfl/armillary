@@ -268,9 +268,10 @@ export class UIManager {
       if (this.currentTimezone) {
         const { month, day } = this.dayOfYearToMonthDay(this.currentDay, this.currentYear);
         const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-        this.elements.dayValue.textContent = `${monthNames[month]} ${day}, ${this.currentYear} (local)`;
+        this.elements.dayValue.textContent = `${monthNames[month]} ${day}, ${this.currentYear}`;
       } else {
-        this.elements.dayValue.textContent = this.dayToStr(this.currentDay, this.currentYear);
+        const jd = this.currentDay + (this.currentTime / 1440);
+        this.elements.dayValue.textContent = `Day ${jd.toFixed(4)}: ${this.dayToStr(this.currentDay, this.currentYear)}`;
       }
 
       this.updateCallback();
@@ -284,7 +285,7 @@ export class UIManager {
       if (this.currentTimezone) {
         const { month, day } = this.dayOfYearToMonthDay(this.currentDay, this.currentYear);
         const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-        this.elements.dayValue.textContent = `${monthNames[month]} ${day}, ${this.currentYear} (local)`;
+        this.elements.dayValue.textContent = `${monthNames[month]} ${day}, ${this.currentYear}`;
       } else {
         const jd = this.currentDay + (this.currentTime / 1440);
         this.elements.dayValue.textContent = `Day ${jd.toFixed(4)}: ${this.dayToStr(this.currentDay, this.currentYear)}`;
@@ -413,7 +414,7 @@ export class UIManager {
       this.elements.timeValue.textContent = `${dt.hour.toString().padStart(2, '0')}:${dt.minute.toString().padStart(2, '0')}`;
 
       const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-      this.elements.dayValue.textContent = `${monthNames[dt.month - 1]} ${dt.day}, ${dt.year} (local)`;
+      this.elements.dayValue.textContent = `${monthNames[dt.month - 1]} ${dt.day}, ${dt.year}`;
 
       debugLog.log('Set to local time:', `${dt.hour}:${dt.minute}`, `day ${dt.day}`, 'in timezone:', this.currentTimezone);
     } else {
@@ -439,7 +440,8 @@ export class UIManager {
       this.elements.timeValue.textContent = `${utcHours.toString().padStart(2, '0')}:${utcMinutes.toString().padStart(2, '0')}`;
 
       const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-      this.elements.dayValue.textContent = `${monthNames[utcMonth]} ${utcDay}, ${utcYear}`;
+      const jd = this.currentDay + (this.currentTime / 1440);
+      this.elements.dayValue.textContent = `Day ${jd.toFixed(4)}: ${monthNames[utcMonth]} ${utcDay}, ${utcYear}`;
     }
 
     this.updateCallback();
