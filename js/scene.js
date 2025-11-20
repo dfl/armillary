@@ -843,8 +843,10 @@ export class ArmillaryScene {
       uniforms: {
         dayTexture: { value: earthTexture },
         nightTexture: { value: earthNightTexture },
-        sunPosition: { value: new THREE.Vector3(0, 0, 0) }
+        sunPosition: { value: new THREE.Vector3(0, 0, 0) },
+        opacity: { value: 1.0 }
       },
+      transparent: true,
       vertexShader: `
         varying vec2 vUv;
         varying vec3 vNormal;
@@ -861,6 +863,7 @@ export class ArmillaryScene {
         uniform sampler2D dayTexture;
         uniform sampler2D nightTexture;
         uniform vec3 sunPosition;
+        uniform float opacity;
         varying vec2 vUv;
         varying vec3 vNormal;
         varying vec3 vWorldPosition;
@@ -870,7 +873,8 @@ export class ArmillaryScene {
           float mixFactor = smoothstep(-0.2, 0.2, intensity);
           vec4 dayColor = texture2D(dayTexture, vUv);
           vec4 nightColor = texture2D(nightTexture, vUv);
-          gl_FragColor = mix(nightColor, dayColor, mixFactor);
+          vec4 finalColor = mix(nightColor, dayColor, mixFactor);
+          gl_FragColor = vec4(finalColor.rgb, opacity);
         }
       `
     });
@@ -1646,9 +1650,41 @@ export class ArmillaryScene {
     if (this.earthMesh) {
       this.earthMesh.quaternion.copy(tiltQ).multiply(spinQ);
     }
-    
-    // Move the Armillary Sphere (Observer View) to Earth's position
-    this.armillaryRoot.position.copy(this.earthGroup.position);
+
+    // Position Armillary Root on Earth Surface
+    // Calculate observer position in Earth Object Space
+    // Three.js Sphere: phi is angle from +Y (North), theta is angle from +Z (CCW around Y)
+    // We assume texture is mapped such that Lon 0 is at theta = PI (to match spinQ offset)
+    const localObserverPos = new THREE.Vector3().setFromSphericalCoords(
+      this.EARTH_RADIUS,
+      Math.PI / 2 - latRad, // phi (0 at North Pole)
+      THREE.MathUtils.degToRad(currentLongitude) + Math.PI // theta
+    );
+
+    // Transform to World Space
+    const worldObserverPos = localObserverPos.clone().applyQuaternion(this.earthMesh.quaternion);
+
+    // Position armillaryRoot relative to Earth Center
+    this.armillaryRoot.position.copy(this.earthGroup.position).add(worldObserverPos);
+
+    // Orient armillaryRoot (Horizon Frame)
+    // Y axis = Up (Surface Normal)
+    // Z axis = North (Tangent pointing to North Pole)
+    // X axis = West (Up x North)
+
+    const up = worldObserverPos.clone().normalize();
+
+    // Calculate North in Object Space, then transform
+    // Project Earth Axis (0,1,0) onto tangent plane
+    const earthAxisObj = new THREE.Vector3(0, 1, 0);
+    const obsPosObj = localObserverPos.clone().normalize();
+    const northObj = new THREE.Vector3().subVectors(earthAxisObj, obsPosObj.multiplyScalar(earthAxisObj.dot(obsPosObj))).normalize();
+
+    const north = northObj.applyQuaternion(this.earthMesh.quaternion).normalize();
+    const west = new THREE.Vector3().crossVectors(up, north).normalize();
+
+    const basis = new THREE.Matrix4().makeBasis(west, up, north);
+    this.armillaryRoot.quaternion.setFromRotationMatrix(basis);
 
     // Move camera and controls to follow Earth
     const delta = new THREE.Vector3().subVectors(newEarthPos, oldEarthPos);
@@ -1791,13 +1827,34 @@ export class ArmillaryScene {
   }
 
   updateEarthVisibility() {
-    if (!this.earthGroup || !this.camera) return;
+    if (!this.earthGroup || !this.camera || !this.earthMesh) return;
 
     const dist = this.camera.position.distanceTo(this.earthGroup.position);
-    // Hide Earth texture when zoomed in (viewing local horizon)
-    // Show it when zoomed out (viewing solar system)
-    const threshold = this.EARTH_RADIUS * 1.5;
-    this.earthGroup.visible = dist > threshold;
+    const surfaceDist = dist - this.EARTH_RADIUS;
+
+    // Opacity logic:
+    // Close (surface view): Transparent
+    // Far (space view): Opaque
+    const minVal = 0.3;
+    const maxVal = 1.0;
+    const minRange = 2.0;
+    const maxRange = 20.0;
+
+    let opacity = 1.0;
+    if (surfaceDist < minRange) {
+      opacity = minVal;
+    } else if (surfaceDist > maxRange) {
+      opacity = maxVal;
+    } else {
+      const t = (surfaceDist - minRange) / (maxRange - minRange);
+      opacity = minVal + t * (maxVal - minVal);
+    }
+
+    if (this.earthMesh.material.uniforms && this.earthMesh.material.uniforms.opacity) {
+      this.earthMesh.material.uniforms.opacity.value = opacity;
+    }
+
+    this.earthGroup.visible = true;
   }
 
   animate() {
