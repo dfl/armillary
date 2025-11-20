@@ -125,17 +125,12 @@ export class ArmillaryScene {
     this.prevArmillaryPos = null;
     this.prevArmillaryQuat = null;
 
-    // Cache for sunrise/sunset calculation
-    this.cachedRiseSet = null;
-    this.riseSetCacheKey = null;
-
     // Store lunar phase info for tooltip
     this.lunarPhase = { phase: "", illumination: 0 };
 
     // Store sun/moon positions for tooltips
     this.sunZodiacPosition = "";
     this.moonZodiacPosition = "";
-    this.sunRiseSet = { sunrise: "--", sunset: "--" };
 
     // Store angle positions for tooltips
     this.anglePositions = {
@@ -658,22 +653,6 @@ export class ArmillaryScene {
     document.getElementById("lstValue").textContent = astroCalc.lstToTimeString(LSTdeg);
     document.getElementById("mcValue").textContent = astroCalc.toZodiacString(MCdeg - ayanamshaDeg);
     document.getElementById("acValue").textContent = astroCalc.toZodiacString(ACdeg - ayanamshaDeg);
-
-    // Calculate rise/set only when date or location changes (not time of day)
-    const riseSetKey = `${currentDay}-${currentYear}-${currentLatitude.toFixed(2)}-${currentLongitude.toFixed(2)}-${timezone}`;
-    if (this.riseSetCacheKey !== riseSetKey) {
-      debugLog.log('Recalculating sunrise/sunset for', riseSetKey);
-      this.cachedRiseSet = astroCalc.calculateRiseSet(sunLonRad, currentLatitude, currentLongitude, currentDay, currentYear, timezone);
-      this.riseSetCacheKey = riseSetKey;
-    }
-
-    // Store rise/set for tooltip
-    if (this.cachedRiseSet) {
-      this.sunRiseSet = {
-        sunrise: this.cachedRiseSet.sunrise,
-        sunset: this.cachedRiseSet.sunset
-      };
-    }
 
     // Update sun color based on whether it's above or below the horizon
     // We check the sun's position in the armillaryRoot's local space (where Y is Up)

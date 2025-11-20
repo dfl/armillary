@@ -115,7 +115,7 @@ export default class InteractionManager {
       // Check sun first (priority) - both ecliptic and realistic sun
       if (sunIntersects.length > 0 || realisticSunIntersects.length > 0) {
         document.getElementById('starName').textContent = `☉ Sun ${this.sceneRef.sunZodiacPosition}`;
-        document.getElementById('constellationName').textContent = `↑ ${this.sceneRef.sunRiseSet.sunrise} | ↓ ${this.sceneRef.sunRiseSet.sunset}`;
+        document.getElementById('constellationName').textContent = `Star`;
 
         this.positionTooltip(starInfoElement, event);
         this.renderer.domElement.style.cursor = 'pointer';
