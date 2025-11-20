@@ -88,19 +88,19 @@ export default class InteractionManager {
 
       // Check angle spheres and labels
       const angleIntersects = raycaster.intersectObjects([
-        this.sceneRef.spheres.MC,
-        this.sceneRef.spheres.IC,
-        this.sceneRef.spheres.ASC,
-        this.sceneRef.spheres.DSC,
-        this.sceneRef.spheres.VTX,
-        this.sceneRef.spheres.AVX,
-        this.sceneRef.angleLabels.MC,
-        this.sceneRef.angleLabels.IC,
-        this.sceneRef.angleLabels.ASC,
-        this.sceneRef.angleLabels.DSC,
-        this.sceneRef.angleLabels.VTX,
-        this.sceneRef.angleLabels.AVX
-      ], false);
+        this.sceneRef.spheres?.MC,
+        this.sceneRef.spheres?.IC,
+        this.sceneRef.spheres?.ASC,
+        this.sceneRef.spheres?.DSC,
+        this.sceneRef.spheres?.VTX,
+        this.sceneRef.spheres?.AVX,
+        this.sceneRef.angleLabels?.MC,
+        this.sceneRef.angleLabels?.IC,
+        this.sceneRef.angleLabels?.ASC,
+        this.sceneRef.angleLabels?.DSC,
+        this.sceneRef.angleLabels?.VTX,
+        this.sceneRef.angleLabels?.AVX
+      ].filter(obj => obj != null), false);
 
       // Check reference circles (Horizon, Meridian, Prime Vertical, Celestial Equator, Ecliptic)
       const circleIntersects = raycaster.intersectObjects([
@@ -109,15 +109,20 @@ export default class InteractionManager {
         this.sceneRef.primeVerticalOutline,
         this.sceneRef.celestialEquatorOutline,
         this.sceneRef.outerEclipticLine
-      ], false);
+      ].filter(obj => obj != null), false);
 
       // Check pole labels
       const poleIntersects = raycaster.intersectObjects([
-        this.sceneRef.poleLabels.NP,
-        this.sceneRef.poleLabels.SP
-      ], false);
+        this.sceneRef.poleLabels?.NP,
+        this.sceneRef.poleLabels?.SP
+      ].filter(obj => obj != null), false);
 
       const starInfoElement = document.getElementById('starInfo');
+
+      if (!starInfoElement) {
+        console.error('starInfo element not found!');
+        return;
+      }
 
       // Check if Earth is visible enough to show tooltip
       const earthOpacity = this.sceneRef.earthMesh?.material?.uniforms?.opacity?.value || 0;
@@ -125,6 +130,7 @@ export default class InteractionManager {
 
       // Check sun first (priority) - both ecliptic and realistic sun
       if (sunIntersects.length > 0 || realisticSunIntersects.length > 0) {
+        console.log('Sun hover detected!');
         document.getElementById('starName').textContent = `☉ Sun ${this.sceneRef.sunZodiacPosition}`;
         document.getElementById('constellationName').textContent = `Star`;
 
