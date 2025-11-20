@@ -754,6 +754,8 @@ export class ArmillaryScene {
         color: 0xaaaaaa
       })
     );
+    // Align Moon's poles (Y-axis of texture) with the ecliptic normal (Z-axis)
+    realisticMoon.rotation.x = Math.PI / 2;
 
     const realisticMoonGlowLayers = [
       { size: realisticMoonRadius * 1.2, opacity: 0.08, color: 0xffffff },
@@ -1652,6 +1654,12 @@ export class ArmillaryScene {
     const moonX = earthX + Math.cos(mRad) * this.MOON_DISTANCE;
     const moonY = earthY + Math.sin(mRad) * this.MOON_DISTANCE;
     this.realisticMoonGroup.position.set(moonX, moonY, 0);
+
+    // Tidal locking: Rotate moon to face Earth
+    // With rotation.x = PI/2, rotation.y becomes the spin around the Z-axis (poles)
+    if (this.realisticMoonMesh) {
+      this.realisticMoonMesh.rotation.y = mRad + Math.PI;
+    }
 
     // Store moon zodiac position for tooltip
     this.moonZodiacPosition = astroCalc.toZodiacString(moonDeg - ayanamshaDeg);
