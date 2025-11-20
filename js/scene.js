@@ -1590,7 +1590,6 @@ export class ArmillaryScene {
     this.anglePositions.AVX = astroCalc.toZodiacString(AVXdeg - ayanamshaDeg);
 
     // Update Labels (offset for visibility)
-    const sphereRadius = this.CE_RADIUS * 1.6;
     for (const key of ["MC", "IC", "ASC", "DSC", "VTX", "AVX"]) {
         const worldPos = new THREE.Vector3();
         this.spheres[key].getWorldPosition(worldPos);
