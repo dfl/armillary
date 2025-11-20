@@ -24,6 +24,7 @@ export class ArmillaryScene {
     this.SUN_TEXTURE_PATH = '/armillary/images/sun_texture.jpg';
     this.REALISTIC_SUN_TEXTURE_PATH = '/armillary/images/sun_texture_orange.jpg';
     this.MOON_TEXTURE_PATH = '/armillary/images/moon_texture.jpg';
+    this.MOON_BUMP_TEXTURE_PATH = '/armillary/images/moon_texture_bump.jpg';
     this.MERCURY_TEXTURE_PATH = '/armillary/images/mercury_texture.jpg';
     this.VENUS_TEXTURE_PATH = '/armillary/images/venus_texture.jpg';
     this.MARS_TEXTURE_PATH = '/armillary/images/mars_texture.jpg';
@@ -119,6 +120,9 @@ export class ArmillaryScene {
   initScene() {
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x111111);
+
+    // Add ambient light for realistic materials (Moon)
+    this.scene.add(new THREE.AmbientLight(0x111111));
 
     // Create main camera for normal (non-stereo) view and controls
     // Position camera to view from north (East/ASC on left, West/DSC on right)
@@ -697,6 +701,10 @@ export class ArmillaryScene {
       this.realisticSunGlowMeshes.push(glowMesh);
     });
 
+    // Add a point light to represent the Sun
+    const sunLight = new THREE.PointLight(0xffffff, 2.0, 0, 0);
+    this.realisticSunGroup.add(sunLight);
+
     // Add realistic sun to the root scene (heliocentric center)
     this.scene.add(this.realisticSunGroup);
   }
@@ -704,6 +712,7 @@ export class ArmillaryScene {
   createMoon() {
     const textureLoader = new THREE.TextureLoader();
     const moonTexture = textureLoader.load(this.MOON_TEXTURE_PATH);
+    const moonBumpTexture = textureLoader.load(this.MOON_BUMP_TEXTURE_PATH);
 
     // Ecliptic moon (on the ecliptic plane)
     const eclipticMoonRadius = 0.13;
@@ -749,9 +758,13 @@ export class ArmillaryScene {
 
     const realisticMoon = new THREE.Mesh(
       new THREE.SphereGeometry(realisticMoonRadius, 64, 64),
-      new THREE.MeshBasicMaterial({
+      new THREE.MeshStandardMaterial({
         map: moonTexture,
-        color: 0xaaaaaa
+        bumpMap: moonBumpTexture,
+        bumpScale: 0.05,
+        color: 0xffffff,
+        roughness: 0.9,
+        metalness: 0.0
       })
     );
     // Align Moon's poles (Y-axis of texture) with the ecliptic normal (Z-axis)
