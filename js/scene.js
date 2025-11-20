@@ -1368,10 +1368,10 @@ export class ArmillaryScene {
     let newUp = camera.up.clone();
 
     if (targetName === 'horizon') {
-      // Orient facing North (Local +Z), with East on Left (-X) and West on Right (+X)
-      // Position camera at South (-Z) and slightly Up (+Y)
-      // Scale: Match previous zoom level (approx 2.5x radius distance)
-      const localOffset = new THREE.Vector3(0, targetRadius * 0.8, -targetRadius * 2.4);
+      // Orient facing South (Local -Z) from North (Local +Z)
+      // This places East (-X) on the Left and West (+X) on the Right
+      // Position camera at North (+Z) and slightly Up (+Y)
+      const localOffset = new THREE.Vector3(0, targetRadius * 0.8, targetRadius * 2.4);
       
       // Transform to world space
       const worldOffset = localOffset.applyQuaternion(this.armillaryRoot.quaternion);
