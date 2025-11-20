@@ -168,17 +168,16 @@ window.addEventListener('keydown', (e) => {
   }
 });
 
-// Initialize UI values
-uiManager.initialize();
-
-// Load state from URL
+// Load state from URL first
 const hasURLState = uiManager.loadStateFromURL(parser);
 
+// Initialize UI values (this sets defaults but shouldn't trigger rendering yet)
+uiManager.initialize();
+
 // Initial update (only if no URL state was loaded)
+// If URL state exists, updateSlidersFromDate will call updateCallback
 if (!hasURLState) {
   parser.setNow();
-} else {
-  updateVisualization();
 }
 
 // Set default camera zoom to horizon (slightly zoomed out)
