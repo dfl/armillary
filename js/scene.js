@@ -200,6 +200,10 @@ export class ArmillaryScene {
     this.zodiacGroup = new THREE.Group();
     this.zodiacGroup.rotation.x = this.obliquity;
     this.celestial.add(this.zodiacGroup);
+
+    // Hide celestial objects until first updateSphere() call
+    this.celestial.visible = false;
+    this.armillaryRoot.visible = false;
   }
 
   initModules() {
@@ -329,6 +333,26 @@ export class ArmillaryScene {
   updateSphere(astroCalc, currentLatitude, currentLongitude, currentTime, currentDay, currentYear, timezone = null) {
     debugLog.log('=== updateSphere called ===');
     debugLog.log('Planet groups available:', Object.keys(this.planetGroups));
+
+    // Make celestial objects visible on first update
+    if (!this.celestial.visible) {
+      this.celestial.visible = true;
+      this.armillaryRoot.visible = true;
+      this.earthGroup.visible = true;
+
+      // Check planets toggle state
+      const planetsToggle = document.getElementById('planetsToggle');
+      const planetsVisible = planetsToggle ? planetsToggle.checked : true;
+
+      this.realisticSunGroup.visible = planetsVisible;
+      this.realisticMoonGroup.visible = planetsVisible;
+
+      // Make all planets visible based on toggle state
+      Object.values(this.planetGroups).forEach(planetData => {
+        planetData.group.visible = planetsVisible;
+      });
+    }
+
     // -----------------------------------------------------------
     // 1. Convert inputs
     // -----------------------------------------------------------

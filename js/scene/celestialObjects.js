@@ -280,6 +280,9 @@ export default class CelestialObjects {
 
     // Add realistic sun to the root scene (heliocentric center)
     this.scene.add(this.realisticSunGroup);
+
+    // Hide initially until first updateSphere() call
+    this.realisticSunGroup.visible = false;
   }
 
   createMoon() {
@@ -372,6 +375,9 @@ export default class CelestialObjects {
 
     // Add realistic moon to the root scene (will be positioned relative to Earth)
     this.scene.add(this.realisticMoonGroup);
+
+    // Hide initially until first updateSphere() call
+    this.realisticMoonGroup.visible = false;
   }
 
   createPlanets() {
@@ -464,6 +470,9 @@ export default class CelestialObjects {
     this.earthGroup.add(this.earthMesh);
     this.scene.add(this.earthGroup);
 
+    // Hide initially until first updateSphere() call
+    this.earthGroup.visible = false;
+
     // Load Saturn ring textures
     const saturnRingsTexture = textureLoader.load(
       this.texturePaths.SATURN_RINGS_TEXTURE_PATH,
@@ -541,6 +550,10 @@ export default class CelestialObjects {
       };
 
       this.scene.add(planetGroup);
+
+      // Hide initially until first updateSphere() call
+      planetGroup.visible = false;
+
       debugLog.log(`Created planet ${planet.name} with radius ${radius} at distance ${distance}`);
     });
   }
