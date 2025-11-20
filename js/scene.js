@@ -7,7 +7,7 @@ import { starData, constellationLines } from './stardata.js';
 export class ArmillaryScene {
   constructor() {
     this.obliquity = 23.44 * Math.PI / 180;
-    this.CE_RADIUS = 1.5; // Celestial sphere radius (local horizon visualization scale)
+    this.CE_RADIUS = 0.5; // Celestial sphere radius (local horizon visualization scale)
     this.EARTH_RADIUS = 100.0; // Earth's radius in scene units (much larger than horizon)
 
     // Fudged distances for visibility (keeping relative proportions)
@@ -1659,7 +1659,7 @@ export class ArmillaryScene {
     const localObserverPos = new THREE.Vector3().setFromSphericalCoords(
       this.EARTH_RADIUS,
       Math.PI / 2 - latRad, // phi (0 at North Pole)
-      THREE.MathUtils.degToRad(currentLongitude) + Math.PI // theta
+      THREE.MathUtils.degToRad(currentLongitude) + Math.PI / 2 // theta
     );
 
     // Transform to World Space
