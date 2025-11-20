@@ -48,6 +48,7 @@ export class ArmillaryScene {
 
     this.spheres = {};
     this.angleLabels = {};
+    this.poleLabels = {}; // Store pole label sprites
     this.eclipticSunGroup = null;
     this.realisticSunGroup = null;
     this.sunTexture = null; // Store texture reference for toggling
@@ -367,11 +368,13 @@ export class ArmillaryScene {
       const sprite = new THREE.Sprite(mat);
       sprite.scale.set(1, 0.5, 1);
       sprite.position.set(0, 0, z);
+      sprite.userData.poleName = name; // Store pole name for tooltip
       this.celestial.add(sprite);
+      return sprite;
     };
 
-    addPoleLabel('NP', this.CE_RADIUS + polarLineLength);
-    addPoleLabel('SP', -this.CE_RADIUS - polarLineLength);
+    this.poleLabels.NP = addPoleLabel('NP', this.CE_RADIUS + polarLineLength);
+    this.poleLabels.SP = addPoleLabel('SP', -this.CE_RADIUS - polarLineLength);
   }
 
   createEclipticZodiacWheel() {
@@ -999,6 +1002,12 @@ export class ArmillaryScene {
         this.outerEclipticLine
       ], false);
 
+      // Check pole labels
+      const poleIntersects = raycaster.intersectObjects([
+        this.poleLabels.NP,
+        this.poleLabels.SP
+      ], false);
+
       const starInfoElement = document.getElementById('starInfo');
 
       // Check sun first (priority) - both ecliptic and realistic sun
@@ -1084,6 +1093,21 @@ export class ArmillaryScene {
 
         document.getElementById('starName').textContent = circleName;
         document.getElementById('constellationName').textContent = descriptions[circleName];
+
+        this.positionTooltip(starInfoElement, event);
+        this.renderer.domElement.style.cursor = 'pointer';
+      }
+      // Check pole labels sixth
+      else if (poleIntersects.length > 0) {
+        const pole = poleIntersects[0].object;
+        const poleName = pole.userData.poleName;
+        const descriptions = {
+          "NP": "North Celestial Pole",
+          "SP": "South Celestial Pole"
+        };
+
+        document.getElementById('starName').textContent = poleName;
+        document.getElementById('constellationName').textContent = descriptions[poleName];
 
         this.positionTooltip(starInfoElement, event);
         this.renderer.domElement.style.cursor = 'pointer';
