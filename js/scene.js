@@ -1364,17 +1364,32 @@ export class ArmillaryScene {
     }
 
     // Calculate camera position (offset from target)
-    const zoomDistance = targetName === 'horizon' ? targetRadius * 2.5 : targetRadius * 4; // Distance from surface
+    let newCameraPos;
+    let newUp = camera.up.clone();
 
-    // Get direction from target to current camera
-    const direction = camera.position.clone().sub(targetWorldPos).normalize();
+    if (targetName === 'horizon') {
+      // Orient facing North (Local +Z), with East on Left (-X) and West on Right (+X)
+      // Position camera at South (-Z) and slightly Up (+Y)
+      // Scale: Match previous zoom level (approx 2.5x radius distance)
+      const localOffset = new THREE.Vector3(0, targetRadius * 0.8, -targetRadius * 2.4);
+      
+      // Transform to world space
+      const worldOffset = localOffset.applyQuaternion(this.armillaryRoot.quaternion);
+      newCameraPos = targetWorldPos.clone().add(worldOffset);
 
-    // Calculate new camera position
-    const newCameraPos = targetWorldPos.clone().add(direction.multiplyScalar(zoomDistance));
+      // Align camera up with local up
+      const localUp = new THREE.Vector3(0, 1, 0);
+      newUp = localUp.applyQuaternion(this.armillaryRoot.quaternion);
+    } else {
+      const zoomDistance = targetRadius * 4; // Distance from surface
+      const direction = camera.position.clone().sub(targetWorldPos).normalize();
+      newCameraPos = targetWorldPos.clone().add(direction.multiplyScalar(zoomDistance));
+    }
 
     // Smoothly animate camera
     const startPos = camera.position.clone();
     const startTarget = this.controls.target.clone();
+    const startUp = camera.up.clone();
     const duration = 1000; // 1 second
     const startTime = performance.now();
 
@@ -1392,6 +1407,9 @@ export class ArmillaryScene {
 
       // Interpolate target
       this.controls.target.lerpVectors(startTarget, targetWorldPos, eased);
+
+      // Interpolate up vector
+      camera.up.lerpVectors(startUp, newUp, eased).normalize();
 
       if (progress < 1) {
         requestAnimationFrame(animateCamera);
