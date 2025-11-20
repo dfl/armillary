@@ -621,7 +621,8 @@ export class ArmillaryScene {
     this.sunTexture = textureLoader.load(this.SUN_TEXTURE_PATH); // Store for referencing later
     const realisticSunTexture = textureLoader.load(this.REALISTIC_SUN_TEXTURE_PATH);
 
-    const eclipticSunRadius = 0.18;
+    // Scale sun relative to celestial sphere radius (approx 12% of radius)
+    const eclipticSunRadius = this.CE_RADIUS * 0.12;
 
     const sun = new THREE.Mesh(
       new THREE.SphereGeometry(eclipticSunRadius, 32, 32),
@@ -719,7 +720,8 @@ export class ArmillaryScene {
     const moonBumpTexture = textureLoader.load(this.MOON_BUMP_TEXTURE_PATH);
 
     // Ecliptic moon (on the ecliptic plane)
-    const eclipticMoonRadius = 0.13;
+    // Scale moon relative to celestial sphere radius (approx 9% of radius)
+    const eclipticMoonRadius = this.CE_RADIUS * 0.09;
 
     const eclipticMoon = new THREE.Mesh(
       new THREE.SphereGeometry(eclipticMoonRadius, 32, 32),
