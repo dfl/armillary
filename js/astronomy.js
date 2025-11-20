@@ -290,6 +290,38 @@ export class AstronomyCalculator {
   }
 
   /**
+   * Calculate planet's ecliptic longitude (radians) using ephemeris npm package
+   * planetName: 'mercury', 'venus', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune', 'pluto'
+   * Returns longitude in RADIANS (0..2π)
+   */
+  calculatePlanetPosition(planetName, currentDay, currentYear, month, day, hours, minutes) {
+    try {
+      const date = new Date(Date.UTC(currentYear, month, day, hours, minutes, 0));
+      const result = ephemeris.getAllPlanets(date, 0, 0);
+
+      // Try to read planet's longitude
+      const planetObj = result && result.observed && result.observed[planetName] 
+        ? result.observed[planetName] 
+        : (result && result[planetName] ? result[planetName] : null);
+
+      if (planetObj) {
+        const maybeLon = planetObj.apparentLongitudeDd ?? planetObj.longitude ?? planetObj.lon ?? planetObj.lambda;
+        if (typeof maybeLon === 'number' && !Number.isNaN(maybeLon)) {
+          let lonDeg = maybeLon;
+          lonDeg = this._deg(lonDeg);
+          return this._degToRad(lonDeg);
+        }
+      }
+    } catch (e) {
+      console.warn(`${planetName} ephemeris call failed:`, e);
+    }
+
+    // Fallback: return 0 (not accurate, but prevents errors)
+    console.warn(`Using fallback position for ${planetName}`);
+    return 0;
+  }
+
+  /**
    * Calculate lunar phase from sun and moon ecliptic longitudes
    * sunLon, moonLon: in RADIANS
    * Returns: { phase: "New Moon"|"Waxing Crescent"|etc., illumination: 0-100 }

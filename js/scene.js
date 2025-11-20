@@ -43,6 +43,7 @@ export class ArmillaryScene {
     this.moonGroup = null;
     this.moonMesh = null;
     this.moonGlowMeshes = [];
+    this.planetGroups = {}; // Store planet groups
 
     // Cache for sunrise/sunset calculation
     this.cachedRiseSet = null;
@@ -74,6 +75,7 @@ export class ArmillaryScene {
     this.createStarField();
     this.createSun();
     this.createMoon();
+    this.createPlanets();
     this.createAngleSpheres();
     this.createAngleLabels();
     this.setupStarHover();
@@ -687,6 +689,74 @@ export class ArmillaryScene {
     this.zodiacGroup.add(this.moonGroup);
   }
 
+  createPlanets() {
+    // Planet data: [name, relative diameter (Earth=1), color, distance multiplier]
+    // Using realistic relative sizes and colors
+    const planetData = [
+      { name: 'mercury', diameter: 0.383, color: 0x8c7853, distance: 50 },
+      { name: 'venus', diameter: 0.949, color: 0xffc649, distance: 50 },
+      { name: 'mars', diameter: 0.532, color: 0xcd5c5c, distance: 50 },
+      { name: 'jupiter', diameter: 11.21, color: 0xc88b3a, distance: 50 },
+      { name: 'saturn', diameter: 9.45, color: 0xfad5a5, distance: 50 },
+      { name: 'uranus', diameter: 4.01, color: 0x4fd0e0, distance: 50 },
+      { name: 'neptune', diameter: 3.88, color: 0x4166f5, distance: 50 },
+      { name: 'pluto', diameter: 0.186, color: 0xbca89f, distance: 50 }
+    ];
+
+    // Base size for Earth (for scaling)
+    const earthDiameter = 1.0;
+    const baseRadius = 0.05; // Base radius in scene units
+
+    planetData.forEach(planet => {
+      // Calculate radius based on relative diameter
+      const radius = baseRadius * (planet.diameter / earthDiameter);
+      const distance = this.CE_RADIUS * planet.distance;
+
+      const planetMesh = new THREE.Mesh(
+        new THREE.SphereGeometry(radius, 32, 32),
+        new THREE.MeshBasicMaterial({ color: planet.color })
+      );
+
+      // Add subtle glow for larger planets
+      const glowLayers = [];
+      if (planet.diameter > 3) {
+        glowLayers.push(
+          { size: radius * 1.15, opacity: 0.3, color: planet.color },
+          { size: radius * 1.3, opacity: 0.15, color: planet.color }
+        );
+      } else {
+        glowLayers.push(
+          { size: radius * 1.2, opacity: 0.2, color: planet.color }
+        );
+      }
+
+      const planetGroup = new THREE.Group();
+      planetGroup.add(planetMesh);
+
+      glowLayers.forEach(layer => {
+        const glowMesh = new THREE.Mesh(
+          new THREE.SphereGeometry(layer.size, 32, 32),
+          new THREE.MeshBasicMaterial({
+            color: layer.color,
+            transparent: true,
+            opacity: layer.opacity,
+            blending: THREE.AdditiveBlending
+          })
+        );
+        planetGroup.add(glowMesh);
+      });
+
+      // Store the group and main mesh for later positioning
+      this.planetGroups[planet.name] = {
+        group: planetGroup,
+        mesh: planetMesh,
+        distance: distance
+      };
+
+      this.zodiacGroup.add(planetGroup);
+    });
+  }
+
   createAngleSpheres() {
     const addAngle = (name, color) => {
       const mesh = new THREE.Mesh(
@@ -1069,6 +1139,25 @@ export class ArmillaryScene {
 
     // Calculate lunar phase
     this.lunarPhase = astroCalc.calculateLunarPhase(sunLonRad, moonLonRad);
+
+    // Update planet positions
+    const planetNames = ['mercury', 'venus', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune', 'pluto'];
+    planetNames.forEach(planetName => {
+      if (this.planetGroups[planetName]) {
+        const planetLonRad = astroCalc.calculatePlanetPosition(
+          planetName, currentDay, currentYear, month, day, hours, minutes
+        );
+        const planetDeg = THREE.MathUtils.radToDeg(planetLonRad);
+        const distance = this.planetGroups[planetName].distance;
+        const pRad = THREE.MathUtils.degToRad(planetDeg) - ayanamsha;
+        
+        this.planetGroups[planetName].group.position.set(
+          Math.cos(pRad) * distance,
+          Math.sin(pRad) * distance,
+          0
+        );
+      }
+    });
 
     // -----------------------------------------------------------
     // 7. UI Updates
