@@ -7,7 +7,7 @@ import { starData, constellationLines } from './stardata.js';
 export class ArmillaryScene {
   constructor() {
     this.obliquity = 23.44 * Math.PI / 180;
-    this.CE_RADIUS = 0.5; // Celestial sphere radius (local horizon visualization scale)
+    this.CE_RADIUS = 2.0; // Celestial sphere radius (local horizon visualization scale)
     this.EARTH_RADIUS = 100.0; // Earth's radius in scene units (much larger than horizon)
 
     // Fudged distances for visibility (keeping relative proportions)
@@ -1013,9 +1013,9 @@ export class ArmillaryScene {
       const material = new THREE.SpriteMaterial({ map: texture, depthTest: false });
       const sprite = new THREE.Sprite(material);
       const s = this.CE_RADIUS / 1.5;
-      sprite.scale.set(0.8 * s, 0.4 * s, 1);
+      sprite.scale.set(1.2 * s, 0.6 * s, 1);
       sprite.userData.angleName = dataName; // Store angle name for tooltip
-      this.scene.add(sprite);
+      this.zodiacGroup.add(sprite);
       return sprite;
     };
 
@@ -1590,32 +1590,22 @@ export class ArmillaryScene {
     this.anglePositions.AVX = astroCalc.toZodiacString(AVXdeg - ayanamshaDeg);
 
     // Update Labels (offset for visibility)
-    for (const key of ["MC", "IC", "ASC", "DSC", "VTX", "AVX"]) {
-        const worldPos = new THREE.Vector3();
-        this.spheres[key].getWorldPosition(worldPos);
-        // Calculate direction from center of zodiac group (which is where spheres are relative to)
-        // But spheres are children of zodiacGroup, so we need to be careful with coordinate spaces.
-        // The labels are in scene space (or armillaryRoot space? No, scene.add(sprite) in createAngleLabels).
-        
-        // Actually, let's just project outwards from the sphere position relative to the zodiac center.
-        // The spheres are at CE_RADIUS distance. We want labels at sphereRadius + offset.
-        
-        // Get the sphere's position in world space
-        const sphereWorldPos = new THREE.Vector3();
-        this.spheres[key].getWorldPosition(sphereWorldPos);
-        
-        // Get the zodiac group's center in world space
-        const centerWorldPos = new THREE.Vector3();
-        this.zodiacGroup.getWorldPosition(centerWorldPos);
-        
-        // Direction from center to sphere
-        const direction = new THREE.Vector3().subVectors(sphereWorldPos, centerWorldPos).normalize();
-        
-        // New position: Center + Direction * (sphereRadius * 1.1)
-        const labelPos = centerWorldPos.clone().add(direction.multiplyScalar(sphereRadius * 1.1));
-        
-        this.angleLabels[key].position.copy(labelPos);
-    }
+    const labelRadius = sphereRadius * 1.15;
+    const placeLabel = (deg) => {
+        const rad = THREE.MathUtils.degToRad(deg) - ayanamsha;
+        return new THREE.Vector3(
+            labelRadius * Math.cos(rad),
+            labelRadius * Math.sin(rad),
+            0.0
+        );
+    };
+
+    this.angleLabels.MC.position.copy(placeLabel(MCdeg));
+    this.angleLabels.IC.position.copy(placeLabel(ICdeg));
+    this.angleLabels.ASC.position.copy(placeLabel(ACdeg));
+    this.angleLabels.DSC.position.copy(placeLabel(DCdeg));
+    this.angleLabels.VTX.position.copy(placeLabel(VTXdeg));
+    this.angleLabels.AVX.position.copy(placeLabel(AVXdeg));
 
     // -----------------------------------------------------------
     // 6. Sun Position
