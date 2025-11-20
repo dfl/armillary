@@ -729,6 +729,8 @@ export class ArmillaryScene {
     });
     // Hide the realistic sun (keep ecliptic sun for reference)
     this.celestialObjects.realisticSunGroup.visible = visible;
+    this.celestialObjects.realisticMoonGroup.visible = visible;
+
   }
 
   // ===================================================================
