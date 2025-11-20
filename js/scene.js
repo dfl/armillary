@@ -7,16 +7,16 @@ import { starData, constellationLines } from './stardata.js';
 export class ArmillaryScene {
   constructor() {
     this.obliquity = 23.44 * Math.PI / 180;
-    this.CE_RADIUS = 3; // Celestial sphere radius (local horizon visualization scale)
-    this.EARTH_RADIUS = 10.0; // Earth's radius in scene units (much larger than horizon)
+    this.CE_RADIUS = 1.5; // Celestial sphere radius (local horizon visualization scale)
+    this.EARTH_RADIUS = 100.0; // Earth's radius in scene units (much larger than horizon)
 
     // Fudged distances for visibility (keeping relative proportions)
     this.PLANET_RADIUS_SCALE = 1.0; // Scale factor to make all bodies visible
-    this.PLANET_DISTANCE_SCALE = 500; // Scale factor for planet orbital distances (1 AU = 500 units)
+    this.PLANET_DISTANCE_SCALE = 2000; // Scale factor for planet orbital distances (1 AU = 500 units)
     this.STAR_FIELD_RADIUS = this.PLANET_DISTANCE_SCALE * 200; // Star field radius (encompassing solar system)
 
-    this.SUN_RADIUS = 60; // Sun radius (scaled down from reality but large enough)
-    this.MOON_DISTANCE = 30; // Moon distance from Earth (scaled)
+    this.SUN_RADIUS = 200; // Sun radius (scaled down from reality but large enough)
+    this.MOON_DISTANCE = 300; // Moon distance from Earth (scaled)
     this.MOON_RADIUS = 0.273 * this.EARTH_RADIUS; // Moon is ~27.3% Earth
     
     this.EARTH_TEXTURE_PATH = '/armillary/images/earth_texture.jpg';
@@ -1665,7 +1665,8 @@ export class ArmillaryScene {
     const worldObserverPos = localObserverPos.clone().applyQuaternion(this.earthMesh.quaternion);
 
     // Position armillaryRoot relative to Earth Center
-    this.armillaryRoot.position.copy(this.earthGroup.position).add(worldObserverPos);
+    // Add small offset to avoid z-fighting with earth surface
+    this.armillaryRoot.position.copy(this.earthGroup.position).add(worldObserverPos.clone().multiplyScalar(1.001));
 
     // Orient armillaryRoot (Horizon Frame)
     // Y axis = Up (Surface Normal)
@@ -1837,8 +1838,8 @@ export class ArmillaryScene {
     // Far (space view): Opaque
     const minVal = 0.3;
     const maxVal = 1.0;
-    const minRange = 2.0;
-    const maxRange = 20.0;
+    const minRange = 10.0;
+    const maxRange = 100.0;
 
     let opacity = 1.0;
     if (surfaceDist < minRange) {
