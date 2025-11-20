@@ -448,7 +448,136 @@ export class UIManager {
     window.history.replaceState({}, '', `#${params.toString()}`);
   }
 
+  setTimeFromLocalString(datetimeString) {
+    // Parse datetime string and set slider values directly
+    // The values represent LOCAL time at the chart's location
+    // Handles formats: "1979-05-08 10:57:00", "1979-05-08T10:57:00", "1979-05-08 10:57"
+    const normalized = datetimeString.replace(' ', 'T');
+
+    // Match datetime components
+    const match = normalized.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?/);
+    if (!match) {
+      console.error('Failed to parse datetime:', datetimeString);
+      return;
+    }
+
+    const year = parseInt(match[1]);
+    const month = parseInt(match[2]);
+    const day = parseInt(match[3]);
+    const hour = parseInt(match[4]);
+    const minute = parseInt(match[5]);
+
+    console.log('Setting time from local string:', { year, month, day, hour, minute });
+
+    // Calculate day of year
+    const isLeapYear = (year % 4 === 0 && year % 100 !== 0) || (year % 400 === 0);
+    const monthDays = isLeapYear
+      ? [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+      : [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+
+    let dayOfYear = day;
+    for (let i = 0; i < month - 1; i++) {
+      dayOfYear += monthDays[i];
+    }
+
+    // Set year (stored internally)
+    this.currentYear = year;
+
+    // Set day slider
+    this.currentDay = dayOfYear;
+    this.elements.daySlider.value = dayOfYear;
+    this.elements.dayValue.textContent = `Day ${dayOfYear}: ${this.dayToStr(dayOfYear, year)}`;
+
+    // Set time slider (minutes since midnight)
+    const timeInMinutes = hour * 60 + minute;
+    this.currentTime = timeInMinutes;
+    this.elements.timeSlider.value = timeInMinutes;
+    this.elements.timeValue.textContent = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+
+    console.log('Set sliders to:', { year, dayOfYear, timeInMinutes });
+  }
+
+  loadFromCalcParams(queryParams, parser) {
+    window.isLoadingFromURL = true;
+    console.log('Loading from Rails calc_params');
+
+    const datetime = queryParams.get('calc[datetime]');
+    const lat = queryParams.get('calc[lat]');
+    const lon = queryParams.get('calc[lon]');
+    const location = queryParams.get('calc[location]');
+    const timezone = queryParams.get('calc[timezone]');
+
+    console.log('Received calc_params:', { datetime, lat, lon, location, timezone });
+
+    // Set location name if provided
+    if (location) {
+      this.elements.locationInput.value = location;
+    }
+
+    // Set timezone if provided
+    if (timezone) {
+      this.currentTimezone = timezone;
+      console.log('Set timezone from calc_params:', timezone);
+    }
+
+    // Set datetime if provided
+    if (datetime) {
+      this.elements.datetimeInput.value = datetime;
+      console.log('Loading datetime from calc_params:', datetime);
+    }
+
+    // Set lat/lon if provided
+    if (lat && lon) {
+      const latitude = parseFloat(lat);
+      const longitude = parseFloat(lon);
+      console.log('Parsed lat/lon:', { latitude, longitude });
+
+      const clampedLat = Math.max(-66, Math.min(66, latitude));
+      this.currentLatitude = clampedLat;
+      this.elements.latSlider.value = clampedLat;
+      this.elements.latInput.value = clampedLat.toFixed(4);
+      this.elements.latValue.textContent = clampedLat.toFixed(1) + "°";
+
+      const clampedLon = Math.max(-180, Math.min(180, longitude));
+      this.currentLongitude = clampedLon;
+      this.elements.lonSlider.value = clampedLon;
+      this.elements.lonInput.value = clampedLon.toFixed(4);
+      this.elements.lonValue.textContent = clampedLon.toFixed(1) + "°";
+    }
+
+    // Parse the datetime and update the visualization
+    if (datetime) {
+      // Strip timezone offset from Rails datetime string (e.g., "1979-05-08 10:57:00 +0000")
+      // The datetime represents LOCAL time at the chart's location
+      const datetimeWithoutTz = datetime.replace(/\s*[+-]\d{4}\s*$/, '').trim();
+      console.log('Datetime without timezone:', datetimeWithoutTz);
+
+      // Parse the datetime components directly and set sliders
+      // Rails sends datetime like "1979-05-08 10:57:00" in LOCAL time
+      // We set the slider values directly without timezone conversion
+      this.setTimeFromLocalString(datetimeWithoutTz);
+    }
+
+    // Always trigger a visualization update after loading calc_params
+    // This ensures lat/lon and datetime are all applied
+    console.log('Triggering visualization update');
+    this.updateCallback();
+
+    setTimeout(() => { window.isLoadingFromURL = false; }, 500);
+
+    return true;
+  }
+
   loadStateFromURL(parser) {
+    // First check for Rails calc_params in query string
+    const queryParams = new URLSearchParams(window.location.search);
+    const hasCalcParams = queryParams.has('calc[datetime]') || queryParams.has('calc[lat]') || queryParams.has('calc[lon]');
+
+    if (hasCalcParams) {
+      return this.loadFromCalcParams(queryParams, parser);
+    }
+
+    // Fall back to hash-based URL state
     const hash = window.location.hash.substring(1);
     if (!hash) return false;
 

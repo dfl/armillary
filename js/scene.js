@@ -8,8 +8,8 @@ export class ArmillaryScene {
   constructor() {
     this.obliquity = 23.44 * Math.PI / 180;
     this.CE_RADIUS = 3;
-    this.SUN_TEXTURE_PATH = './images/sun_texture.jpg';
-    this.MOON_TEXTURE_PATH = './images/moon_texture.jpg';
+    this.SUN_TEXTURE_PATH = '/armillary/images/sun_texture.jpg';
+    this.MOON_TEXTURE_PATH = '/armillary/images/moon_texture.jpg';
 
     this.scene = null;
     this.camera = null;
