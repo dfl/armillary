@@ -225,95 +225,31 @@ export class ArmillaryScene {
   }
 
   createCompassRose() {
-    const compassRosetteGroup = new THREE.Group();
+    // Load compass rosette texture
+    const textureLoader = new THREE.TextureLoader();
+    const compassTexture = textureLoader.load('/armillary/images/compass_rosette.png');
 
-    const solidMaterial = new THREE.MeshBasicMaterial({
-      color: 0x00ff00,
+    // Create a plane geometry to display the image
+    const scale = this.CE_RADIUS * 1.2; // Size of the compass rosette
+    const compassGeometry = new THREE.PlaneGeometry(scale, scale);
+
+    const compassMaterial = new THREE.MeshBasicMaterial({
+      map: compassTexture,
       transparent: true,
-      opacity: 0.2,
-      side: THREE.DoubleSide
+      opacity: 0.5, // Semi-transparent
+      side: THREE.DoubleSide,
+      depthWrite: false
     });
 
-    const outlineMaterial = new THREE.LineBasicMaterial({
-      color: 0x00ff00,
-      opacity: 0.25,
-      transparent: true,
-      linewidth: 0.5
-    });
+    const compassRosette = new THREE.Mesh(compassGeometry, compassMaterial);
 
-    const createSplitCompassPoint = (angle, length, width, leftFilled) => {
-      const group = new THREE.Group();
-      const center = new THREE.Vector3(0, 0, 0);
-      const tip = new THREE.Vector3(length * Math.sin(angle), 0, length * Math.cos(angle));
-      const left = new THREE.Vector3(width * Math.sin(angle - Math.PI / 2), 0, width * Math.cos(angle - Math.PI / 2));
-      const right = new THREE.Vector3(width * Math.sin(angle + Math.PI / 2), 0, width * Math.cos(angle + Math.PI / 2));
+    // Rotate to lie flat on the horizon plane
+    compassRosette.rotation.x = -Math.PI / 2;
 
-      if (leftFilled) {
-        const leftShape = new THREE.Shape();
-        leftShape.moveTo(0, 0);
-        leftShape.lineTo(left.x, left.z);
-        leftShape.lineTo(tip.x, tip.z);
-        leftShape.lineTo(0, 0);
+    // Position slightly above the horizon to avoid z-fighting
+    compassRosette.position.y = 0.01;
 
-        const leftGeometry = new THREE.ShapeGeometry(leftShape);
-        const leftMesh = new THREE.Mesh(leftGeometry, solidMaterial);
-        leftMesh.rotation.x = -Math.PI / 2;
-        group.add(leftMesh);
-
-        const leftOutlinePoints = [center.clone(), left.clone(), tip.clone(), center.clone()];
-        const leftOutlineGeometry = new THREE.BufferGeometry().setFromPoints(leftOutlinePoints);
-        const leftOutline = new THREE.Line(leftOutlineGeometry, outlineMaterial);
-        group.add(leftOutline);
-
-        const rightPoints = [center.clone(), right.clone(), tip.clone(), center.clone()];
-        const rightGeometry = new THREE.BufferGeometry().setFromPoints(rightPoints);
-        const rightLine = new THREE.Line(rightGeometry, outlineMaterial);
-        group.add(rightLine);
-      } else {
-        const rightShape = new THREE.Shape();
-        rightShape.moveTo(0, 0);
-        rightShape.lineTo(right.x, right.z);
-        rightShape.lineTo(tip.x, tip.z);
-        rightShape.lineTo(0, 0);
-
-        const rightGeometry = new THREE.ShapeGeometry(rightShape);
-        const rightMesh = new THREE.Mesh(rightGeometry, solidMaterial);
-        rightMesh.rotation.x = -Math.PI / 2;
-        group.add(rightMesh);
-
-        const rightOutlinePoints = [center.clone(), right.clone(), tip.clone(), center.clone()];
-        const rightOutlineGeometry = new THREE.BufferGeometry().setFromPoints(rightOutlinePoints);
-        const rightOutline = new THREE.Line(rightOutlineGeometry, outlineMaterial);
-        group.add(rightOutline);
-
-        const leftPoints = [center.clone(), left.clone(), tip.clone(), center.clone()];
-        const leftGeometry = new THREE.BufferGeometry().setFromPoints(leftPoints);
-        const leftLine = new THREE.Line(leftGeometry, outlineMaterial);
-        group.add(leftLine);
-      }
-
-      return group;
-    };
-
-    const allPoints = [
-      { angle: 0, length: 1.0, width: 0.12, leftFilled: true },
-      { angle: Math.PI / 4, length: 0.7, width: 0.10, leftFilled: false },
-      { angle: Math.PI / 2, length: 1.0, width: 0.12, leftFilled: true },
-      { angle: 3 * Math.PI / 4, length: 0.7, width: 0.10, leftFilled: false },
-      { angle: Math.PI, length: 1.0, width: 0.12, leftFilled: true },
-      { angle: 5 * Math.PI / 4, length: 0.7, width: 0.10, leftFilled: false },
-      { angle: 3 * Math.PI / 2, length: 1.0, width: 0.12, leftFilled: true },
-      { angle: 7 * Math.PI / 4, length: 0.7, width: 0.10, leftFilled: false }
-    ];
-
-    const scale = this.CE_RADIUS / 1.5;
-    allPoints.forEach(point => {
-      const pointGroup = createSplitCompassPoint(point.angle, point.length * scale, point.width * scale, point.leftFilled);
-      compassRosetteGroup.add(pointGroup);
-    });
-
-    compassRosetteGroup.position.y = 0.01;
-    this.armillaryRoot.add(compassRosetteGroup);
+    this.armillaryRoot.add(compassRosette);
   }
 
   addCompassLabels() {
