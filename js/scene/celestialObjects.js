@@ -80,7 +80,7 @@ export default class CelestialObjects {
     };
 
     // Star size multiplier - adjust this constant to make stars larger/smaller
-    const k = 200.0; // Scaled up for larger star field radius
+    const k = 500.0; // Scaled up for larger star field radius
 
     // Create stars
     starData.forEach(([name, ra, dec, mag, constellation]) => {
