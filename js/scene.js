@@ -20,6 +20,7 @@ export class ArmillaryScene {
     this.MOON_RADIUS = 0.273 * this.EARTH_RADIUS; // Moon is ~27.3% Earth
     
     this.EARTH_TEXTURE_PATH = '/armillary/images/earth_texture.jpg';
+    this.EARTH_NIGHT_TEXTURE_PATH = '/armillary/images/earth_texture_night.jpg';
     this.SUN_TEXTURE_PATH = '/armillary/images/sun_texture.jpg';
     this.REALISTIC_SUN_TEXTURE_PATH = '/armillary/images/sun_texture_orange.jpg';
     this.MOON_TEXTURE_PATH = '/armillary/images/moon_texture.jpg';
@@ -821,9 +822,47 @@ export class ArmillaryScene {
 
     // Create Earth
     const earthTexture = textureLoader.load(this.EARTH_TEXTURE_PATH);
+    const earthNightTexture = textureLoader.load(this.EARTH_NIGHT_TEXTURE_PATH);
+
+    const earthMaterial = new THREE.ShaderMaterial({
+      uniforms: {
+        dayTexture: { value: earthTexture },
+        nightTexture: { value: earthNightTexture },
+        sunPosition: { value: new THREE.Vector3(0, 0, 0) }
+      },
+      vertexShader: `
+        varying vec2 vUv;
+        varying vec3 vNormal;
+        varying vec3 vWorldPosition;
+        void main() {
+          vUv = uv;
+          vNormal = normalize(mat3(modelMatrix) * normal);
+          vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+          vWorldPosition = worldPosition.xyz;
+          gl_Position = projectionMatrix * viewMatrix * worldPosition;
+        }
+      `,
+      fragmentShader: `
+        uniform sampler2D dayTexture;
+        uniform sampler2D nightTexture;
+        uniform vec3 sunPosition;
+        varying vec2 vUv;
+        varying vec3 vNormal;
+        varying vec3 vWorldPosition;
+        void main() {
+          vec3 sunDirection = normalize(sunPosition - vWorldPosition);
+          float intensity = dot(vNormal, sunDirection);
+          float mixFactor = smoothstep(-0.2, 0.2, intensity);
+          vec4 dayColor = texture2D(dayTexture, vUv);
+          vec4 nightColor = texture2D(nightTexture, vUv);
+          gl_FragColor = mix(nightColor, dayColor, mixFactor);
+        }
+      `
+    });
+
     this.earthMesh = new THREE.Mesh(
       new THREE.SphereGeometry(this.EARTH_RADIUS, 32, 32),
-      new THREE.MeshBasicMaterial({ map: earthTexture })
+      earthMaterial
     );
     this.earthGroup = new THREE.Group();
     this.earthGroup.add(this.earthMesh);
