@@ -661,6 +661,7 @@ export class ArmillaryScene {
           depthWrite: false
         })
       );
+      glowMesh.raycast = () => {}; // Exclude from raycasting
       this.eclipticSunGroup.add(glowMesh);
       this.eclipticSunGlowMeshes.push(glowMesh);
     });
@@ -705,6 +706,7 @@ export class ArmillaryScene {
           depthWrite: false
         })
       );
+      glowMesh.raycast = () => {}; // Exclude from raycasting
       this.realisticSunGroup.add(glowMesh);
       this.realisticSunGlowMeshes.push(glowMesh);
     });
