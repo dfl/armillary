@@ -18,12 +18,12 @@ export class ArmillaryScene {
     this.SUN_RADIUS_KM = 696000;
     this.MOON_DISTANCE_KM = 384400;
 
-    this.PLANET_RADIUS_SCALE = 1.0; // Scale factor to make all bodies visible
+    this.PLANET_RADIUS_SCALE = 0.05; // Scale factor to make all bodies visible but not overwhelming
     this.PLANET_DISTANCE_SCALE = 2000; // Scale factor for planet orbital distances (1 AU = 2000 units)
     this.STAR_FIELD_RADIUS = this.PLANET_DISTANCE_SCALE * 200; // Star field radius (encompassing solar system)
 
-    // Calculate proportional radii
-    this.SUN_RADIUS = this.EARTH_RADIUS * (this.SUN_RADIUS_KM / this.EARTH_RADIUS_KM); // ~109x Earth
+    // Calculate proportional radii (scaled down for visibility)
+    this.SUN_RADIUS = this.EARTH_RADIUS * (this.SUN_RADIUS_KM / this.EARTH_RADIUS_KM) * 0.05; // ~109x Earth, scaled
     this.MOON_RADIUS = this.EARTH_RADIUS * (this.MOON_RADIUS_KM / this.EARTH_RADIUS_KM); // ~27.3% Earth
     this.MOON_DISTANCE = 300; // Moon distance from Earth (scaled for visibility, not to scale with radii)
     
@@ -1236,7 +1236,10 @@ export class ArmillaryScene {
       if (planetIntersects.length > 0) {
         const planet = planetIntersects[0];
         planet.planetData.group.getWorldPosition(targetWorldPos);
-        targetRadius = planet.planetData.mesh.geometry.parameters.radius;
+        // Account for planet scale when calculating zoom distance
+        const geometryRadius = planet.planetData.mesh.geometry.parameters.radius;
+        const currentScale = planet.planetData.group.scale.x;
+        targetRadius = geometryRadius * currentScale;
         targetObject = 'planet';
       } else if (sunIntersects.length > 0) {
         this.realisticSunGroup.getWorldPosition(targetWorldPos);
@@ -1250,7 +1253,8 @@ export class ArmillaryScene {
 
       if (targetObject) {
         // Calculate camera position (offset from target)
-        const zoomDistance = targetRadius * 8; // Distance from surface
+        // Use a smaller multiplier for better planet viewing (fills ~1/2 screen)
+        const zoomDistance = targetRadius * 4; // Distance from surface
 
         // Get direction from target to current camera
         const direction = camera.position.clone().sub(targetWorldPos).normalize();
@@ -1316,7 +1320,10 @@ export class ArmillaryScene {
       targetRadius = 39.48 * this.PLANET_DISTANCE_SCALE * 1.3; // Pluto's orbit * 1.3 for margin
     } else if (this.planetGroups[targetName]) {
       this.planetGroups[targetName].group.getWorldPosition(targetWorldPos);
-      targetRadius = this.planetGroups[targetName].mesh.geometry.parameters.radius;
+      // Get the actual visual radius (accounting for planet scale)
+      const geometryRadius = this.planetGroups[targetName].mesh.geometry.parameters.radius;
+      const currentScale = this.planetGroups[targetName].group.scale.x;
+      targetRadius = geometryRadius * currentScale;
     } else {
       debugLog.warn('Target not found:', targetName);
       return;
@@ -1357,6 +1364,7 @@ export class ArmillaryScene {
       const localUp = new THREE.Vector3(0, 0, 1);
       newUp = localUp.applyQuaternion(zodiacWorldQuaternion);
     } else {
+      // For planets and other bodies, use a multiplier to fill ~1/2 of screen
       const zoomDistance = targetRadius * 4; // Distance from surface
       const direction = camera.position.clone().sub(targetWorldPos).normalize();
       newCameraPos = targetWorldPos.clone().add(direction.multiplyScalar(zoomDistance));
