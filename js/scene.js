@@ -1298,6 +1298,11 @@ export class ArmillaryScene {
     } else if (targetName === 'moon') {
       this.realisticMoonGroup.getWorldPosition(targetWorldPos);
       targetRadius = this.realisticMoonMesh.geometry.parameters.radius;
+    } else if (targetName === 'ecliptic-north') {
+      // Special case: view from ecliptic north pole, looking down at solar system
+      // Position camera high above the ecliptic plane to see all planets including Pluto
+      this.realisticSunGroup.getWorldPosition(targetWorldPos);
+      targetRadius = 39.48 * this.PLANET_DISTANCE_SCALE * 1.3; // Pluto's orbit * 1.3 for margin
     } else if (this.planetGroups[targetName]) {
       this.planetGroups[targetName].group.getWorldPosition(targetWorldPos);
       targetRadius = this.planetGroups[targetName].mesh.geometry.parameters.radius;
@@ -1314,7 +1319,7 @@ export class ArmillaryScene {
       // Orient facing North (Local +Z) from South (Local -Z)
       // Position camera at South (-Z) and slightly Up (+Y)
       const localOffset = new THREE.Vector3(0, targetRadius * 2.0, -targetRadius * 6.0);
-      
+
       // Transform to world space
       const worldOffset = localOffset.applyQuaternion(this.armillaryRoot.quaternion);
       newCameraPos = targetWorldPos.clone().add(worldOffset);
@@ -1322,6 +1327,24 @@ export class ArmillaryScene {
       // Align camera up with local up
       const localUp = new THREE.Vector3(0, 1, 0);
       newUp = localUp.applyQuaternion(this.armillaryRoot.quaternion);
+    } else if (targetName === 'ecliptic-north') {
+      // Position camera directly above ecliptic north pole, looking straight down
+      // This makes the ecliptic plane appear face-on (perpendicular to camera)
+      // The ecliptic north pole is in the +Y direction of the zodiacGroup's local space
+      const localOffset = new THREE.Vector3(0, targetRadius, 0);
+
+      // Get the zodiacGroup's world quaternion to transform our local offset
+      const zodiacWorldQuaternion = new THREE.Quaternion();
+      this.zodiacGroup.getWorldQuaternion(zodiacWorldQuaternion);
+
+      // Transform offset to world space
+      const worldOffset = localOffset.applyQuaternion(zodiacWorldQuaternion);
+      newCameraPos = targetWorldPos.clone().add(worldOffset);
+
+      // Camera up vector should align with the vernal equinox direction (0° Aries)
+      // This is the +Z direction in the zodiacGroup's local space
+      const localUp = new THREE.Vector3(0, 0, 1);
+      newUp = localUp.applyQuaternion(zodiacWorldQuaternion);
     } else {
       const zoomDistance = targetRadius * 4; // Distance from surface
       const direction = camera.position.clone().sub(targetWorldPos).normalize();
