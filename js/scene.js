@@ -755,6 +755,7 @@ export class ArmillaryScene {
       };
 
       this.zodiacGroup.add(planetGroup);
+      console.log(`Created planet ${planet.name} with radius ${radius} at distance ${distance}`);
     });
   }
 
@@ -845,6 +846,7 @@ export class ArmillaryScene {
       // Check for stars, sun, moon, planets, and angle spheres
       const starIntersects = raycaster.intersectObjects(this.starGroup.children, false);
       const sunIntersects = raycaster.intersectObjects(this.eclipticSunGroup.children, false);
+      const realisticSunIntersects = raycaster.intersectObjects(this.realisticSunGroup.children, false);
       const moonIntersects = raycaster.intersectObjects(this.moonGroup.children, false);
       
       // Check all planet groups
@@ -883,8 +885,8 @@ export class ArmillaryScene {
 
       const starInfoElement = document.getElementById('starInfo');
 
-      // Check sun first (priority)
-      if (sunIntersects.length > 0) {
+      // Check sun first (priority) - both ecliptic and realistic sun
+      if (sunIntersects.length > 0 || realisticSunIntersects.length > 0) {
         document.getElementById('starName').textContent = `☉ Sun ${this.sunZodiacPosition}`;
         document.getElementById('constellationName').textContent = `↑ ${this.sunRiseSet.sunrise} | ↓ ${this.sunRiseSet.sunset}`;
 
@@ -1195,11 +1197,11 @@ export class ArmillaryScene {
         const distance = this.planetGroups[planetName].distance;
         const pRad = THREE.MathUtils.degToRad(planetDeg) - ayanamsha;
         
-        this.planetGroups[planetName].group.position.set(
-          Math.cos(pRad) * distance,
-          Math.sin(pRad) * distance,
-          0
-        );
+        const x = Math.cos(pRad) * distance;
+        const y = Math.sin(pRad) * distance;
+        this.planetGroups[planetName].group.position.set(x, y, 0);
+
+        console.log(`Positioned ${planetName} at (${x.toFixed(2)}, ${y.toFixed(2)}, 0) - ${planetDeg.toFixed(1)}°`);
 
         // Store planet zodiac position for tooltip
         this.planetZodiacPositions[planetName] = astroCalc.toZodiacString(planetDeg - ayanamshaDeg);
