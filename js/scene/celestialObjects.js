@@ -602,9 +602,9 @@ export default class CelestialObjects {
         new THREE.MeshBasicMaterial({
           map: planetTexture,
           color: 0xffffff,
-          transparent: true,
+          transparent: true, // Keep true to allow dynamic opacity changes
           opacity: 1.0,
-          depthWrite: false
+          depthWrite: true // Enable depth write when fully opaque
         })
       );
 
@@ -635,20 +635,24 @@ export default class CelestialObjects {
           transparent: true,
           side: THREE.DoubleSide,
           opacity: 1.0,
-          depthWrite: false
+          depthWrite: true // Enable depth write when fully opaque
         });
 
         const ringMesh = new THREE.Mesh(ringGeometry, ringMaterial);
         ringMesh.rotation.x = Math.PI / 2; // Rotate to be horizontal
+        ringMesh.name = 'saturnRing'; // Name it for collision detection
         planetGroup.add(ringMesh);
 
         debugLog.log(`Saturn rings created for ecliptic planet: inner=${ringInnerRadius}, outer=${ringOuterRadius}`);
       }
 
       // Store the planet group for later positioning
+      // For Saturn, also store the ring mesh for opacity control
+      const ringMesh = planet.name === 'saturn' ? planetGroup.getObjectByName('saturnRing') : null;
       this.eclipticPlanetGroups[planet.name] = {
         group: planetGroup,
-        mesh: planetMesh
+        mesh: planetMesh,
+        ringMesh: ringMesh
       };
 
       this.zodiacGroup.add(planetGroup);

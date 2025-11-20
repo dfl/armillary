@@ -58,36 +58,61 @@ export default class InteractionManager {
 
       raycaster.setFromCamera(mouse, camera);
 
-      // Check for stars, sun, moon, earth, planets, and angle spheres
-      const starIntersects = raycaster.intersectObjects(this.sceneRef.starGroup.children, false);
-      const sunIntersects = raycaster.intersectObjects(this.sceneRef.eclipticSunGroup.children, false);
-      const realisticSunIntersects = raycaster.intersectObjects(this.sceneRef.realisticSunGroup.children, false);
-      const eclipticMoonIntersects = raycaster.intersectObjects(this.sceneRef.eclipticMoonGroup.children, false);
-      const realisticMoonIntersects = raycaster.intersectObjects(this.sceneRef.realisticMoonGroup.children, false);
-      const earthIntersects = this.sceneRef.earthGroup ? raycaster.intersectObjects(this.sceneRef.earthGroup.children, false) : [];
+      // Build a list of all potential targets to raycast against
+      // We'll collect ALL objects and then intersect them all at once to get proper depth sorting
+      const allTargets = [];
 
-      // Check all planet groups (3D heliocentric)
-      const planetIntersects = [];
-      Object.entries(this.sceneRef.planetGroups).forEach(([name, planetData]) => {
-        const intersects = raycaster.intersectObjects(planetData.group.children, false);
-        if (intersects.length > 0) {
-          planetIntersects.push({ name, intersects });
-        }
+      // Add all celestial objects with their metadata
+      // Stars
+      this.sceneRef.starGroup.children.forEach(star => {
+        allTargets.push({ obj: star, type: 'star', meta: star });
       });
 
-      // Check all ecliptic planet groups (2D on zodiac wheel)
-      const eclipticPlanetIntersects = [];
-      if (this.sceneRef.eclipticPlanetGroups) {
-        Object.entries(this.sceneRef.eclipticPlanetGroups).forEach(([name, planetData]) => {
-          const intersects = raycaster.intersectObjects(planetData.group.children, false);
-          if (intersects.length > 0) {
-            eclipticPlanetIntersects.push({ name, intersects });
-          }
+      // Ecliptic Sun
+      this.sceneRef.eclipticSunGroup.children.forEach(child => {
+        allTargets.push({ obj: child, type: 'sun', meta: null });
+      });
+
+      // Realistic Sun
+      this.sceneRef.realisticSunGroup.children.forEach(child => {
+        allTargets.push({ obj: child, type: 'sun', meta: null });
+      });
+
+      // Ecliptic Moon
+      this.sceneRef.eclipticMoonGroup.children.forEach(child => {
+        allTargets.push({ obj: child, type: 'moon', meta: null });
+      });
+
+      // Realistic Moon
+      this.sceneRef.realisticMoonGroup.children.forEach(child => {
+        allTargets.push({ obj: child, type: 'moon', meta: null });
+      });
+
+      // Earth
+      if (this.sceneRef.earthGroup) {
+        this.sceneRef.earthGroup.children.forEach(child => {
+          allTargets.push({ obj: child, type: 'earth', meta: null });
         });
       }
 
-      // Check angle spheres and labels
-      const angleIntersects = raycaster.intersectObjects([
+      // Ecliptic planets
+      if (this.sceneRef.eclipticPlanetGroups) {
+        Object.entries(this.sceneRef.eclipticPlanetGroups).forEach(([name, planetData]) => {
+          planetData.group.children.forEach(child => {
+            allTargets.push({ obj: child, type: 'ecliptic-planet', meta: name });
+          });
+        });
+      }
+
+      // Heliocentric planets
+      Object.entries(this.sceneRef.planetGroups).forEach(([name, planetData]) => {
+        planetData.group.children.forEach(child => {
+          allTargets.push({ obj: child, type: 'heliocentric-planet', meta: name });
+        });
+      });
+
+      // Angles
+      [
         this.sceneRef.spheres?.MC,
         this.sceneRef.spheres?.IC,
         this.sceneRef.spheres?.ASC,
@@ -100,22 +125,37 @@ export default class InteractionManager {
         this.sceneRef.angleLabels?.DSC,
         this.sceneRef.angleLabels?.VTX,
         this.sceneRef.angleLabels?.AVX
-      ].filter(obj => obj != null), false);
+      ].forEach(obj => {
+        if (obj) allTargets.push({ obj, type: 'angle', meta: obj });
+      });
 
-      // Check reference circles (Horizon, Meridian, Prime Vertical, Celestial Equator, Ecliptic)
-      const circleIntersects = raycaster.intersectObjects([
+      // Reference circles
+      [
         this.sceneRef.horizonOutline,
         this.sceneRef.meridianOutline,
         this.sceneRef.primeVerticalOutline,
         this.sceneRef.celestialEquatorOutline,
         this.sceneRef.outerEclipticLine
-      ].filter(obj => obj != null), false);
+      ].forEach(obj => {
+        if (obj) allTargets.push({ obj, type: 'circle', meta: obj });
+      });
 
-      // Check pole labels
-      const poleIntersects = raycaster.intersectObjects([
+      // Poles
+      [
         this.sceneRef.poleLabels?.NP,
         this.sceneRef.poleLabels?.SP
-      ].filter(obj => obj != null), false);
+      ].forEach(obj => {
+        if (obj) allTargets.push({ obj, type: 'pole', meta: obj });
+      });
+
+      // Perform single raycast against all objects
+      const allIntersects = raycaster.intersectObjects(allTargets.map(t => t.obj), false);
+
+      // Create a map from object to target info for fast lookup
+      const objToTarget = new Map();
+      allTargets.forEach(target => {
+        objToTarget.set(target.obj, target);
+      });
 
       const starInfoElement = document.getElementById('starInfo');
 
@@ -126,160 +166,152 @@ export default class InteractionManager {
 
       // Check if Earth is visible enough to show tooltip
       const earthOpacity = this.sceneRef.earthMesh?.material?.uniforms?.opacity?.value || 0;
-      const showEarthTooltip = earthIntersects.length > 0 && earthOpacity > 0.1;
 
-      // Check sun first (priority) - both ecliptic and realistic sun
-      if (sunIntersects.length > 0 || realisticSunIntersects.length > 0) {
-        console.log('Sun hover detected!');
-        document.getElementById('starName').textContent = `☉ Sun ${this.sceneRef.sunZodiacPosition}`;
-        document.getElementById('constellationName').textContent = `Star`;
+      // Size hierarchy (smaller = higher priority when overlapping)
+      const objectSizes = {
+        'ecliptic-planet': 1,  // Smallest: 0.06 * CE_RADIUS
+        'moon': 2,             // Medium: 0.09 * CE_RADIUS
+        'sun': 3,              // Largest: 0.12 * CE_RADIUS
+        'earth': 2,            // Similar to moon
+        'heliocentric-planet': 1, // Same as ecliptic planets
+        'angle': 0.5,          // Even smaller
+        'circle': 0,           // Lines
+        'pole': 0.5,           // Small
+        'star': 0.1            // Very small
+      };
 
-        this.positionTooltip(starInfoElement, event);
-        this.renderer.domElement.style.cursor = 'pointer';
-      }
-      // Check Earth second (only if visible/opaque enough)
-      else if (showEarthTooltip) {
-        document.getElementById('starName').textContent = `⊕ Earth`;
-        document.getElementById('constellationName').textContent = `Planet`;
+      // Process all intersections and build candidates
+      const candidates = [];
 
-        this.positionTooltip(starInfoElement, event);
-        this.renderer.domElement.style.cursor = 'pointer';
-      }
-      // Check ecliptic planets third (higher priority - closer to viewer)
-      else if (eclipticPlanetIntersects.length > 0) {
-        const planet = eclipticPlanetIntersects[0];
+      allIntersects.forEach(intersection => {
+        const target = objToTarget.get(intersection.object);
+        if (!target) return;
+
+        const { type, meta } = target;
+
+        // Skip earth if not visible enough
+        if (type === 'earth' && earthOpacity <= 0.1) return;
+
+        // Skip stars without proper metadata
+        if (type === 'star' && (!meta.userData.name || !meta.userData.constellation)) return;
+
+        const candidate = {
+          type,
+          distance: intersection.distance,
+          size: objectSizes[type] || 1,
+          object: intersection.object
+        };
+
+        // Add type-specific metadata
+        if (type === 'ecliptic-planet' || type === 'heliocentric-planet') {
+          candidate.name = meta;
+        } else if (type === 'star') {
+          candidate.starData = meta.userData;
+        } else if (type === 'angle' || type === 'circle' || type === 'pole') {
+          candidate.objectData = meta;
+        }
+
+        candidates.push(candidate);
+      });
+
+      // Sort by size first (smaller = higher priority), then by distance
+      // This ensures smaller objects inside larger ones are detected
+      if (candidates.length > 0) {
+        candidates.sort((a, b) => {
+          // If distance difference is very small (within 20% of CE_RADIUS), prioritize smaller object
+          const distanceDiff = Math.abs(a.distance - b.distance);
+          const overlapThreshold = this.sceneRef.CE_RADIUS * 0.2;
+
+          if (distanceDiff < overlapThreshold) {
+            // Objects are close/overlapping - prefer smaller object
+            return a.size - b.size;
+          }
+          // Objects are well separated - prefer closer object
+          return a.distance - b.distance;
+        });
+        const closest = candidates[0];
+
         const planetSymbols = {
-          mercury: '☿',
-          venus: '♀',
-          mars: '♂',
-          jupiter: '♃',
-          saturn: '♄',
-          uranus: '♅',
-          neptune: '♆',
-          pluto: '♇'
+          mercury: '☿', venus: '♀', mars: '♂', jupiter: '♃',
+          saturn: '♄', uranus: '♅', neptune: '♆', pluto: '♇'
         };
         const planetFullNames = {
-          mercury: 'Mercury',
-          venus: 'Venus',
-          mars: 'Mars',
-          jupiter: 'Jupiter',
-          saturn: 'Saturn',
-          uranus: 'Uranus',
-          neptune: 'Neptune',
-          pluto: 'Pluto'
+          mercury: 'Mercury', venus: 'Venus', mars: 'Mars', jupiter: 'Jupiter',
+          saturn: 'Saturn', uranus: 'Uranus', neptune: 'Neptune', pluto: 'Pluto'
         };
 
-        const symbol = planetSymbols[planet.name] || planet.name;
-        const fullName = planetFullNames[planet.name] || planet.name;
-        const position = this.sceneRef.planetZodiacPositions[planet.name] || '';
-
-        document.getElementById('starName').textContent = `${symbol} ${fullName} ${position}`;
-        document.getElementById('constellationName').textContent = `Planet`;
-
-        this.positionTooltip(starInfoElement, event);
-        this.renderer.domElement.style.cursor = 'pointer';
-      }
-      // Check heliocentric planets fourth
-      else if (planetIntersects.length > 0) {
-        const planet = planetIntersects[0];
-        const planetSymbols = {
-          mercury: '☿',
-          venus: '♀',
-          mars: '♂',
-          jupiter: '♃',
-          saturn: '♄',
-          uranus: '♅',
-          neptune: '♆',
-          pluto: '♇'
-        };
-        const planetFullNames = {
-          mercury: 'Mercury',
-          venus: 'Venus',
-          mars: 'Mars',
-          jupiter: 'Jupiter',
-          saturn: 'Saturn',
-          uranus: 'Uranus',
-          neptune: 'Neptune',
-          pluto: 'Pluto'
-        };
-
-        const symbol = planetSymbols[planet.name] || planet.name;
-        const fullName = planetFullNames[planet.name] || planet.name;
-        const position = this.sceneRef.planetZodiacPositions[planet.name] || '';
-
-        document.getElementById('starName').textContent = `${symbol} ${fullName} ${position}`;
-        document.getElementById('constellationName').textContent = `Planet`;
-
-        this.positionTooltip(starInfoElement, event);
-        this.renderer.domElement.style.cursor = 'pointer';
-      }
-      // Check moon third - both ecliptic and realistic
-      else if (eclipticMoonIntersects.length > 0 || realisticMoonIntersects.length > 0) {
-        document.getElementById('starName').textContent = `☽ Moon ${this.sceneRef.moonZodiacPosition}`;
-        document.getElementById('constellationName').textContent = `${this.sceneRef.lunarPhase.phase} (${this.sceneRef.lunarPhase.illumination}% lit)`;
-
-        this.positionTooltip(starInfoElement, event);
-        this.renderer.domElement.style.cursor = 'pointer';
-      }
-      // Check angles fourth
-      else if (angleIntersects.length > 0) {
-        const angle = angleIntersects[0].object;
-        const angleName = angle.userData.angleName;
-        const fullNames = {
-          MC: "Midheaven",
-          IC: "Imum Coeli",
-          ASC: "Ascendant",
-          DSC: "Descendant",
-          VTX: "Vertex",
-          AVX: "Antivertex"
-        };
-
-        document.getElementById('starName').textContent = `${angleName} ${this.sceneRef.anglePositions[angleName]}`;
-        document.getElementById('constellationName').textContent = fullNames[angleName];
-
-        this.positionTooltip(starInfoElement, event);
-        this.renderer.domElement.style.cursor = 'pointer';
-      }
-      // Check reference circles fifth
-      else if (circleIntersects.length > 0) {
-        const circle = circleIntersects[0].object;
-        const circleName = circle.userData.circleName;
-        const descriptions = {
-          "Horizon": "Observer's local horizon plane",
-          "Meridian": "North-South great circle through zenith",
-          "Prime Vertical": "East-West great circle through zenith",
-          "Celestial Equator": "Projection of Earth's equator onto celestial sphere",
-          "Ecliptic": "Path of the Sun through the zodiac constellations"
-        };
-
-        document.getElementById('starName').textContent = circleName;
-        document.getElementById('constellationName').textContent = descriptions[circleName];
-
-        this.positionTooltip(starInfoElement, event);
-        this.renderer.domElement.style.cursor = 'pointer';
-      }
-      // Check pole labels sixth
-      else if (poleIntersects.length > 0) {
-        const pole = poleIntersects[0].object;
-        const poleName = pole.userData.poleName;
-        const descriptions = {
-          "NP": "North Celestial Pole",
-          "SP": "South Celestial Pole"
-        };
-
-        document.getElementById('starName').textContent = poleName;
-        document.getElementById('constellationName').textContent = descriptions[poleName];
-
-        this.positionTooltip(starInfoElement, event);
-        this.renderer.domElement.style.cursor = 'pointer';
-      }
-      // Check stars last
-      else if (starIntersects.length > 0) {
-        const hoveredObject = starIntersects[0].object;
-        if (hoveredObject.userData.name && hoveredObject.userData.constellation) {
-          document.getElementById('starName').textContent = hoveredObject.userData.name;
-          document.getElementById('constellationName').textContent = hoveredObject.userData.constellation;
-
+        if (closest.type === 'sun') {
+          document.getElementById('starName').textContent = `☉ Sun ${this.sceneRef.sunZodiacPosition}`;
+          document.getElementById('constellationName').textContent = `Star`;
+          this.positionTooltip(starInfoElement, event);
+          this.renderer.domElement.style.cursor = 'pointer';
+        }
+        else if (closest.type === 'moon') {
+          document.getElementById('starName').textContent = `☽ Moon ${this.sceneRef.moonZodiacPosition}`;
+          document.getElementById('constellationName').textContent = `${this.sceneRef.lunarPhase.phase} (${this.sceneRef.lunarPhase.illumination}% lit)`;
+          this.positionTooltip(starInfoElement, event);
+          this.renderer.domElement.style.cursor = 'pointer';
+        }
+        else if (closest.type === 'earth') {
+          document.getElementById('starName').textContent = `⊕ Earth`;
+          document.getElementById('constellationName').textContent = `Planet`;
+          this.positionTooltip(starInfoElement, event);
+          this.renderer.domElement.style.cursor = 'pointer';
+        }
+        else if (closest.type === 'ecliptic-planet') {
+          const symbol = planetSymbols[closest.name] || closest.name;
+          const fullName = planetFullNames[closest.name] || closest.name;
+          const position = this.sceneRef.planetZodiacPositions[closest.name] || '';
+          document.getElementById('starName').textContent = `${symbol} ${fullName} ${position}`;
+          document.getElementById('constellationName').textContent = `Planet`;
+          this.positionTooltip(starInfoElement, event);
+          this.renderer.domElement.style.cursor = 'pointer';
+        }
+        else if (closest.type === 'heliocentric-planet') {
+          const symbol = planetSymbols[closest.name] || closest.name;
+          const fullName = planetFullNames[closest.name] || closest.name;
+          const position = this.sceneRef.planetZodiacPositions[closest.name] || '';
+          document.getElementById('starName').textContent = `${symbol} ${fullName} ${position}`;
+          document.getElementById('constellationName').textContent = `Planet`;
+          this.positionTooltip(starInfoElement, event);
+          this.renderer.domElement.style.cursor = 'pointer';
+        }
+        else if (closest.type === 'angle') {
+          const angleName = closest.objectData.userData.angleName;
+          const fullNames = {
+            MC: "Midheaven", IC: "Imum Coeli", ASC: "Ascendant",
+            DSC: "Descendant", VTX: "Vertex", AVX: "Antivertex"
+          };
+          document.getElementById('starName').textContent = `${angleName} ${this.sceneRef.anglePositions[angleName]}`;
+          document.getElementById('constellationName').textContent = fullNames[angleName];
+          this.positionTooltip(starInfoElement, event);
+          this.renderer.domElement.style.cursor = 'pointer';
+        }
+        else if (closest.type === 'circle') {
+          const circleName = closest.objectData.userData.circleName;
+          const descriptions = {
+            "Horizon": "Observer's local horizon plane",
+            "Meridian": "North-South great circle through zenith",
+            "Prime Vertical": "East-West great circle through zenith",
+            "Celestial Equator": "Projection of Earth's equator onto celestial sphere",
+            "Ecliptic": "Path of the Sun through the zodiac constellations"
+          };
+          document.getElementById('starName').textContent = circleName;
+          document.getElementById('constellationName').textContent = descriptions[circleName];
+          this.positionTooltip(starInfoElement, event);
+          this.renderer.domElement.style.cursor = 'pointer';
+        }
+        else if (closest.type === 'pole') {
+          const poleName = closest.objectData.userData.poleName;
+          const descriptions = { "NP": "North Celestial Pole", "SP": "South Celestial Pole" };
+          document.getElementById('starName').textContent = poleName;
+          document.getElementById('constellationName').textContent = descriptions[poleName];
+          this.positionTooltip(starInfoElement, event);
+          this.renderer.domElement.style.cursor = 'pointer';
+        }
+        else if (closest.type === 'star') {
+          document.getElementById('starName').textContent = closest.starData.name;
+          document.getElementById('constellationName').textContent = closest.starData.constellation;
           this.positionTooltip(starInfoElement, event);
           this.renderer.domElement.style.cursor = 'pointer';
         }

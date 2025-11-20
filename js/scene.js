@@ -684,6 +684,7 @@ export class ArmillaryScene {
           name: planetName,
           position: planetPos,
           mesh: this.eclipticPlanetGroups[planetName].mesh,
+          ringMesh: this.eclipticPlanetGroups[planetName].ringMesh, // For Saturn
           glowMeshes: [],
           baseOpacity: 1.0
         });
@@ -714,6 +715,14 @@ export class ArmillaryScene {
 
       // Apply opacity to main mesh
       obj.mesh.material.opacity = opacity;
+      // Disable depth write when transparent to avoid rendering artifacts
+      obj.mesh.material.depthWrite = opacity >= 1.0;
+
+      // Apply opacity to ring mesh (Saturn only)
+      if (obj.ringMesh) {
+        obj.ringMesh.material.opacity = opacity;
+        obj.ringMesh.material.depthWrite = opacity >= 1.0;
+      }
 
       // Apply opacity to glow meshes (sun and moon only)
       if (obj.glowMeshes && obj.glowMeshes.length > 0) {
