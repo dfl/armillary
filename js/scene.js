@@ -1309,7 +1309,7 @@ export class ArmillaryScene {
     if (targetName === 'horizon') {
       // Orient facing North (Local +Z) from South (Local -Z)
       // Position camera at South (-Z) and slightly Up (+Y)
-      const localOffset = new THREE.Vector3(0, targetRadius * 0.8, -targetRadius * 2.4);
+      const localOffset = new THREE.Vector3(0, targetRadius * 2.0, -targetRadius * 6.0);
       
       // Transform to world space
       const worldOffset = localOffset.applyQuaternion(this.armillaryRoot.quaternion);
@@ -1660,10 +1660,18 @@ export class ArmillaryScene {
     const basis = new THREE.Matrix4().makeBasis(west, up, north);
     this.armillaryRoot.quaternion.setFromRotationMatrix(basis);
 
-    // Move camera and controls to follow Earth
-    const delta = new THREE.Vector3().subVectors(newEarthPos, oldEarthPos);
-    this.camera.position.add(delta);
-    this.controls.target.add(delta);
+    // Move camera and controls to follow the observer's geographic location
+    // Store previous armillary root position
+    if (!this.prevArmillaryPos) {
+      this.prevArmillaryPos = this.armillaryRoot.position.clone();
+    }
+
+    const armillaryDelta = new THREE.Vector3().subVectors(this.armillaryRoot.position, this.prevArmillaryPos);
+    this.prevArmillaryPos.copy(this.armillaryRoot.position);
+
+    // Move camera to follow the geographic location (Earth rotation + orbital motion)
+    this.camera.position.add(armillaryDelta);
+    this.controls.target.add(armillaryDelta);
 
     // 2. Position Moon (Relative to Earth)
     const moonLonRad = astroCalc.calculateMoonPosition(
