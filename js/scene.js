@@ -10,14 +10,22 @@ export class ArmillaryScene {
     this.CE_RADIUS = 2.0; // Celestial sphere radius (local horizon visualization scale)
     this.EARTH_RADIUS = 100.0; // Earth's radius in scene units (much larger than horizon)
 
-    // Fudged distances for visibility (keeping relative proportions)
+    // Proportional scaling constants
+    // Real radii: Earth 6371km, Moon 1737km, Sun 696000km
+    // Real distances: Moon ~384400km from Earth, Earth 1 AU from Sun
+    this.EARTH_RADIUS_KM = 6371;
+    this.MOON_RADIUS_KM = 1737;
+    this.SUN_RADIUS_KM = 696000;
+    this.MOON_DISTANCE_KM = 384400;
+
     this.PLANET_RADIUS_SCALE = 1.0; // Scale factor to make all bodies visible
-    this.PLANET_DISTANCE_SCALE = 2000; // Scale factor for planet orbital distances (1 AU = 500 units)
+    this.PLANET_DISTANCE_SCALE = 2000; // Scale factor for planet orbital distances (1 AU = 2000 units)
     this.STAR_FIELD_RADIUS = this.PLANET_DISTANCE_SCALE * 200; // Star field radius (encompassing solar system)
 
-    this.SUN_RADIUS = 200; // Sun radius (scaled down from reality but large enough)
-    this.MOON_DISTANCE = 300; // Moon distance from Earth (scaled)
-    this.MOON_RADIUS = 0.273 * this.EARTH_RADIUS; // Moon is ~27.3% Earth
+    // Calculate proportional radii
+    this.SUN_RADIUS = this.EARTH_RADIUS * (this.SUN_RADIUS_KM / this.EARTH_RADIUS_KM); // ~109x Earth
+    this.MOON_RADIUS = this.EARTH_RADIUS * (this.MOON_RADIUS_KM / this.EARTH_RADIUS_KM); // ~27.3% Earth
+    this.MOON_DISTANCE = 300; // Moon distance from Earth (scaled for visibility, not to scale with radii)
     
     this.EARTH_TEXTURE_PATH = '/armillary/images/earth_texture.jpg';
     this.EARTH_NIGHT_TEXTURE_PATH = '/armillary/images/earth_texture_night.jpg';
@@ -753,23 +761,25 @@ export class ArmillaryScene {
 
   createPlanets() {
     debugLog.log('=== Creating planets ===');
-    // Planet data: [name, relative diameter (Earth=1), orbital distance in AU]
-    // Distances scaled relative to 1 AU (Earth-Sun distance)
+    // Planet data: actual radii in km and orbital distances in AU
+    // Radii: Mercury 2440km, Venus 6052km, Earth 6371km, Mars 3390km,
+    //        Jupiter 69911km, Saturn 58232km, Uranus 25362km, Neptune 24622km
+    // Moon 1737km, Sun 696000km
+    const EARTH_RADIUS_KM = 6371;
+
     const planetData = [
-      { name: 'mercury', diameter: 0.383, color: 0x8c7853, au: 0.39 },
-      { name: 'venus', diameter: 0.949, color: 0xffc649, au: 0.72 },
-      { name: 'mars', diameter: 0.532, color: 0xcd5c5c, au: 1.52 },
-      { name: 'jupiter', diameter: 11.21, color: 0xc88b3a, au: 5.20 },
-      { name: 'saturn', diameter: 9.45, color: 0xfad5a5, au: 9.54 },
-      { name: 'uranus', diameter: 4.01, color: 0x4fd0e0, au: 19.19 },
-      { name: 'neptune', diameter: 3.88, color: 0x4166f5, au: 30.07 },
-      { name: 'pluto', diameter: 0.186, color: 0xbca89f, au: 39.48 }
+      { name: 'mercury', radiusKm: 2440, color: 0x8c7853, au: 0.39 },
+      { name: 'venus', radiusKm: 6052, color: 0xffc649, au: 0.72 },
+      { name: 'mars', radiusKm: 3390, color: 0xcd5c5c, au: 1.52 },
+      { name: 'jupiter', radiusKm: 69911, color: 0xc88b3a, au: 5.20 },
+      { name: 'saturn', radiusKm: 58232, color: 0xfad5a5, au: 9.54 },
+      { name: 'uranus', radiusKm: 25362, color: 0x4fd0e0, au: 19.19 },
+      { name: 'neptune', radiusKm: 24622, color: 0x4166f5, au: 30.07 },
+      { name: 'pluto', radiusKm: 1188, color: 0xbca89f, au: 39.48 }
     ];
 
-    // Base size for Earth (for scaling)
-    // Earth radius = this.EARTH_RADIUS, planets scale proportionally
-    const earthDiameter = 1.0;
-    const baseRadius = this.EARTH_RADIUS; // Earth's actual radius as base
+    // Earth's scene radius is the base unit
+    const baseRadius = this.EARTH_RADIUS;
 
     debugLog.log('CE_RADIUS:', this.CE_RADIUS, 'baseRadius:', baseRadius);
 
@@ -854,8 +864,9 @@ export class ArmillaryScene {
     );
 
     planetData.forEach(planet => {
-      // Calculate radius based on relative diameter (scaled up for visibility)
-      const radius = baseRadius * (planet.diameter / earthDiameter) * this.PLANET_RADIUS_SCALE;
+      // Calculate radius proportional to Earth based on actual km
+      // Scale all radii up by PLANET_RADIUS_SCALE for visibility
+      const radius = baseRadius * (planet.radiusKm / EARTH_RADIUS_KM) * this.PLANET_RADIUS_SCALE;
       const distance = planet.au * this.PLANET_DISTANCE_SCALE; // Scaled distances for visibility
 
       // Create material with texture
