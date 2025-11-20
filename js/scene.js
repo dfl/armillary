@@ -305,8 +305,9 @@ export class ArmillaryScene {
       { angle: 7 * Math.PI / 4, length: 0.7, width: 0.10, leftFilled: false }
     ];
 
+    const scale = this.CE_RADIUS / 1.5;
     allPoints.forEach(point => {
-      const pointGroup = createSplitCompassPoint(point.angle, point.length, point.width, point.leftFilled);
+      const pointGroup = createSplitCompassPoint(point.angle, point.length * scale, point.width * scale, point.leftFilled);
       compassRosetteGroup.add(pointGroup);
     });
 
@@ -315,7 +316,8 @@ export class ArmillaryScene {
   }
 
   addCompassLabels() {
-    const compassRadius = 2.5;
+    const compassRadius = this.CE_RADIUS * 1.7;
+    const scale = this.CE_RADIUS / 1.5;
     const addCompassLabel = (text, x, z, rotZ = 0) => {
       const canvas = document.createElement('canvas');
       canvas.width = 128;
@@ -328,7 +330,7 @@ export class ArmillaryScene {
       ctx.fillText(text, 64, 64);
       const texture = new THREE.CanvasTexture(canvas);
       const mat = new THREE.MeshBasicMaterial({ map: texture, transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthTest: false });
-      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), mat);
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1 * scale, 1 * scale), mat);
       mesh.position.set(x, 0.01, z);
       mesh.rotation.x = -Math.PI / 2;
       mesh.rotation.z = rotZ;
@@ -357,7 +359,7 @@ export class ArmillaryScene {
 
     // Celestial poles
     const polarLineMaterial = new THREE.LineBasicMaterial({ color: 0x00ffff, opacity: 0.6, transparent: true });
-    const polarLineLength = 0.67;
+    const polarLineLength = this.CE_RADIUS * 0.45;
 
     const npLine = new THREE.Line(
       new THREE.BufferGeometry().setFromPoints([
@@ -391,7 +393,8 @@ export class ArmillaryScene {
       const texture = new THREE.CanvasTexture(canvas);
       const mat = new THREE.SpriteMaterial({ map: texture, depthTest: false });
       const sprite = new THREE.Sprite(mat);
-      sprite.scale.set(1, 0.5, 1);
+      const s = this.CE_RADIUS / 1.5;
+      sprite.scale.set(1 * s, 0.5 * s, 1);
       sprite.position.set(0, 0, z);
       sprite.userData.poleName = name; // Store pole name for tooltip
       this.celestial.add(sprite);
@@ -435,9 +438,10 @@ export class ArmillaryScene {
     }
 
     // Zodiac glyphs
-    const zodiacRadius = 2.3;
+    const zodiacRadius = this.CE_RADIUS * 1.6;
     const zodiacGlyphs = Array.from({ length: 12 }, (_, i) => String.fromCodePoint(0x2648 + i) + '\uFE0E');
 
+    const scale = this.CE_RADIUS / 1.5;
     zodiacGlyphs.forEach((glyph, i) => {
       const angle = THREE.MathUtils.degToRad(i * 30 + 15);
       const canvas = document.createElement('canvas');
@@ -455,7 +459,7 @@ export class ArmillaryScene {
 
       const texture = new THREE.CanvasTexture(canvas);
       const mat = new THREE.MeshBasicMaterial({ map: texture, transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthTest: false });
-      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 1.2), mat);
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1.2 * scale, 1.2 * scale), mat);
       mesh.position.set(zodiacRadius * Math.cos(angle), zodiacRadius * Math.sin(angle), 0);
       
       // ROTATION FIX:
@@ -970,7 +974,7 @@ export class ArmillaryScene {
   createAngleSpheres() {
     const addAngle = (name, color) => {
       const mesh = new THREE.Mesh(
-        new THREE.SphereGeometry(0.08, 16, 16),
+        new THREE.SphereGeometry(0.08 * (this.CE_RADIUS / 1.5), 16, 16),
         new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.6 })
       );
       mesh.userData.angleName = name; // Store angle name for tooltip
@@ -1002,7 +1006,8 @@ export class ArmillaryScene {
       const texture = new THREE.CanvasTexture(canvas);
       const material = new THREE.SpriteMaterial({ map: texture, depthTest: false });
       const sprite = new THREE.Sprite(material);
-      sprite.scale.set(0.8, 0.4, 1);
+      const s = this.CE_RADIUS / 1.5;
+      sprite.scale.set(0.8 * s, 0.4 * s, 1);
       sprite.userData.angleName = dataName; // Store angle name for tooltip
       this.scene.add(sprite);
       return sprite;
@@ -1582,7 +1587,7 @@ export class ArmillaryScene {
         const worldPos = new THREE.Vector3();
         this.spheres[key].getWorldPosition(worldPos);
         const direction = worldPos.clone().normalize();
-        worldPos.add(direction.multiplyScalar(0.3));
+        worldPos.add(direction.multiplyScalar(this.CE_RADIUS * 0.2));
         this.angleLabels[key].position.copy(worldPos);
     }
 
@@ -1837,7 +1842,7 @@ export class ArmillaryScene {
     // Opacity logic:
     // Close (surface view): Transparent
     // Far (space view): Opaque
-    const minVal = 0.3;
+    const minVal = 0.0;
     const maxVal = 1.0;
     const minRange = 10.0;
     const maxRange = 100.0;
