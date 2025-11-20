@@ -8,28 +8,16 @@ export class ArmillaryScene {
   constructor() {
     this.obliquity = 23.44 * Math.PI / 180;
     this.CE_RADIUS = 2.0; // Celestial sphere radius (local horizon visualization scale)
+    this.EARTH_RADIUS = 100.0; // Earth's radius in scene units (much larger than horizon)
 
-    // Real astronomical constants (in km)
-    const REAL_EARTH_RADIUS_KM = 6371; // Earth's mean radius
-    const REAL_SUN_RADIUS_KM = 696000; // Sun's radius
-    const REAL_AU_KM = 149597870.7; // 1 AU in kilometers
-    const REAL_MOON_DISTANCE_KM = 384400; // Moon's mean distance from Earth
+    // Fudged distances for visibility (keeping relative proportions)
+    this.PLANET_RADIUS_SCALE = 1.0; // Scale factor to make all bodies visible
+    this.PLANET_DISTANCE_SCALE = 2000; // Scale factor for planet orbital distances (1 AU = 500 units)
+    this.STAR_FIELD_RADIUS = this.PLANET_DISTANCE_SCALE * 200; // Star field radius (encompassing solar system)
 
-    // Scene unit conversion: 1 AU = this many scene units
-    // We set this to make Earth orbit visually reasonable
-    this.AU_TO_SCENE_UNITS = 2000; // 1 AU = 2000 scene units
-
-    // Earth's radius in scene units (base for all planetary radii)
-    // This sets the scale: Earth radius in scene = (Earth radius in km / 1 AU in km) * AU_TO_SCENE_UNITS
-    this.EARTH_RADIUS = (REAL_EARTH_RADIUS_KM / REAL_AU_KM) * this.AU_TO_SCENE_UNITS; // ~0.085 scene units
-
-    // Calculate other celestial body dimensions proportionally
-    this.SUN_RADIUS = (REAL_SUN_RADIUS_KM / REAL_AU_KM) * this.AU_TO_SCENE_UNITS; // ~9.3 scene units
-    this.MOON_DISTANCE = (REAL_MOON_DISTANCE_KM / REAL_AU_KM) * this.AU_TO_SCENE_UNITS; // ~5.14 scene units
-    this.MOON_RADIUS = (1737.4 / REAL_AU_KM) * this.AU_TO_SCENE_UNITS; // Moon's actual radius: 1737.4 km
-
-    // Star field encompasses the outer solar system
-    this.STAR_FIELD_RADIUS = this.AU_TO_SCENE_UNITS * 200; // 200 AU (well beyond Pluto)
+    this.SUN_RADIUS = 200; // Sun radius (scaled down from reality but large enough)
+    this.MOON_DISTANCE = 300; // Moon distance from Earth (scaled)
+    this.MOON_RADIUS = 0.273 * this.EARTH_RADIUS; // Moon is ~27.3% Earth
     
     this.EARTH_TEXTURE_PATH = '/armillary/images/earth_texture.jpg';
     this.EARTH_NIGHT_TEXTURE_PATH = '/armillary/images/earth_texture_night.jpg';
@@ -142,15 +130,14 @@ export class ArmillaryScene {
 
     // Create main camera for normal (non-stereo) view and controls
     // Position camera to view from north (East/ASC on left, West/DSC on right)
-    // Use small near plane for realistic planet close-ups
-    this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.001, 500000);
+    this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 500000);
     this.camera.position.set(0, 3.2, 6);
     this.camera.lookAt(0, 0, 0);
 
     // Create stereo cameras (left and right eye)
     const aspect = (window.innerWidth / 2) / window.innerHeight; // Half width for each eye
-    this.leftCamera = new THREE.PerspectiveCamera(60, aspect, 0.001, 500000);
-    this.rightCamera = new THREE.PerspectiveCamera(60, aspect, 0.001, 500000);
+    this.leftCamera = new THREE.PerspectiveCamera(60, aspect, 0.1, 500000);
+    this.rightCamera = new THREE.PerspectiveCamera(60, aspect, 0.1, 500000);
 
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
     this.renderer.setSize(window.innerWidth, window.innerHeight);
@@ -766,23 +753,25 @@ export class ArmillaryScene {
 
   createPlanets() {
     debugLog.log('=== Creating planets ===');
-    // Planet data with REAL astronomical values
-    // radius_km: actual mean radius in kilometers
-    // au: semi-major axis (average orbital distance from Sun) in AU
+    // Planet data: [name, relative diameter (Earth=1), orbital distance in AU]
+    // Distances scaled relative to 1 AU (Earth-Sun distance)
     const planetData = [
-      { name: 'mercury', radius_km: 2439.7, color: 0x8c7853, au: 0.39 },
-      { name: 'venus', radius_km: 6051.8, color: 0xffc649, au: 0.72 },
-      { name: 'mars', radius_km: 3389.5, color: 0xcd5c5c, au: 1.52 },
-      { name: 'jupiter', radius_km: 69911, color: 0xc88b3a, au: 5.20 },
-      { name: 'saturn', radius_km: 58232, color: 0xfad5a5, au: 9.54 },
-      { name: 'uranus', radius_km: 25362, color: 0x4fd0e0, au: 19.19 },
-      { name: 'neptune', radius_km: 24622, color: 0x4166f5, au: 30.07 },
-      { name: 'pluto', radius_km: 1188.3, color: 0xbca89f, au: 39.48 }
+      { name: 'mercury', diameter: 0.383, color: 0x8c7853, au: 0.39 },
+      { name: 'venus', diameter: 0.949, color: 0xffc649, au: 0.72 },
+      { name: 'mars', diameter: 0.532, color: 0xcd5c5c, au: 1.52 },
+      { name: 'jupiter', diameter: 11.21, color: 0xc88b3a, au: 5.20 },
+      { name: 'saturn', diameter: 9.45, color: 0xfad5a5, au: 9.54 },
+      { name: 'uranus', diameter: 4.01, color: 0x4fd0e0, au: 19.19 },
+      { name: 'neptune', diameter: 3.88, color: 0x4166f5, au: 30.07 },
+      { name: 'pluto', diameter: 0.186, color: 0xbca89f, au: 39.48 }
     ];
 
-    const REAL_AU_KM = 149597870.7; // 1 AU in kilometers
+    // Base size for Earth (for scaling)
+    // Earth radius = this.EARTH_RADIUS, planets scale proportionally
+    const earthDiameter = 1.0;
+    const baseRadius = this.EARTH_RADIUS; // Earth's actual radius as base
 
-    debugLog.log('CE_RADIUS:', this.CE_RADIUS, 'EARTH_RADIUS:', this.EARTH_RADIUS, 'AU_TO_SCENE_UNITS:', this.AU_TO_SCENE_UNITS);
+    debugLog.log('CE_RADIUS:', this.CE_RADIUS, 'baseRadius:', baseRadius);
 
     // Load textures
     const textureLoader = new THREE.TextureLoader();
@@ -865,14 +854,9 @@ export class ArmillaryScene {
     );
 
     planetData.forEach(planet => {
-      // Calculate radius in scene units using REAL astronomical proportions
-      // radius_scene = (radius_km / AU_km) * AU_TO_SCENE_UNITS
-      const radius = (planet.radius_km / REAL_AU_KM) * this.AU_TO_SCENE_UNITS;
-
-      // Calculate orbital distance in scene units using REAL AU values
-      const distance = planet.au * this.AU_TO_SCENE_UNITS;
-
-      debugLog.log(`Planet ${planet.name}: radius_km=${planet.radius_km}, radius_scene=${radius.toFixed(4)}, au=${planet.au}, distance_scene=${distance}`);
+      // Calculate radius based on relative diameter (scaled up for visibility)
+      const radius = baseRadius * (planet.diameter / earthDiameter) * this.PLANET_RADIUS_SCALE;
+      const distance = planet.au * this.PLANET_DISTANCE_SCALE; // Scaled distances for visibility
 
       // Create material with texture
       const material = new THREE.MeshBasicMaterial({
@@ -887,11 +871,10 @@ export class ArmillaryScene {
       const planetGroup = new THREE.Group();
       planetGroup.add(planetMesh);
 
-      // Add rings for Saturn using REAL ring dimensions
+      // Add rings for Saturn
       if (planet.name === 'saturn') {
-        // Saturn's rings: Inner edge ~66,900 km, Outer edge ~140,180 km from planet center
-        const ringInnerRadius = (66900 / REAL_AU_KM) * this.AU_TO_SCENE_UNITS;
-        const ringOuterRadius = (140180 / REAL_AU_KM) * this.AU_TO_SCENE_UNITS;
+        const ringInnerRadius = radius * 1.2;
+        const ringOuterRadius = radius * 2.0;
         const ringGeometry = new THREE.RingGeometry(ringInnerRadius, ringOuterRadius, 64);
 
         // Fix UV mapping for ring texture
@@ -919,7 +902,9 @@ export class ArmillaryScene {
         ringMesh.rotation.x = Math.PI / 2; // Rotate to be horizontal
         planetGroup.add(ringMesh);
 
-        debugLog.log(`Saturn rings created: inner=${ringInnerRadius.toFixed(4)}, outer=${ringOuterRadius.toFixed(4)}`);
+        debugLog.log(`Saturn rings created: inner=${ringInnerRadius}, outer=${ringOuterRadius}`);
+        debugLog.log('Ring texture:', saturnRingsTexture);
+        debugLog.log('Ring alpha:', saturnRingsAlpha);
       }
 
       // Store the group and main mesh for later positioning
@@ -930,6 +915,7 @@ export class ArmillaryScene {
       };
 
       this.scene.add(planetGroup);
+      debugLog.log(`Created planet ${planet.name} with radius ${radius} at distance ${distance}`);
     });
   }
 
@@ -1305,21 +1291,21 @@ export class ArmillaryScene {
       targetRadius = this.CE_RADIUS;
     } else if (targetName === 'earth') {
       this.earthGroup.getWorldPosition(targetWorldPos);
-      targetRadius = this.EARTH_RADIUS * this.earthGroup.scale.x;
+      targetRadius = this.EARTH_RADIUS;
     } else if (targetName === 'sun') {
       this.realisticSunGroup.getWorldPosition(targetWorldPos);
-      targetRadius = this.realisticSunMesh.geometry.parameters.radius * this.realisticSunGroup.scale.x;
+      targetRadius = this.realisticSunMesh.geometry.parameters.radius;
     } else if (targetName === 'moon') {
       this.realisticMoonGroup.getWorldPosition(targetWorldPos);
-      targetRadius = this.realisticMoonMesh.geometry.parameters.radius * this.realisticMoonGroup.scale.x;
+      targetRadius = this.realisticMoonMesh.geometry.parameters.radius;
     } else if (targetName === 'ecliptic-north') {
       // Special case: view from ecliptic north pole, looking down at solar system
       // Position camera high above the ecliptic plane to see all planets including Pluto
       this.realisticSunGroup.getWorldPosition(targetWorldPos);
-      targetRadius = 39.48 * this.AU_TO_SCENE_UNITS * 1.3; // Pluto's orbit (39.48 AU) * 1.3 for margin
+      targetRadius = 39.48 * this.PLANET_DISTANCE_SCALE * 1.3; // Pluto's orbit * 1.3 for margin
     } else if (this.planetGroups[targetName]) {
       this.planetGroups[targetName].group.getWorldPosition(targetWorldPos);
-      targetRadius = this.planetGroups[targetName].mesh.geometry.parameters.radius * this.planetGroups[targetName].group.scale.x;
+      targetRadius = this.planetGroups[targetName].mesh.geometry.parameters.radius;
     } else {
       debugLog.warn('Target not found:', targetName);
       return;
@@ -1640,7 +1626,7 @@ export class ArmillaryScene {
     // 1. Position Earth
     const earthData = astroCalc.getEarthHeliocentricPosition(currentDay, currentYear, month, day, hours, minutes);
     const earthRad = earthData.longitude;
-    const earthDist = earthData.distance * this.AU_TO_SCENE_UNITS; // 1 AU in scene units
+    const earthDist = earthData.distance * this.PLANET_DISTANCE_SCALE;
     
     const earthX = Math.cos(earthRad) * earthDist;
     const earthY = Math.sin(earthRad) * earthDist;
@@ -1731,15 +1717,6 @@ export class ArmillaryScene {
         this.camera.up.applyQuaternion(deltaQuat);
     }
 
-    // Scale planets for visibility
-    // Real planets are tiny compared to AU distances.
-    // We use 1.0 scale for realistic proportions.
-    const planetScale = 1.0;
-
-    // Apply scale to Earth and Moon
-    if (this.earthGroup) this.earthGroup.scale.set(planetScale, planetScale, planetScale);
-    if (this.realisticMoonGroup) this.realisticMoonGroup.scale.set(planetScale, planetScale, planetScale);
-
     // 2. Position Moon (Relative to Earth)
     const moonLonRad = astroCalc.calculateMoonPosition(
       currentDay, currentYear, month, day, hours, minutes, currentLongitude
@@ -1748,13 +1725,9 @@ export class ArmillaryScene {
     this.eclipticMoonGroup.position.copy(placeOnZodiac(moonDeg));
 
     // Realistic moon orbits Earth
-    // Ensure Moon is not inside Earth when scaled up
-    const minMoonDist = (this.EARTH_RADIUS + this.MOON_RADIUS) * planetScale * 1.5; // 1.5x combined radius for clear separation
-    const effectiveMoonDist = Math.max(this.MOON_DISTANCE, minMoonDist);
-
     const mRad = THREE.MathUtils.degToRad(moonDeg);
-    const moonX = earthX + Math.cos(mRad) * effectiveMoonDist;
-    const moonY = earthY + Math.sin(mRad) * effectiveMoonDist;
+    const moonX = earthX + Math.cos(mRad) * this.MOON_DISTANCE;
+    const moonY = earthY + Math.sin(mRad) * this.MOON_DISTANCE;
     this.realisticMoonGroup.position.set(moonX, moonY, 0);
 
     // Tidal locking: Rotate moon to face Earth
@@ -1771,10 +1744,9 @@ export class ArmillaryScene {
 
     // 3. Position Planets (Heliocentric)
     const planetNames = ['mercury', 'venus', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune', 'pluto'];
-    
-    // Sun scale
-    const sunScale = 1.0;
-    if (this.realisticSunGroup) this.realisticSunGroup.scale.set(sunScale, sunScale, sunScale);
+
+    // Scale planets down in horizon view to make them look less overwhelming
+    const planetScale = distToObserver < 50.0 ? 0.005 : 1.0;
 
     planetNames.forEach(planetName => {
       if (this.planetGroups[planetName]) {
@@ -1792,9 +1764,9 @@ export class ArmillaryScene {
           // Use actual heliocentric position
           planetLonRad = planetData.heliocentricLongitude;
           planetLatRad = planetData.heliocentricLatitude || 0;
-          distance = planetData.heliocentricDistance * this.AU_TO_SCENE_UNITS; // Convert AU to scene units
+          distance = planetData.heliocentricDistance * this.PLANET_DISTANCE_SCALE;
         } else {
-          // Fallback to average orbital distance (already stored in scene units)
+          // Fallback to average orbital distance
           planetLonRad = planetData.geocentricLongitude;
           planetLatRad = 0;
           distance = this.planetGroups[planetName].distance;
