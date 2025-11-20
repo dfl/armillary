@@ -565,6 +565,20 @@ export default class CelestialObjects {
 
     const textureLoader = new THREE.TextureLoader();
 
+    // Load Saturn ring textures
+    const saturnRingsTexture = textureLoader.load(
+      this.texturePaths.SATURN_RINGS_TEXTURE_PATH,
+      () => debugLog.log('Saturn rings texture loaded successfully (ecliptic)'),
+      undefined,
+      (err) => debugLog.error('Error loading Saturn rings texture (ecliptic):', err)
+    );
+    const saturnRingsAlpha = textureLoader.load(
+      this.texturePaths.SATURN_RINGS_ALPHA_PATH,
+      () => debugLog.log('Saturn rings alpha loaded successfully (ecliptic)'),
+      undefined,
+      (err) => debugLog.error('Error loading Saturn rings alpha (ecliptic):', err)
+    );
+
     // Planet data with colors matching the 3D planets
     const planetData = [
       { name: 'mercury', color: 0x8c7853, texturePath: this.texturePaths.MERCURY_TEXTURE_PATH },
@@ -596,6 +610,40 @@ export default class CelestialObjects {
 
       const planetGroup = new THREE.Group();
       planetGroup.add(planetMesh);
+
+      // Add rings for Saturn
+      if (planet.name === 'saturn') {
+        const ringInnerRadius = basePlanetRadius * 1.2;
+        const ringOuterRadius = basePlanetRadius * 2.0;
+        const ringGeometry = new THREE.RingGeometry(ringInnerRadius, ringOuterRadius, 64);
+
+        // Fix UV mapping for ring texture
+        const pos = ringGeometry.attributes.position;
+        const uv = ringGeometry.attributes.uv;
+        const v3 = new THREE.Vector3();
+
+        for (let i = 0; i < pos.count; i++) {
+          v3.fromBufferAttribute(pos, i);
+          const dist = v3.length();
+          const u = (dist - ringInnerRadius) / (ringOuterRadius - ringInnerRadius);
+          uv.setXY(i, u, uv.getY(i));
+        }
+
+        const ringMaterial = new THREE.MeshBasicMaterial({
+          map: saturnRingsTexture,
+          alphaMap: saturnRingsAlpha,
+          transparent: true,
+          side: THREE.DoubleSide,
+          opacity: 1.0,
+          depthWrite: false
+        });
+
+        const ringMesh = new THREE.Mesh(ringGeometry, ringMaterial);
+        ringMesh.rotation.x = Math.PI / 2; // Rotate to be horizontal
+        planetGroup.add(ringMesh);
+
+        debugLog.log(`Saturn rings created for ecliptic planet: inner=${ringInnerRadius}, outer=${ringOuterRadius}`);
+      }
 
       // Store the planet group for later positioning
       this.eclipticPlanetGroups[planet.name] = {
