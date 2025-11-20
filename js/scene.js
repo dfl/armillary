@@ -1548,10 +1548,18 @@ export class ArmillaryScene {
     const earthX = Math.cos(earthRad) * earthDist;
     const earthY = Math.sin(earthRad) * earthDist;
     
-    this.earthGroup.position.set(earthX, earthY, 0);
+    const newEarthPos = new THREE.Vector3(earthX, earthY, 0);
+    const oldEarthPos = this.earthGroup.position.clone();
+
+    this.earthGroup.position.copy(newEarthPos);
     
     // Move the Armillary Sphere (Observer View) to Earth's position
     this.armillaryRoot.position.copy(this.earthGroup.position);
+
+    // Move camera and controls to follow Earth
+    const delta = new THREE.Vector3().subVectors(newEarthPos, oldEarthPos);
+    this.camera.position.add(delta);
+    this.controls.target.add(delta);
 
     // 2. Position Moon (Relative to Earth)
     const moonLonRad = astroCalc.calculateMoonPosition(
@@ -1682,9 +1690,20 @@ export class ArmillaryScene {
     this.rightCamera.position.add(cameraRight.clone().multiplyScalar(this.eyeSeparation / 2));
   }
 
+  updateEarthVisibility() {
+    if (!this.earthGroup || !this.camera) return;
+
+    const dist = this.camera.position.distanceTo(this.earthGroup.position);
+    // Hide Earth texture when zoomed in (viewing local horizon)
+    // Show it when zoomed out (viewing solar system)
+    const threshold = this.CE_RADIUS * 5;
+    this.earthGroup.visible = dist > threshold;
+  }
+
   animate() {
     requestAnimationFrame(() => this.animate());
     this.controls.update();
+    this.updateEarthVisibility();
 
     if (this.stereoEnabled) {
       // Update stereo camera positions based on main camera
