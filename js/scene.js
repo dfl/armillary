@@ -78,6 +78,10 @@ export class ArmillaryScene {
     this.planetGroups = {}; // Store planet groups
     this.planetZodiacPositions = {}; // Store planet zodiac positions for tooltips
 
+    // Track previous armillary state for camera synchronization
+    this.prevArmillaryPos = null;
+    this.prevArmillaryQuat = null;
+
     // Cache for sunrise/sunset calculation
     this.cachedRiseSet = null;
     this.riseSetCacheKey = null;
@@ -1661,17 +1665,34 @@ export class ArmillaryScene {
     this.armillaryRoot.quaternion.setFromRotationMatrix(basis);
 
     // Move camera and controls to follow the observer's geographic location
-    // Store previous armillary root position
+    // Store previous armillary root position and rotation
     if (!this.prevArmillaryPos) {
       this.prevArmillaryPos = this.armillaryRoot.position.clone();
+    }
+    if (!this.prevArmillaryQuat) {
+      this.prevArmillaryQuat = this.armillaryRoot.quaternion.clone();
     }
 
     const armillaryDelta = new THREE.Vector3().subVectors(this.armillaryRoot.position, this.prevArmillaryPos);
     this.prevArmillaryPos.copy(this.armillaryRoot.position);
 
+    // Calculate rotation delta
+    const deltaQuat = new THREE.Quaternion().copy(this.armillaryRoot.quaternion).multiply(this.prevArmillaryQuat.clone().invert());
+    this.prevArmillaryQuat.copy(this.armillaryRoot.quaternion);
+
     // Move camera to follow the geographic location (Earth rotation + orbital motion)
     this.camera.position.add(armillaryDelta);
     this.controls.target.add(armillaryDelta);
+
+    // Rotate camera to follow the horizon orientation (keep compass fixed) ONLY in Horizon View
+    // Threshold: 50 units (Earth radius is 100, Horizon view is ~12)
+    const distToObserver = this.camera.position.distanceTo(this.armillaryRoot.position);
+    if (distToObserver < 50.0) {
+        const offset = new THREE.Vector3().subVectors(this.camera.position, this.controls.target);
+        offset.applyQuaternion(deltaQuat);
+        this.camera.position.addVectors(this.controls.target, offset);
+        this.camera.up.applyQuaternion(deltaQuat);
+    }
 
     // 2. Position Moon (Relative to Earth)
     const moonLonRad = astroCalc.calculateMoonPosition(
