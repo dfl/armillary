@@ -691,6 +691,7 @@ export class ArmillaryScene {
   }
 
   createPlanets() {
+    console.log('=== Creating planets ===');
     // Planet data: [name, relative diameter (Earth=1), color, distance multiplier]
     // Using realistic relative sizes and colors
     const planetData = [
@@ -707,6 +708,8 @@ export class ArmillaryScene {
     // Base size for Earth (for scaling)
     const earthDiameter = 1.0;
     const baseRadius = 0.15; // Base radius in scene units (increased for visibility at distance)
+
+    console.log('CE_RADIUS:', this.CE_RADIUS, 'baseRadius:', baseRadius);
 
     planetData.forEach(planet => {
       // Calculate radius based on relative diameter
@@ -1187,26 +1190,38 @@ export class ArmillaryScene {
     this.lunarPhase = astroCalc.calculateLunarPhase(sunLonRad, moonLonRad);
 
     // Update planet positions
+    console.log('=== Updating planet positions ===');
+    console.log('Available planet groups:', Object.keys(this.planetGroups));
     const planetNames = ['mercury', 'venus', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune', 'pluto'];
     planetNames.forEach(planetName => {
       if (this.planetGroups[planetName]) {
+        console.log(`Processing ${planetName}...`);
         const planetLonRad = astroCalc.calculatePlanetPosition(
           planetName, currentDay, currentYear, month, day, hours, minutes
         );
+        console.log(`  ${planetName} longitude (rad):`, planetLonRad);
         const planetDeg = THREE.MathUtils.radToDeg(planetLonRad);
+        console.log(`  ${planetName} longitude (deg):`, planetDeg);
         const distance = this.planetGroups[planetName].distance;
+        console.log(`  ${planetName} distance:`, distance);
         const pRad = THREE.MathUtils.degToRad(planetDeg) - ayanamsha;
+        console.log(`  ${planetName} adjusted rad:`, pRad, 'ayanamsha:', ayanamsha);
         
         const x = Math.cos(pRad) * distance;
         const y = Math.sin(pRad) * distance;
         this.planetGroups[planetName].group.position.set(x, y, 0);
 
-        console.log(`Positioned ${planetName} at (${x.toFixed(2)}, ${y.toFixed(2)}, 0) - ${planetDeg.toFixed(1)}°`);
+        console.log(`  Positioned ${planetName} at (${x.toFixed(2)}, ${y.toFixed(2)}, 0) - ${planetDeg.toFixed(1)}°`);
+        console.log(`  Planet group visible:`, this.planetGroups[planetName].group.visible);
+        console.log(`  Planet mesh radius:`, this.planetGroups[planetName].mesh.geometry.parameters.radius);
 
         // Store planet zodiac position for tooltip
         this.planetZodiacPositions[planetName] = astroCalc.toZodiacString(planetDeg - ayanamshaDeg);
+      } else {
+        console.warn(`Planet group not found: ${planetName}`);
       }
     });
+    console.log('=== Done updating planets ===');
 
     // -----------------------------------------------------------
     // 7. UI Updates

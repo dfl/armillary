@@ -295,20 +295,27 @@ export class AstronomyCalculator {
    * Returns longitude in RADIANS (0..2π)
    */
   calculatePlanetPosition(planetName, currentDay, currentYear, month, day, hours, minutes) {
+    console.log(`calculatePlanetPosition called for ${planetName}`);
     try {
       const date = new Date(Date.UTC(currentYear, month, day, hours, minutes, 0));
+      console.log(`  Date: ${date.toISOString()}`);
       const result = ephemeris.getAllPlanets(date, 0, 0);
+      console.log(`  Ephemeris result keys:`, result ? Object.keys(result) : 'null');
 
       // Try to read planet's longitude
       const planetObj = result && result.observed && result.observed[planetName] 
         ? result.observed[planetName] 
         : (result && result[planetName] ? result[planetName] : null);
 
+      console.log(`  Planet object for ${planetName}:`, planetObj ? Object.keys(planetObj) : 'null');
+
       if (planetObj) {
         const maybeLon = planetObj.apparentLongitudeDd ?? planetObj.longitude ?? planetObj.lon ?? planetObj.lambda;
+        console.log(`  Raw longitude value:`, maybeLon);
         if (typeof maybeLon === 'number' && !Number.isNaN(maybeLon)) {
           let lonDeg = maybeLon;
           lonDeg = this._deg(lonDeg);
+          console.log(`  Normalized longitude (deg):`, lonDeg);
           return this._degToRad(lonDeg);
         }
       }
