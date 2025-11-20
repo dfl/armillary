@@ -13,6 +13,7 @@ export class ArmillaryScene {
     // Fudged distances for visibility (keeping relative proportions)
     this.PLANET_RADIUS_SCALE = 1.0; // Scale factor to make all bodies visible
     this.PLANET_DISTANCE_SCALE = 500; // Scale factor for planet orbital distances (1 AU = 500 units)
+    this.STAR_FIELD_RADIUS = this.PLANET_DISTANCE_SCALE * 200; // Star field radius (encompassing solar system)
 
     this.SUN_RADIUS = 60; // Sun radius (scaled down from reality but large enough)
     this.MOON_DISTANCE = 30; // Moon distance from Earth (scaled)
@@ -120,14 +121,14 @@ export class ArmillaryScene {
 
     // Create main camera for normal (non-stereo) view and controls
     // Position camera to view from north (East/ASC on left, West/DSC on right)
-    this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+    this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 500000);
     this.camera.position.set(0, 3.2, 6);
     this.camera.lookAt(0, 0, 0);
 
     // Create stereo cameras (left and right eye)
     const aspect = (window.innerWidth / 2) / window.innerHeight; // Half width for each eye
-    this.leftCamera = new THREE.PerspectiveCamera(60, aspect, 0.1, 1000);
-    this.rightCamera = new THREE.PerspectiveCamera(60, aspect, 0.1, 1000);
+    this.leftCamera = new THREE.PerspectiveCamera(60, aspect, 0.1, 500000);
+    this.rightCamera = new THREE.PerspectiveCamera(60, aspect, 0.1, 500000);
 
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
     this.renderer.setSize(window.innerWidth, window.innerHeight);
@@ -477,7 +478,7 @@ export class ArmillaryScene {
     };
 
     // Star size multiplier - adjust this constant to make stars larger/smaller
-    const k = 0.4; // Increase to make stars bigger, decrease to make them smaller
+    const k = 200.0; // Scaled up for larger star field radius
 
     // Create stars
     starData.forEach(([name, ra, dec, mag, constellation]) => {
@@ -490,7 +491,7 @@ export class ArmillaryScene {
       });
 
       const star = new THREE.Mesh(starGeometry, starMaterial);
-      const position = raDecToVector3(ra, dec, this.CE_RADIUS * 75);
+      const position = raDecToVector3(ra, dec, this.STAR_FIELD_RADIUS);
       star.position.copy(position);
       star.userData = { name, constellation };
 
@@ -547,7 +548,7 @@ export class ArmillaryScene {
     this.celestial.add(this.constellationLineGroup);
 
     // Outer ecliptic line (gray dashed circle in the star field)
-    const outerEclipticRadius = this.CE_RADIUS * 75;
+    const outerEclipticRadius = this.STAR_FIELD_RADIUS;
     const outerEclipticPoints = [];
     for (let i = 0; i <= 128; i++) {
       const a = (i / 128) * Math.PI * 2;
@@ -580,7 +581,7 @@ export class ArmillaryScene {
     for (let i = 0; i < bgStarCount; i++) {
       const theta = Math.random() * Math.PI * 2;
       const phi = Math.acos(2 * Math.random() - 1);
-      const r = this.CE_RADIUS * 150;
+      const r = this.STAR_FIELD_RADIUS * 1.2;
 
       const x = r * Math.sin(phi) * Math.cos(theta);
       const y = r * Math.sin(phi) * Math.sin(theta);
@@ -596,7 +597,7 @@ export class ArmillaryScene {
     bgStarGeometry.setAttribute('color', new THREE.Float32BufferAttribute(bgStarColors, 3));
 
     const bgStarMaterial = new THREE.PointsMaterial({
-      size: 0.025,
+      size: 15.0,
       vertexColors: true,
       transparent: true,
       opacity: 0.4
