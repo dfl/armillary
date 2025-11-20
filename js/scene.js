@@ -44,6 +44,7 @@ export class ArmillaryScene {
     this.moonMesh = null;
     this.moonGlowMeshes = [];
     this.planetGroups = {}; // Store planet groups
+    this.planetZodiacPositions = {}; // Store planet zodiac positions for tooltips
 
     // Cache for sunrise/sunset calculation
     this.cachedRiseSet = null;
@@ -841,10 +842,19 @@ export class ArmillaryScene {
 
       raycaster.setFromCamera(mouse, camera);
 
-      // Check for stars, sun, moon, and angle spheres
+      // Check for stars, sun, moon, planets, and angle spheres
       const starIntersects = raycaster.intersectObjects(this.starGroup.children, false);
       const sunIntersects = raycaster.intersectObjects(this.eclipticSunGroup.children, false);
       const moonIntersects = raycaster.intersectObjects(this.moonGroup.children, false);
+      
+      // Check all planet groups
+      const planetIntersects = [];
+      Object.entries(this.planetGroups).forEach(([name, planetData]) => {
+        const intersects = raycaster.intersectObjects(planetData.group.children, false);
+        if (intersects.length > 0) {
+          planetIntersects.push({ name, intersects });
+        }
+      });
 
       // Check angle spheres and labels
       const angleIntersects = raycaster.intersectObjects([
@@ -881,7 +891,41 @@ export class ArmillaryScene {
         this.positionTooltip(starInfoElement, event);
         this.renderer.domElement.style.cursor = 'pointer';
       }
-      // Check moon second
+      // Check planets second
+      else if (planetIntersects.length > 0) {
+        const planet = planetIntersects[0];
+        const planetSymbols = {
+          mercury: '☿',
+          venus: '♀',
+          mars: '♂',
+          jupiter: '♃',
+          saturn: '♄',
+          uranus: '♅',
+          neptune: '♆',
+          pluto: '♇'
+        };
+        const planetFullNames = {
+          mercury: 'Mercury',
+          venus: 'Venus',
+          mars: 'Mars',
+          jupiter: 'Jupiter',
+          saturn: 'Saturn',
+          uranus: 'Uranus',
+          neptune: 'Neptune',
+          pluto: 'Pluto'
+        };
+
+        const symbol = planetSymbols[planet.name] || planet.name;
+        const fullName = planetFullNames[planet.name] || planet.name;
+        const position = this.planetZodiacPositions[planet.name] || '';
+
+        document.getElementById('starName').textContent = `${symbol} ${fullName} ${position}`;
+        document.getElementById('constellationName').textContent = `Planet`;
+
+        this.positionTooltip(starInfoElement, event);
+        this.renderer.domElement.style.cursor = 'pointer';
+      }
+      // Check moon third
       else if (moonIntersects.length > 0) {
         document.getElementById('starName').textContent = `☽ Moon ${this.moonZodiacPosition}`;
         document.getElementById('constellationName').textContent = `${this.lunarPhase.phase} (${this.lunarPhase.illumination}% lit)`;
@@ -889,7 +933,7 @@ export class ArmillaryScene {
         this.positionTooltip(starInfoElement, event);
         this.renderer.domElement.style.cursor = 'pointer';
       }
-      // Check angles third
+      // Check angles fourth
       else if (angleIntersects.length > 0) {
         const angle = angleIntersects[0].object;
         const angleName = angle.userData.angleName;
@@ -908,7 +952,7 @@ export class ArmillaryScene {
         this.positionTooltip(starInfoElement, event);
         this.renderer.domElement.style.cursor = 'pointer';
       }
-      // Check reference circles fourth
+      // Check reference circles fifth
       else if (circleIntersects.length > 0) {
         const circle = circleIntersects[0].object;
         const circleName = circle.userData.circleName;
@@ -1156,6 +1200,9 @@ export class ArmillaryScene {
           Math.sin(pRad) * distance,
           0
         );
+
+        // Store planet zodiac position for tooltip
+        this.planetZodiacPositions[planetName] = astroCalc.toZodiacString(planetDeg - ayanamshaDeg);
       }
     });
 
