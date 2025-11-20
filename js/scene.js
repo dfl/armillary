@@ -1722,6 +1722,9 @@ export class ArmillaryScene {
     // 3. Position Planets (Heliocentric)
     const planetNames = ['mercury', 'venus', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune', 'pluto'];
 
+    // Scale planets down in horizon view to make them look less overwhelming
+    const planetScale = distToObserver < 50.0 ? 0.2 : 1.0;
+
     planetNames.forEach(planetName => {
       if (this.planetGroups[planetName]) {
         const planetData = astroCalc.calculatePlanetPosition(
@@ -1750,6 +1753,7 @@ export class ArmillaryScene {
         const x = Math.cos(pRad) * distance;
         const y = Math.sin(pRad) * distance;
         this.planetGroups[planetName].group.position.set(x, y, 0);
+        this.planetGroups[planetName].group.scale.set(planetScale, planetScale, planetScale);
 
         // Store planet zodiac position for tooltip (using geocentric longitude)
         this.planetZodiacPositions[planetName] = astroCalc.toZodiacString(geocentricDeg - ayanamshaDeg);
