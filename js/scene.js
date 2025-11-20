@@ -92,7 +92,7 @@ export class ArmillaryScene {
     this.createSun();
     this.createMoon();
     this.createPlanets();
-    console.log('After createPlanets, planetGroups:', Object.keys(this.planetGroups));
+    debugLog.log('After createPlanets, planetGroups:', Object.keys(this.planetGroups));
     this.createAngleSpheres();
     this.createAngleLabels();
     this.setupStarHover();
@@ -764,7 +764,7 @@ export class ArmillaryScene {
   }
 
   createPlanets() {
-    console.log('=== Creating planets ===');
+    debugLog.log('=== Creating planets ===');
     // Planet data: [name, relative diameter (Earth=1), color, distance multiplier]
     // Using realistic relative sizes and colors
     const planetData = [
@@ -782,7 +782,7 @@ export class ArmillaryScene {
     const earthDiameter = 1.0;
     const baseRadius = 0.15; // Base radius in scene units (increased for visibility at distance)
 
-    console.log('CE_RADIUS:', this.CE_RADIUS, 'baseRadius:', baseRadius);
+    debugLog.log('CE_RADIUS:', this.CE_RADIUS, 'baseRadius:', baseRadius);
 
     // Load textures
     const textureLoader = new THREE.TextureLoader();
@@ -800,15 +800,15 @@ export class ArmillaryScene {
     // Load Saturn ring textures
     const saturnRingsTexture = textureLoader.load(
       this.SATURN_RINGS_TEXTURE_PATH,
-      () => console.log('Saturn rings texture loaded successfully'),
+      () => debugLog.log('Saturn rings texture loaded successfully'),
       undefined,
-      (err) => console.error('Error loading Saturn rings texture:', err)
+      (err) => debugLog.error('Error loading Saturn rings texture:', err)
     );
     const saturnRingsAlpha = textureLoader.load(
       this.SATURN_RINGS_ALPHA_PATH,
-      () => console.log('Saturn rings alpha loaded successfully'),
+      () => debugLog.log('Saturn rings alpha loaded successfully'),
       undefined,
-      (err) => console.error('Error loading Saturn rings alpha:', err)
+      (err) => debugLog.error('Error loading Saturn rings alpha:', err)
     );
 
     planetData.forEach(planet => {
@@ -860,9 +860,9 @@ export class ArmillaryScene {
         ringMesh.rotation.x = Math.PI / 2; // Rotate to be horizontal
         planetGroup.add(ringMesh);
 
-        console.log(`Saturn rings created: inner=${ringInnerRadius}, outer=${ringOuterRadius}`);
-        console.log('Ring texture:', saturnRingsTexture);
-        console.log('Ring alpha:', saturnRingsAlpha);
+        debugLog.log(`Saturn rings created: inner=${ringInnerRadius}, outer=${ringOuterRadius}`);
+        debugLog.log('Ring texture:', saturnRingsTexture);
+        debugLog.log('Ring alpha:', saturnRingsAlpha);
       }
 
       // Store the group and main mesh for later positioning
@@ -873,7 +873,7 @@ export class ArmillaryScene {
       };
 
       this.zodiacGroup.add(planetGroup);
-      console.log(`Created planet ${planet.name} with radius ${radius} at distance ${distance}`);
+      debugLog.log(`Created planet ${planet.name} with radius ${radius} at distance ${distance}`);
     });
   }
 
@@ -1275,8 +1275,8 @@ export class ArmillaryScene {
   }
 
   updateSphere(astroCalc, currentLatitude, currentLongitude, currentTime, currentDay, currentYear, timezone = null) {
-    console.log('=== updateSphere called ===');
-    console.log('Planet groups available:', Object.keys(this.planetGroups));
+    debugLog.log('=== updateSphere called ===');
+    debugLog.log('Planet groups available:', Object.keys(this.planetGroups));
     // -----------------------------------------------------------
     // 1. Convert inputs
     // -----------------------------------------------------------
@@ -1407,16 +1407,16 @@ export class ArmillaryScene {
     this.eclipticSunGroup.getWorldPosition(sunWorldPos);
     const isSunAboveHorizon = sunWorldPos.y > 0;
 
-    console.log('Sun world Y:', sunWorldPos.y, 'Above horizon:', isSunAboveHorizon);
+    debugLog.log('Sun world Y:', sunWorldPos.y, 'Above horizon:', isSunAboveHorizon);
 
     if (isSunAboveHorizon) {
       // Bright sun with texture when above horizon
       this.eclipticSunMesh.material.color.setHex(0xffaa44);
-      console.log('Setting sun to bright color with texture');
+      debugLog.log('Setting sun to bright color with texture');
     } else {
       // Dark gray without texture when below horizon
       this.eclipticSunMesh.material.color.setHex(0xA04C28);
-      console.log('Setting sun to dark color without texture');
+      debugLog.log('Setting sun to dark color without texture');
     }
     this.eclipticSunMesh.material.needsUpdate = true;
 
@@ -1455,38 +1455,38 @@ export class ArmillaryScene {
     }
 
     // Update planet positions
-    console.log('=== Updating planet positions ===');
-    console.log('Available planet groups:', Object.keys(this.planetGroups));
+    debugLog.log('=== Updating planet positions ===');
+    debugLog.log('Available planet groups:', Object.keys(this.planetGroups));
     const planetNames = ['mercury', 'venus', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune', 'pluto'];
     planetNames.forEach(planetName => {
       if (this.planetGroups[planetName]) {
-        console.log(`Processing ${planetName}...`);
+        debugLog.log(`Processing ${planetName}...`);
         const planetLonRad = astroCalc.calculatePlanetPosition(
           planetName, currentDay, currentYear, month, day, hours, minutes
         );
-        console.log(`  ${planetName} longitude (rad):`, planetLonRad);
+        debugLog.log(`  ${planetName} longitude (rad):`, planetLonRad);
         const planetDeg = THREE.MathUtils.radToDeg(planetLonRad);
-        console.log(`  ${planetName} longitude (deg):`, planetDeg);
+        debugLog.log(`  ${planetName} longitude (deg):`, planetDeg);
         const distance = this.planetGroups[planetName].distance;
-        console.log(`  ${planetName} distance:`, distance);
+        debugLog.log(`  ${planetName} distance:`, distance);
         const pRad = THREE.MathUtils.degToRad(planetDeg) - ayanamsha;
-        console.log(`  ${planetName} adjusted rad:`, pRad, 'ayanamsha:', ayanamsha);
-        
+        debugLog.log(`  ${planetName} adjusted rad:`, pRad, 'ayanamsha:', ayanamsha);
+
         const x = Math.cos(pRad) * distance;
         const y = Math.sin(pRad) * distance;
         this.planetGroups[planetName].group.position.set(x, y, 0);
 
-        console.log(`  Positioned ${planetName} at (${x.toFixed(2)}, ${y.toFixed(2)}, 0) - ${planetDeg.toFixed(1)}°`);
-        console.log(`  Planet group visible:`, this.planetGroups[planetName].group.visible);
-        console.log(`  Planet mesh radius:`, this.planetGroups[planetName].mesh.geometry.parameters.radius);
+        debugLog.log(`  Positioned ${planetName} at (${x.toFixed(2)}, ${y.toFixed(2)}, 0) - ${planetDeg.toFixed(1)}°`);
+        debugLog.log(`  Planet group visible:`, this.planetGroups[planetName].group.visible);
+        debugLog.log(`  Planet mesh radius:`, this.planetGroups[planetName].mesh.geometry.parameters.radius);
 
         // Store planet zodiac position for tooltip
         this.planetZodiacPositions[planetName] = astroCalc.toZodiacString(planetDeg - ayanamshaDeg);
       } else {
-        console.warn(`Planet group not found: ${planetName}`);
+        debugLog.warn(`Planet group not found: ${planetName}`);
       }
     });
-    console.log('=== Done updating planets ===');
+    debugLog.log('=== Done updating planets ===');
 
     // -----------------------------------------------------------
     // 7. UI Updates
@@ -1498,7 +1498,7 @@ export class ArmillaryScene {
     // Calculate rise/set only when date or location changes (not time of day)
     const riseSetKey = `${currentDay}-${currentYear}-${currentLatitude.toFixed(2)}-${currentLongitude.toFixed(2)}-${timezone}`;
     if (this.riseSetCacheKey !== riseSetKey) {
-      console.log('Recalculating sunrise/sunset for', riseSetKey);
+      debugLog.log('Recalculating sunrise/sunset for', riseSetKey);
       this.cachedRiseSet = astroCalc.calculateRiseSet(sunLonRad, currentLatitude, currentLongitude, currentDay, currentYear, timezone);
       this.riseSetCacheKey = riseSetKey;
     }
@@ -1611,7 +1611,7 @@ export class ArmillaryScene {
         );
 
         this.zodiacGroup.add(sphere);
-        console.log("Placed diagnostic marker:", label, deg);
+        debugLog.log("Placed diagnostic marker:", label, deg);
     }
   }
 

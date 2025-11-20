@@ -101,7 +101,7 @@ export class AstronomyCalculator {
     let LST = GMST_norm + currentLongitude;
     LST = this._deg(LST);
 
-    // console.log('JD:', julianDate, 'GMST at 0h (deg):', GMST_norm, 'Hours UT:', currentTime / 60, 'LST (deg):', LST);
+    // debugLog.log('JD:', julianDate, 'GMST at 0h (deg):', GMST_norm, 'Hours UT:', currentTime / 60, 'LST (deg):', LST);
 
     return { LST, julianDate };
   }
@@ -114,7 +114,7 @@ export class AstronomyCalculator {
       const eps = calculateObliquity(julianDate);
       if (typeof eps === 'number' && !Number.isNaN(eps)) return eps;
     } catch (e) {
-      console.warn('calculateObliquity failed, using nominal OBLIQUITY', e);
+      debugLog.warn('calculateObliquity failed, using nominal OBLIQUITY', e);
     }
     return this.OBLIQUITY;
   }
@@ -244,13 +244,13 @@ export class AstronomyCalculator {
         }
       }
     } catch (e) {
-      console.warn('Ephemeris call failed:', e);
+      debugLog.warn('Ephemeris call failed:', e);
     }
 
     // Fallback: simple mean-sun approximation based on day-of-year (not high accuracy)
     // currentDay is day-of-year (1..365)
     const approxLon = (280 + (currentDay - 1) * (360 / 365.2425)) % 360;
-    console.warn('Using approximate Sun position (deg):', approxLon);
+    debugLog.warn('Using approximate Sun position (deg):', approxLon);
     return this._degToRad(approxLon);
   }
 
@@ -280,12 +280,12 @@ export class AstronomyCalculator {
         }
       }
     } catch (e) {
-      console.warn('Moon ephemeris call failed:', e);
+      debugLog.warn('Moon ephemeris call failed:', e);
     }
 
     // Fallback: simple approximation - Moon moves ~13.176° per day
     const approxLon = (currentDay * 13.176) % 360;
-    console.warn('Using approximate Moon position (deg):', approxLon);
+    debugLog.warn('Using approximate Moon position (deg):', approxLon);
     return this._degToRad(approxLon);
   }
 
@@ -295,36 +295,36 @@ export class AstronomyCalculator {
    * Returns longitude in RADIANS (0..2π)
    */
   calculatePlanetPosition(planetName, currentDay, currentYear, month, day, hours, minutes) {
-    console.log(`calculatePlanetPosition called for ${planetName}`);
+    debugLog.log(`calculatePlanetPosition called for ${planetName}`);
     try {
       const date = new Date(Date.UTC(currentYear, month, day, hours, minutes, 0));
-      console.log(`  Date: ${date.toISOString()}`);
+      debugLog.log(`  Date: ${date.toISOString()}`);
       const result = ephemeris.getAllPlanets(date, 0, 0);
-      console.log(`  Ephemeris result keys:`, result ? Object.keys(result) : 'null');
+      debugLog.log(`  Ephemeris result keys:`, result ? Object.keys(result) : 'null');
 
       // Try to read planet's longitude
       const planetObj = result && result.observed && result.observed[planetName] 
         ? result.observed[planetName] 
         : (result && result[planetName] ? result[planetName] : null);
 
-      console.log(`  Planet object for ${planetName}:`, planetObj ? Object.keys(planetObj) : 'null');
+      debugLog.log(`  Planet object for ${planetName}:`, planetObj ? Object.keys(planetObj) : 'null');
 
       if (planetObj) {
         const maybeLon = planetObj.apparentLongitudeDd ?? planetObj.longitude ?? planetObj.lon ?? planetObj.lambda;
-        console.log(`  Raw longitude value:`, maybeLon);
+        debugLog.log(`  Raw longitude value:`, maybeLon);
         if (typeof maybeLon === 'number' && !Number.isNaN(maybeLon)) {
           let lonDeg = maybeLon;
           lonDeg = this._deg(lonDeg);
-          console.log(`  Normalized longitude (deg):`, lonDeg);
+          debugLog.log(`  Normalized longitude (deg):`, lonDeg);
           return this._degToRad(lonDeg);
         }
       }
     } catch (e) {
-      console.warn(`${planetName} ephemeris call failed:`, e);
+      debugLog.warn(`${planetName} ephemeris call failed:`, e);
     }
 
     // Fallback: return 0 (not accurate, but prevents errors)
-    console.warn(`Using fallback position for ${planetName}`);
+    debugLog.warn(`Using fallback position for ${planetName}`);
     return 0;
   }
 
@@ -430,11 +430,11 @@ export class AstronomyCalculator {
         };
       }
     } catch (e) {
-      console.warn('Ephemeris rise/set failed, using calculated values:', e);
+      debugLog.warn('Ephemeris rise/set failed, using calculated values:', e);
     }
 
     // Fallback: Calculate rise/set by iterating through the day to find when sun crosses horizon
-    // console.log('Using iterative calculation for sunrise/sunset');
+    // debugLog.log('Using iterative calculation for sunrise/sunset');
 
     const { month, day } = this.dayOfYearToMonthDay(dayOfYear, year);
     const SUN_ANGULAR_RADIUS = 0.267 * Math.PI / 180;
@@ -493,13 +493,13 @@ export class AstronomyCalculator {
       // Detect sunrise: crossing from below to above threshold
       if (!sunriseTime && prevAlt < ALTITUDE_AT_RISE_SET && alt >= ALTITUDE_AT_RISE_SET) {
         sunriseTime = { hours: h, minutes: m };
-        // console.log('Found sunrise at', h, ':', m, 'alt:', alt, 'prevAlt:', prevAlt);
+        // debugLog.log('Found sunrise at', h, ':', m, 'alt:', alt, 'prevAlt:', prevAlt);
       }
 
       // Detect sunset: crossing from above to below threshold
       if (!sunsetTime && prevAlt > ALTITUDE_AT_RISE_SET && alt <= ALTITUDE_AT_RISE_SET) {
         sunsetTime = { hours: h, minutes: m };
-        // console.log('Found sunset at', h, ':', m, 'alt:', alt, 'prevAlt:', prevAlt);
+        // debugLog.log('Found sunset at', h, ':', m, 'alt:', alt, 'prevAlt:', prevAlt);
       }
 
       prevAlt = alt;
@@ -525,7 +525,7 @@ export class AstronomyCalculator {
     // We should skip it and just show the sunset
     if (sunsetTime && sunriseTime &&
         (sunsetTime.hours * 60 + sunsetTime.minutes) < (sunriseTime.hours * 60 + sunriseTime.minutes)) {
-      // console.log('Sunset found before sunrise - sun was up at midnight');
+      // debugLog.log('Sunset found before sunrise - sun was up at midnight');
       // The sunrise we found is for tomorrow, so ignore it for today's calculation
       // We could search backwards from midnight to find yesterday's sunrise, but for simplicity just use sunset
     }
@@ -534,7 +534,7 @@ export class AstronomyCalculator {
     let sunsetUT = sunsetTime ? sunsetTime.hours + sunsetTime.minutes / 60 : 18;
     let transitUT = transitTime ? transitTime.hours + transitTime.minutes / 60 : 12;
 
-    // console.log('Rise/Set in UT:', sunriseUT, sunsetUT, 'Transit:', transitUT);
+    // debugLog.log('Rise/Set in UT:', sunriseUT, sunsetUT, 'Transit:', transitUT);
 
     const norm24 = (h) => {
       let hh = h % 24;
@@ -579,7 +579,7 @@ export class AstronomyCalculator {
           transit: transitLocal.toFormat('HH:mm')
         };
       } catch (e) {
-        console.warn('Timezone conversion failed:', e, 'Falling back to longitude offset');
+        debugLog.warn('Timezone conversion failed:', e, 'Falling back to longitude offset');
       }
     }
 

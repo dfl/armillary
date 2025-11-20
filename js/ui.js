@@ -67,7 +67,7 @@ export class DateTimeParser {
           second: date.getSeconds()
         }, { zone: timezone });
 
-        console.log('Parsed date:', text, 'in timezone:', timezone, '->', dt.toString(), 'UTC:', dt.toUTC().toString());
+        debugLog.log('Parsed date:', text, 'in timezone:', timezone, '->', dt.toString(), 'UTC:', dt.toUTC().toString());
 
         // Convert to UTC and return as naive Date for our calculations
         const utc = dt.toUTC();
@@ -90,7 +90,7 @@ export class DateTimeParser {
         date.getMinutes(),
         date.getSeconds()
       ));
-      console.log('Parsed date (no timezone):', text, '->', date.toString(), '-> naive UTC:', naive.toUTCString());
+      debugLog.log('Parsed date (no timezone):', text, '->', date.toString(), '-> naive UTC:', naive.toUTCString());
       return naive;
     }
 
@@ -123,7 +123,7 @@ export class DateTimeParser {
       if (ampm === 'pm' && hours !== 12) hours += 12;
       if (ampm === 'am' && hours === 12) hours = 0;
       const result = this.createDateWithTimezone(parseInt(year), parseInt(month), parseInt(day), hours, parseInt(minutes), 0, timezone);
-      console.log('Parsed custom format:', text, timezone ? `in timezone: ${timezone}` : '-> naive UTC:', result.toUTCString());
+      debugLog.log('Parsed custom format:', text, timezone ? `in timezone: ${timezone}` : '-> naive UTC:', result.toUTCString());
       return result;
     }
 
@@ -415,7 +415,7 @@ export class UIManager {
       const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
       this.elements.dayValue.textContent = `${monthNames[dt.month - 1]} ${dt.day}, ${dt.year} (local)`;
 
-      console.log('Set to local time:', `${dt.hour}:${dt.minute}`, `day ${dt.day}`, 'in timezone:', this.currentTimezone);
+      debugLog.log('Set to local time:', `${dt.hour}:${dt.minute}`, `day ${dt.day}`, 'in timezone:', this.currentTimezone);
     } else {
       // No timezone - work in UTC/naive time
       this.currentYear = utcYear;
@@ -491,7 +491,7 @@ export class UIManager {
     // Match datetime components
     const match = normalized.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?/);
     if (!match) {
-      console.error('Failed to parse datetime:', datetimeString);
+      debugLog.error('Failed to parse datetime:', datetimeString);
       return;
     }
 
@@ -501,7 +501,7 @@ export class UIManager {
     const hour = parseInt(match[4]);
     const minute = parseInt(match[5]);
 
-    console.log('Setting time from local string:', { year, month, day, hour, minute });
+    debugLog.log('Setting time from local string:', { year, month, day, hour, minute });
 
     // Calculate day of year
     const isLeapYear = (year % 4 === 0 && year % 100 !== 0) || (year % 400 === 0);
@@ -528,12 +528,12 @@ export class UIManager {
     this.elements.timeSlider.value = timeInMinutes;
     this.elements.timeValue.textContent = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
 
-    console.log('Set sliders to:', { year, dayOfYear, timeInMinutes });
+    debugLog.log('Set sliders to:', { year, dayOfYear, timeInMinutes });
   }
 
   loadFromCalcParams(queryParams, parser) {
     window.isLoadingFromURL = true;
-    console.log('Loading from Rails calc_params');
+    debugLog.log('Loading from Rails calc_params');
 
     const datetime = queryParams.get('calc[datetime]');
     const lat = queryParams.get('calc[lat]');
@@ -541,7 +541,7 @@ export class UIManager {
     const location = queryParams.get('calc[location]');
     const timezone = queryParams.get('calc[timezone]');
 
-    console.log('Received calc_params:', { datetime, lat, lon, location, timezone });
+    debugLog.log('Received calc_params:', { datetime, lat, lon, location, timezone });
 
     // Set location name if provided
     if (location) {
@@ -551,20 +551,20 @@ export class UIManager {
     // Set timezone if provided
     if (timezone) {
       this.currentTimezone = timezone;
-      console.log('Set timezone from calc_params:', timezone);
+      debugLog.log('Set timezone from calc_params:', timezone);
     }
 
     // Set datetime if provided
     if (datetime) {
       this.elements.datetimeInput.value = datetime;
-      console.log('Loading datetime from calc_params:', datetime);
+      debugLog.log('Loading datetime from calc_params:', datetime);
     }
 
     // Set lat/lon if provided
     if (lat && lon) {
       const latitude = parseFloat(lat);
       const longitude = parseFloat(lon);
-      console.log('Parsed lat/lon:', { latitude, longitude });
+      debugLog.log('Parsed lat/lon:', { latitude, longitude });
 
       const clampedLat = Math.max(-66, Math.min(66, latitude));
       this.currentLatitude = clampedLat;
@@ -584,7 +584,7 @@ export class UIManager {
       // Strip timezone offset from Rails datetime string (e.g., "1979-05-08 10:57:00 +0000")
       // The datetime represents LOCAL time at the chart's location
       const datetimeWithoutTz = datetime.replace(/\s*[+-]\d{4}\s*$/, '').trim();
-      console.log('Datetime without timezone:', datetimeWithoutTz);
+      debugLog.log('Datetime without timezone:', datetimeWithoutTz);
 
       // Parse the datetime components directly and set sliders
       // Rails sends datetime like "1979-05-08 10:57:00" in LOCAL time
@@ -594,7 +594,7 @@ export class UIManager {
 
     // Always trigger a visualization update after loading calc_params
     // This ensures lat/lon and datetime are all applied
-    console.log('Triggering visualization update');
+    debugLog.log('Triggering visualization update');
     this.updateCallback();
 
     setTimeout(() => { window.isLoadingFromURL = false; }, 500);
@@ -622,7 +622,7 @@ export class UIManager {
 
     if (params.has('dt')) {
       datetimeString = params.get('dt');
-      console.log('Loading datetime from URL:', datetimeString);
+      debugLog.log('Loading datetime from URL:', datetimeString);
       this.elements.datetimeInput.value = datetimeString;
       hasState = true;
     }
@@ -653,14 +653,14 @@ export class UIManager {
                 const reverseData = await reverseResponse.json();
                 if (reverseData.results && reverseData.results[0] && reverseData.results[0].timezone) {
                   this.currentTimezone = reverseData.results[0].timezone.name;
-                  console.log('Timezone from Geoapify:', this.currentTimezone);
+                  debugLog.log('Timezone from Geoapify:', this.currentTimezone);
                 }
               } catch (tzError) {
-                console.warn('Failed to fetch timezone from Geoapify:', tzError);
+                debugLog.warn('Failed to fetch timezone from Geoapify:', tzError);
                 this.currentTimezone = null;
               }
             } else {
-              console.warn('VITE_GEOAPIFY_API_KEY not set in .env file');
+              debugLog.warn('VITE_GEOAPIFY_API_KEY not set in .env file');
               this.currentTimezone = null;
             }
 
@@ -692,7 +692,7 @@ export class UIManager {
             setTimeout(() => { window.isLoadingFromURL = false; }, 500);
           }
         } catch (error) {
-          console.error('Failed to load location from URL:', error);
+          debugLog.error('Failed to load location from URL:', error);
           setTimeout(() => { window.isLoadingFromURL = false; }, 500);
         }
       })();
@@ -739,7 +739,7 @@ export function initializeLocationAutocomplete(uiManager, updateCallback) {
               lon: parseFloat(place.lon),
             }));
           } catch (error) {
-            console.error('Geocoding error:', error);
+            debugLog.error('Geocoding error:', error);
             return [];
           }
         },
@@ -793,14 +793,14 @@ export function initializeLocationAutocomplete(uiManager, updateCallback) {
                 const reverseData = await reverseResponse.json();
                 if (reverseData.results && reverseData.results[0] && reverseData.results[0].timezone) {
                   uiManager.currentTimezone = reverseData.results[0].timezone.name;
-                  console.log('Timezone from Geoapify (autocomplete):', uiManager.currentTimezone);
+                  debugLog.log('Timezone from Geoapify (autocomplete):', uiManager.currentTimezone);
                 }
               } catch (tzError) {
-                console.warn('Failed to fetch timezone from Geoapify:', tzError);
+                debugLog.warn('Failed to fetch timezone from Geoapify:', tzError);
                 uiManager.currentTimezone = null;
               }
             } else {
-              console.warn('VITE_GEOAPIFY_API_KEY not set in .env file');
+              debugLog.warn('VITE_GEOAPIFY_API_KEY not set in .env file');
               uiManager.currentTimezone = null;
             }
 
