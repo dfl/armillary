@@ -123,10 +123,14 @@ window.addEventListener('keydown', (e) => {
     return;
   }
 
-  // 's' to toggle stereo view
+  // 's' to toggle stereo view and Controls widget
   if (e.key === 's') {
     stereoToggle.checked = !stereoToggle.checked;
     scene.toggleStereo(stereoToggle.checked);
+
+    // Toggle Controls widget (opposite of stereo state)
+    const controlsWidget = document.getElementById('ui');
+    controlsWidget.open = !stereoToggle.checked;
   }
 
   // '[' to move time back 1 hour
