@@ -51,6 +51,7 @@ export default class CelestialObjects {
     this.moonGlowMeshes = [];
     this.realisticMoonGlowMeshes = [];
     this.planetGroups = {};
+    this.eclipticPlanetGroups = {}; // Planets on the ecliptic zodiac wheel
     this.earthGroup = null;
     this.earthMesh = null;
 
@@ -59,6 +60,7 @@ export default class CelestialObjects {
     this.createSun();
     this.createMoon();
     this.createPlanets();
+    this.createEclipticPlanets();
   }
 
   createStarField() {
@@ -555,6 +557,55 @@ export default class CelestialObjects {
       planetGroup.visible = false;
 
       debugLog.log(`Created planet ${planet.name} with radius ${radius} at distance ${distance}`);
+    });
+  }
+
+  createEclipticPlanets() {
+    debugLog.log('=== Creating ecliptic planets ===');
+
+    const textureLoader = new THREE.TextureLoader();
+
+    // Planet data with colors matching the 3D planets
+    const planetData = [
+      { name: 'mercury', color: 0x8c7853, texturePath: this.texturePaths.MERCURY_TEXTURE_PATH },
+      { name: 'venus', color: 0xffc649, texturePath: this.texturePaths.VENUS_TEXTURE_PATH },
+      { name: 'mars', color: 0xcd5c5c, texturePath: this.texturePaths.MARS_TEXTURE_PATH },
+      { name: 'jupiter', color: 0xc88b3a, texturePath: this.texturePaths.JUPITER_TEXTURE_PATH },
+      { name: 'saturn', color: 0xfad5a5, texturePath: this.texturePaths.SATURN_TEXTURE_PATH },
+      { name: 'uranus', color: 0x4fd0e0, texturePath: this.texturePaths.URANUS_TEXTURE_PATH },
+      { name: 'neptune', color: 0x4166f5, texturePath: this.texturePaths.NEPTUNE_TEXTURE_PATH },
+      { name: 'pluto', color: 0xbca89f, texturePath: this.texturePaths.PLUTO_TEXTURE_PATH }
+    ];
+
+    // Size relative to celestial sphere (smaller than sun/moon for less clutter)
+    const basePlanetRadius = this.CE_RADIUS * 0.06;
+
+    planetData.forEach(planet => {
+      const planetTexture = textureLoader.load(planet.texturePath);
+
+      const planetMesh = new THREE.Mesh(
+        new THREE.SphereGeometry(basePlanetRadius, 32, 32),
+        new THREE.MeshBasicMaterial({
+          map: planetTexture,
+          color: 0xffffff,
+          transparent: true,
+          opacity: 1.0,
+          depthWrite: false
+        })
+      );
+
+      const planetGroup = new THREE.Group();
+      planetGroup.add(planetMesh);
+
+      // Store the planet group for later positioning
+      this.eclipticPlanetGroups[planet.name] = {
+        group: planetGroup,
+        mesh: planetMesh
+      };
+
+      this.zodiacGroup.add(planetGroup);
+
+      debugLog.log(`Created ecliptic planet ${planet.name}`);
     });
   }
 }

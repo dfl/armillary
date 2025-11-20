@@ -283,6 +283,7 @@ export class ArmillaryScene {
     this.moonGlowMeshes = this.celestialObjects.moonGlowMeshes;
     this.realisticMoonGlowMeshes = this.celestialObjects.realisticMoonGlowMeshes;
     this.planetGroups = this.celestialObjects.planetGroups;
+    this.eclipticPlanetGroups = this.celestialObjects.eclipticPlanetGroups;
     this.earthGroup = this.celestialObjects.earthGroup;
     this.earthMesh = this.celestialObjects.earthMesh;
     debugLog.log('After celestialObjects init, planetGroups:', Object.keys(this.planetGroups));
@@ -643,8 +644,87 @@ export class ArmillaryScene {
 
         // Store planet zodiac position for tooltip (using geocentric longitude)
         this.planetZodiacPositions[planetName] = astroCalc.toZodiacString(geocentricDeg - ayanamshaDeg);
+
+        // Position ecliptic planet on zodiac wheel (using geocentric longitude)
+        if (this.eclipticPlanetGroups[planetName]) {
+          this.eclipticPlanetGroups[planetName].group.position.copy(placeOnZodiac(geocentricDeg));
+        }
       }
     });
+
+    // 4. Handle collision transparency for overlapping ecliptic objects
+    // Collect all ecliptic objects (sun, moon, planets) with their positions
+    const eclipticObjects = [];
+
+    // Add sun
+    const sunPos = this.eclipticSunGroup.position.clone();
+    eclipticObjects.push({
+      name: 'sun',
+      position: sunPos,
+      mesh: this.eclipticSunMesh,
+      glowMeshes: this.eclipticSunGlowMeshes,
+      baseOpacity: 1.0
+    });
+
+    // Add moon
+    const moonPos = this.eclipticMoonGroup.position.clone();
+    eclipticObjects.push({
+      name: 'moon',
+      position: moonPos,
+      mesh: this.eclipticMoonMesh,
+      glowMeshes: this.moonGlowMeshes,
+      baseOpacity: 1.0
+    });
+
+    // Add planets
+    planetNames.forEach(planetName => {
+      if (this.eclipticPlanetGroups[planetName]) {
+        const planetPos = this.eclipticPlanetGroups[planetName].group.position.clone();
+        eclipticObjects.push({
+          name: planetName,
+          position: planetPos,
+          mesh: this.eclipticPlanetGroups[planetName].mesh,
+          glowMeshes: [],
+          baseOpacity: 1.0
+        });
+      }
+    });
+
+    // Calculate distances and adjust opacity based on proximity
+    const collisionThreshold = this.CE_RADIUS * 0.3; // Distance threshold for transparency
+
+    eclipticObjects.forEach(obj => {
+      let minDistance = Infinity;
+
+      // Find minimum distance to other objects
+      eclipticObjects.forEach(other => {
+        if (obj !== other) {
+          const distance = obj.position.distanceTo(other.position);
+          minDistance = Math.min(minDistance, distance);
+        }
+      });
+
+      // Calculate opacity based on minimum distance
+      // Full opacity when far apart, reduced opacity when close
+      let opacity = 1.0;
+      if (minDistance < collisionThreshold) {
+        // Linear fade from 1.0 to 0.3 as distance decreases
+        opacity = 0.3 + (0.7 * (minDistance / collisionThreshold));
+      }
+
+      // Apply opacity to main mesh
+      obj.mesh.material.opacity = opacity;
+
+      // Apply opacity to glow meshes (sun and moon only)
+      if (obj.glowMeshes && obj.glowMeshes.length > 0) {
+        obj.glowMeshes.forEach((glowMesh, index) => {
+          // Glow meshes have their own base opacity, scale it proportionally
+          const baseGlowOpacity = index === 0 ? 0.1 : 0.1;
+          glowMesh.material.opacity = baseGlowOpacity * opacity;
+        });
+      }
+    });
+
     debugLog.log('=== Done updating planets ===');
 
     // -----------------------------------------------------------

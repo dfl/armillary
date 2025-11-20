@@ -33,7 +33,7 @@ export default class InteractionManager {
     const onStarHover = (event) => {
       let camera, mouseX, mouseY;
 
-      if (this.sceneRef.stereoEnabled) {
+      if (this.sceneRef.cameraController && this.sceneRef.cameraController.stereoEnabled) {
         // In stereo mode, determine which viewport (left or right) the mouse is in
         const halfWidth = window.innerWidth / 2;
         if (event.clientX < halfWidth) {
@@ -66,7 +66,7 @@ export default class InteractionManager {
       const realisticMoonIntersects = raycaster.intersectObjects(this.sceneRef.realisticMoonGroup.children, false);
       const earthIntersects = this.sceneRef.earthGroup ? raycaster.intersectObjects(this.sceneRef.earthGroup.children, false) : [];
 
-      // Check all planet groups
+      // Check all planet groups (3D heliocentric)
       const planetIntersects = [];
       Object.entries(this.sceneRef.planetGroups).forEach(([name, planetData]) => {
         const intersects = raycaster.intersectObjects(planetData.group.children, false);
@@ -74,6 +74,17 @@ export default class InteractionManager {
           planetIntersects.push({ name, intersects });
         }
       });
+
+      // Check all ecliptic planet groups (2D on zodiac wheel)
+      const eclipticPlanetIntersects = [];
+      if (this.sceneRef.eclipticPlanetGroups) {
+        Object.entries(this.sceneRef.eclipticPlanetGroups).forEach(([name, planetData]) => {
+          const intersects = raycaster.intersectObjects(planetData.group.children, false);
+          if (intersects.length > 0) {
+            eclipticPlanetIntersects.push({ name, intersects });
+          }
+        });
+      }
 
       // Check angle spheres and labels
       const angleIntersects = raycaster.intersectObjects([
@@ -128,7 +139,41 @@ export default class InteractionManager {
         this.positionTooltip(starInfoElement, event);
         this.renderer.domElement.style.cursor = 'pointer';
       }
-      // Check planets third
+      // Check ecliptic planets third (higher priority - closer to viewer)
+      else if (eclipticPlanetIntersects.length > 0) {
+        const planet = eclipticPlanetIntersects[0];
+        const planetSymbols = {
+          mercury: '☿',
+          venus: '♀',
+          mars: '♂',
+          jupiter: '♃',
+          saturn: '♄',
+          uranus: '♅',
+          neptune: '♆',
+          pluto: '♇'
+        };
+        const planetFullNames = {
+          mercury: 'Mercury',
+          venus: 'Venus',
+          mars: 'Mars',
+          jupiter: 'Jupiter',
+          saturn: 'Saturn',
+          uranus: 'Uranus',
+          neptune: 'Neptune',
+          pluto: 'Pluto'
+        };
+
+        const symbol = planetSymbols[planet.name] || planet.name;
+        const fullName = planetFullNames[planet.name] || planet.name;
+        const position = this.sceneRef.planetZodiacPositions[planet.name] || '';
+
+        document.getElementById('starName').textContent = `${symbol} ${fullName} ${position}`;
+        document.getElementById('constellationName').textContent = `Planet`;
+
+        this.positionTooltip(starInfoElement, event);
+        this.renderer.domElement.style.cursor = 'pointer';
+      }
+      // Check heliocentric planets fourth
       else if (planetIntersects.length > 0) {
         const planet = planetIntersects[0];
         const planetSymbols = {
@@ -248,7 +293,7 @@ export default class InteractionManager {
     const onDoubleClick = (event) => {
       let camera, mouseX, mouseY;
 
-      if (this.sceneRef.stereoEnabled) {
+      if (this.sceneRef.cameraController && this.sceneRef.cameraController.stereoEnabled) {
         const halfWidth = window.innerWidth / 2;
         if (event.clientX < halfWidth) {
           camera = this.rightCamera;
