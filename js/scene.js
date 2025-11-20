@@ -457,9 +457,12 @@ export class ArmillaryScene {
       return new THREE.Vector3(x, y, z);
     };
 
+    // Star size multiplier - adjust this constant to make stars larger/smaller
+    const k = 0.4; // Increase to make stars bigger, decrease to make them smaller
+
     // Create stars
     starData.forEach(([name, ra, dec, mag, constellation]) => {
-      const size = Math.max(0.015, 0.05 - mag * 0.01);
+      const size = k * Math.max(0.3, 1.0 - mag * 0.2);
       const brightness = Math.max(0.3, 1.0 - mag * 0.15);
 
       const starGeometry = new THREE.SphereGeometry(size, 8, 8);
@@ -468,7 +471,7 @@ export class ArmillaryScene {
       });
 
       const star = new THREE.Mesh(starGeometry, starMaterial);
-      const position = raDecToVector3(ra, dec, this.CE_RADIUS * 10.0);
+      const position = raDecToVector3(ra, dec, this.CE_RADIUS * 75);
       star.position.copy(position);
       star.userData = { name, constellation };
 
@@ -525,7 +528,7 @@ export class ArmillaryScene {
     this.celestial.add(this.constellationLineGroup);
 
     // Outer ecliptic line (gray dashed circle in the star field)
-    const outerEclipticRadius = this.CE_RADIUS * 10.0;
+    const outerEclipticRadius = this.CE_RADIUS * 75;
     const outerEclipticPoints = [];
     for (let i = 0; i <= 128; i++) {
       const a = (i / 128) * Math.PI * 2;
@@ -558,7 +561,7 @@ export class ArmillaryScene {
     for (let i = 0; i < bgStarCount; i++) {
       const theta = Math.random() * Math.PI * 2;
       const phi = Math.acos(2 * Math.random() - 1);
-      const r = this.CE_RADIUS * 100;
+      const r = this.CE_RADIUS * 150;
 
       const x = r * Math.sin(phi) * Math.cos(theta);
       const y = r * Math.sin(phi) * Math.sin(theta);
