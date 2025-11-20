@@ -172,6 +172,33 @@ window.addEventListener('keydown', (e) => {
   }
 });
 
+// Help modal
+const helpButton = document.getElementById('helpButton');
+const helpModal = document.getElementById('helpModal');
+const closeHelp = document.getElementById('closeHelp');
+
+helpButton.addEventListener('click', () => {
+  helpModal.classList.add('visible');
+});
+
+closeHelp.addEventListener('click', () => {
+  helpModal.classList.remove('visible');
+});
+
+// Close modal when clicking outside the content
+helpModal.addEventListener('click', (e) => {
+  if (e.target === helpModal) {
+    helpModal.classList.remove('visible');
+  }
+});
+
+// Close modal with Escape key
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && helpModal.classList.contains('visible')) {
+    helpModal.classList.remove('visible');
+  }
+});
+
 // Load state from URL first
 const hasURLState = uiManager.loadStateFromURL(parser);
 
