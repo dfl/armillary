@@ -1365,7 +1365,7 @@ export class ArmillaryScene {
 
     // Calculate camera position (offset from target)
     let newCameraPos;
-    let newUp = camera.up.clone();
+    let newUp = new THREE.Vector3(0, 1, 0); // Default to world up
 
     if (targetName === 'horizon') {
       // Orient facing South (Local -Z) from North (Local +Z)
