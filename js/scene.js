@@ -77,6 +77,7 @@ export class ArmillaryScene {
     this.createSun();
     this.createMoon();
     this.createPlanets();
+    console.log('After createPlanets, planetGroups:', Object.keys(this.planetGroups));
     this.createAngleSpheres();
     this.createAngleLabels();
     this.setupStarHover();
@@ -1033,6 +1034,8 @@ export class ArmillaryScene {
   }
 
   updateSphere(astroCalc, currentLatitude, currentLongitude, currentTime, currentDay, currentYear, timezone = null) {
+    console.log('=== updateSphere called ===');
+    console.log('Planet groups available:', Object.keys(this.planetGroups));
     // -----------------------------------------------------------
     // 1. Convert inputs
     // -----------------------------------------------------------
