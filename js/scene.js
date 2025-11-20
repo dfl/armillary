@@ -889,13 +889,13 @@ export class ArmillaryScene {
     addAngle("IC", 0x888888);
     addAngle("ASC", 0x888888);
     addAngle("DSC", 0x888888);
-    addAngle("VTX", 0xaa88ff);  // Purple color for Vertex
-    addAngle("AVX", 0xaa88ff);  // Purple color for Anti-Vertex
+    addAngle("VTX", 0x888888);
+    addAngle("AVX", 0x888888);
   }
 
 
   createAngleLabels() {
-    const addAngleLabel = (name) => {
+    const addAngleLabel = (displayText, dataName) => {
       const canvas = document.createElement('canvas');
       canvas.width = 128;
       canvas.height = 64;
@@ -904,24 +904,24 @@ export class ArmillaryScene {
       ctx.font = 'bold 32px Arial';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(name, 64, 32);
+      ctx.fillText(displayText, 64, 32);
 
       const texture = new THREE.CanvasTexture(canvas);
       const material = new THREE.SpriteMaterial({ map: texture, depthTest: false });
       const sprite = new THREE.Sprite(material);
       sprite.scale.set(0.8, 0.4, 1);
-      sprite.userData.angleName = name; // Store angle name for tooltip
+      sprite.userData.angleName = dataName; // Store angle name for tooltip
       this.scene.add(sprite);
       return sprite;
     };
 
     this.angleLabels = {
-      MC: addAngleLabel('MC'),
-      IC: addAngleLabel('IC'),
-      ASC: addAngleLabel('AC'),
-      DSC: addAngleLabel('DC'),
-      VTX: addAngleLabel('VX'),
-      AVX: addAngleLabel('AV')
+      MC: addAngleLabel('MC', 'MC'),
+      IC: addAngleLabel('IC', 'IC'),
+      ASC: addAngleLabel('AC', 'ASC'),
+      DSC: addAngleLabel('DC', 'DSC'),
+      VTX: addAngleLabel('VX', 'VTX'),
+      AVX: addAngleLabel('AV', 'AVX')
     };
   }
 
