@@ -1368,10 +1368,9 @@ export class ArmillaryScene {
     let newUp = new THREE.Vector3(0, 1, 0); // Default to world up
 
     if (targetName === 'horizon') {
-      // Orient facing South (Local -Z) from North (Local +Z)
-      // This places East (-X) on the Left and West (+X) on the Right
-      // Position camera at North (+Z) and slightly Up (+Y)
-      const localOffset = new THREE.Vector3(0, targetRadius * 0.8, targetRadius * 2.4);
+      // Orient facing North (Local +Z) from South (Local -Z)
+      // Position camera at South (-Z) and slightly Up (+Y)
+      const localOffset = new THREE.Vector3(0, targetRadius * 0.8, -targetRadius * 2.4);
       
       // Transform to world space
       const worldOffset = localOffset.applyQuaternion(this.armillaryRoot.quaternion);
