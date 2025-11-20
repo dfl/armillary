@@ -8,14 +8,14 @@ export class ArmillaryScene {
   constructor() {
     this.obliquity = 23.44 * Math.PI / 180;
     this.CE_RADIUS = 3; // Celestial sphere radius (local horizon visualization scale)
-    this.EARTH_RADIUS = 0.5; // Earth's radius in scene units
+    this.EARTH_RADIUS = 10.0; // Earth's radius in scene units (much larger than horizon)
 
     // Fudged distances for visibility (keeping relative proportions)
     this.PLANET_RADIUS_SCALE = 1.0; // Scale factor to make all bodies visible
-    this.PLANET_DISTANCE_SCALE = 80; // Scale factor for planet orbital distances (1 AU = 80 units)
+    this.PLANET_DISTANCE_SCALE = 500; // Scale factor for planet orbital distances (1 AU = 500 units)
 
-    this.SUN_RADIUS = 15; // Sun radius (scaled down from reality but large enough)
-    this.MOON_DISTANCE = 4; // Moon distance from Earth (scaled)
+    this.SUN_RADIUS = 60; // Sun radius (scaled down from reality but large enough)
+    this.MOON_DISTANCE = 30; // Moon distance from Earth (scaled)
     this.MOON_RADIUS = 0.273 * this.EARTH_RADIUS; // Moon is ~27.3% Earth
     
     this.EARTH_TEXTURE_PATH = '/armillary/images/earth_texture.jpg';
@@ -1272,7 +1272,13 @@ export class ArmillaryScene {
     const camera = this.stereoEnabled ? this.camera : this.camera;
 
     // Get target position and radius based on name
-    if (targetName === 'sun') {
+    if (targetName === 'horizon') {
+      this.armillaryRoot.getWorldPosition(targetWorldPos);
+      targetRadius = this.CE_RADIUS;
+    } else if (targetName === 'earth') {
+      this.earthGroup.getWorldPosition(targetWorldPos);
+      targetRadius = this.EARTH_RADIUS;
+    } else if (targetName === 'sun') {
       this.realisticSunGroup.getWorldPosition(targetWorldPos);
       targetRadius = this.realisticSunMesh.geometry.parameters.radius;
     } else if (targetName === 'moon') {
@@ -1287,7 +1293,7 @@ export class ArmillaryScene {
     }
 
     // Calculate camera position (offset from target)
-    const zoomDistance = targetRadius * 8; // Distance from surface
+    const zoomDistance = targetName === 'horizon' ? targetRadius * 2.5 : targetRadius * 4; // Distance from surface
 
     // Get direction from target to current camera
     const direction = camera.position.clone().sub(targetWorldPos).normalize();
@@ -1326,6 +1332,23 @@ export class ArmillaryScene {
 
   setupContextMenu() {
     const contextMenu = document.getElementById('contextMenu');
+
+    // Add Horizon and Earth options if they don't exist
+    if (!contextMenu.querySelector('[data-target="horizon"]')) {
+      const item = document.createElement('div');
+      item.className = 'context-menu-item';
+      item.setAttribute('data-target', 'horizon');
+      item.textContent = 'Zoom to Horizon';
+      contextMenu.insertBefore(item, contextMenu.firstChild);
+    }
+    if (!contextMenu.querySelector('[data-target="earth"]')) {
+      const item = document.createElement('div');
+      item.className = 'context-menu-item';
+      item.setAttribute('data-target', 'earth');
+      item.textContent = 'Zoom to Earth';
+      contextMenu.insertBefore(item, contextMenu.firstChild);
+    }
+
     const menuItems = contextMenu.querySelectorAll('.context-menu-item');
 
     // Show context menu on right-click
@@ -1696,7 +1719,7 @@ export class ArmillaryScene {
     const dist = this.camera.position.distanceTo(this.earthGroup.position);
     // Hide Earth texture when zoomed in (viewing local horizon)
     // Show it when zoomed out (viewing solar system)
-    const threshold = this.CE_RADIUS * 5;
+    const threshold = this.EARTH_RADIUS * 1.5;
     this.earthGroup.visible = dist > threshold;
   }
 
