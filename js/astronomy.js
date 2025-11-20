@@ -205,12 +205,12 @@ export class AstronomyCalculator {
     const numerator = -cosL;
     const denominator = sinL * cosE + tanCoLat * sinE;
 
-    let vtxRad = Math.atan2(numerator, denominator);
-    let VTXdeg = this._radToDeg(vtxRad);
-    VTXdeg = this._deg(VTXdeg);
+    let avtxRad = Math.atan2(numerator, denominator);
+    let AVXdeg = this._radToDeg(avtxRad);
+    AVXdeg = this._deg(AVXdeg);
 
     // Anti-Vertex is opposite
-    let AVXdeg = (VTXdeg + 180) % 360;
+    let VTXdeg = (AVXdeg + 180) % 360;
 
     return { VTX: VTXdeg, AVX: AVXdeg };
   }
