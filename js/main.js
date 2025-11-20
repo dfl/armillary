@@ -172,6 +172,8 @@ const hasURLState = uiManager.loadStateFromURL(parser);
 
 // Initial update (only if no URL state was loaded)
 if (!hasURLState) {
+  parser.setNow();
+} else {
   updateVisualization();
 }
 
