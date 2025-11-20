@@ -1715,8 +1715,8 @@ export class ArmillaryScene {
     // Rotate Earth: Spin (Y) then Tilt (X)
     // Tilt is (90 - obliquity) around X to bring Y-axis (poles) to point to NCP
     const tiltQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI / 2 - this.obliquity);
-    // Add PI to gstRad to fix texture phase (Greenwich usually at center/edge)
-    const spinQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), gstRad + Math.PI);
+    // gstRad aligns Greenwich (Lon 0) with the Vernal Equinox (X axis)
+    const spinQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), gstRad);
 
     if (this.earthMesh) {
       this.earthMesh.quaternion.copy(tiltQ).multiply(spinQ);
