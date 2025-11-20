@@ -578,7 +578,8 @@ export class ArmillaryScene {
         map: this.sunTexture,
         color: 0xffaa44,
         transparent: true,
-        opacity: 1.0
+        opacity: 1.0,
+        depthWrite: false
       })
     );
 
@@ -601,7 +602,8 @@ export class ArmillaryScene {
           color: layer.color,
           transparent: true,
           opacity: layer.opacity,
-          blending: THREE.AdditiveBlending
+          blending: THREE.AdditiveBlending,
+          depthWrite: false
         })
       );
       this.eclipticSunGroup.add(glowMesh);
@@ -620,7 +622,8 @@ export class ArmillaryScene {
       new THREE.MeshBasicMaterial({
         color: 0xffaa44,
         transparent: true,
-        opacity: 1.0
+        opacity: 1.0,
+        depthWrite: false
       })
     );
 
@@ -645,7 +648,8 @@ export class ArmillaryScene {
           color: layer.color,
           transparent: true,
           opacity: layer.opacity,
-          blending: THREE.AdditiveBlending
+          blending: THREE.AdditiveBlending,
+          depthWrite: false
         })
       );
       this.realisticSunGroup.add(glowMesh);
