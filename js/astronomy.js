@@ -290,9 +290,13 @@ export class AstronomyCalculator {
   }
 
   /**
-   * Calculate planet's ecliptic longitude (radians) using ephemeris npm package
+   * Calculate planet's position using ephemeris npm package
    * planetName: 'mercury', 'venus', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune', 'pluto'
-   * Returns longitude in RADIANS (0..2π)
+   * Returns {
+   *   geocentricLongitude: radians (0..2π) - for zodiac display
+   *   heliocentricLongitude: radians (0..2π) - for 3D positioning
+   *   heliocentricDistance: AU - distance from Sun
+   * }
    */
   calculatePlanetPosition(planetName, currentDay, currentYear, month, day, hours, minutes) {
     debugLog.log(`calculatePlanetPosition called for ${planetName}`);
@@ -302,30 +306,52 @@ export class AstronomyCalculator {
       const result = ephemeris.getAllPlanets(date, 0, 0);
       debugLog.log(`  Ephemeris result keys:`, result ? Object.keys(result) : 'null');
 
-      // Try to read planet's longitude
-      const planetObj = result && result.observed && result.observed[planetName] 
-        ? result.observed[planetName] 
+      // Get geocentric data (observed from Earth) for zodiac longitude
+      const geocentricObj = result && result.observed && result.observed[planetName]
+        ? result.observed[planetName]
         : (result && result[planetName] ? result[planetName] : null);
 
-      debugLog.log(`  Planet object for ${planetName}:`, planetObj ? Object.keys(planetObj) : 'null');
+      // Get heliocentric data (relative to Sun) for 3D positioning
+      const heliocentricObj = result && result.heliocentric && result.heliocentric[planetName]
+        ? result.heliocentric[planetName]
+        : null;
 
-      if (planetObj) {
-        const maybeLon = planetObj.apparentLongitudeDd ?? planetObj.longitude ?? planetObj.lon ?? planetObj.lambda;
-        debugLog.log(`  Raw longitude value:`, maybeLon);
-        if (typeof maybeLon === 'number' && !Number.isNaN(maybeLon)) {
-          let lonDeg = maybeLon;
-          lonDeg = this._deg(lonDeg);
-          debugLog.log(`  Normalized longitude (deg):`, lonDeg);
-          return this._degToRad(lonDeg);
+      debugLog.log(`  Geocentric object for ${planetName}:`, geocentricObj ? Object.keys(geocentricObj) : 'null');
+      debugLog.log(`  Heliocentric object for ${planetName}:`, heliocentricObj ? Object.keys(heliocentricObj) : 'null');
+
+      if (geocentricObj) {
+        const geocentricLon = geocentricObj.apparentLongitudeDd ?? geocentricObj.longitude ?? geocentricObj.lon ?? geocentricObj.lambda;
+
+        // Try to get heliocentric position
+        const heliocentricLon = heliocentricObj ? (heliocentricObj.longitude ?? heliocentricObj.lon ?? heliocentricObj.lambda) : null;
+        const heliocentricDist = heliocentricObj ? (heliocentricObj.distance ?? heliocentricObj.dist ?? heliocentricObj.r) : null;
+
+        debugLog.log(`  Geocentric longitude value:`, geocentricLon);
+        debugLog.log(`  Heliocentric longitude value:`, heliocentricLon);
+        debugLog.log(`  Heliocentric distance value:`, heliocentricDist);
+
+        if (typeof geocentricLon === 'number' && !Number.isNaN(geocentricLon)) {
+          let geocentricLonDeg = this._deg(geocentricLon);
+          debugLog.log(`  Normalized geocentric longitude (deg):`, geocentricLonDeg);
+
+          return {
+            geocentricLongitude: this._degToRad(geocentricLonDeg),
+            heliocentricLongitude: (typeof heliocentricLon === 'number' && !Number.isNaN(heliocentricLon))
+              ? this._degToRad(this._deg(heliocentricLon))
+              : null,
+            heliocentricDistance: (typeof heliocentricDist === 'number' && !Number.isNaN(heliocentricDist))
+              ? heliocentricDist
+              : null
+          };
         }
       }
     } catch (e) {
       debugLog.warn(`${planetName} ephemeris call failed:`, e);
     }
 
-    // Fallback: return 0 (not accurate, but prevents errors)
+    // Fallback
     debugLog.warn(`Using fallback position for ${planetName}`);
-    return 0;
+    return { geocentricLongitude: 0, heliocentricLongitude: null, heliocentricDistance: null };
   }
 
   /**

@@ -7,7 +7,17 @@ import { starData, constellationLines } from './stardata.js';
 export class ArmillaryScene {
   constructor() {
     this.obliquity = 23.44 * Math.PI / 180;
-    this.CE_RADIUS = 3;
+    this.CE_RADIUS = 3; // Celestial sphere radius (local horizon visualization scale)
+    this.EARTH_RADIUS = 1.0; // Earth's radius in scene units
+
+    // Fudged distances for visibility (keeping relative proportions)
+    this.PLANET_RADIUS_SCALE = 3; // Scale factor to make all bodies visible
+    this.PLANET_DISTANCE_SCALE = 30; // Scale factor for planet orbital distances
+
+    this.SUN_DISTANCE = 300; // Sun distance (much closer than reality for visibility)
+    this.SUN_RADIUS = 109 * this.EARTH_RADIUS * this.PLANET_RADIUS_SCALE; // Sun is ~109× Earth
+    this.MOON_DISTANCE = 15; // Moon distance from Earth
+    this.MOON_RADIUS = 0.273 * this.EARTH_RADIUS * this.PLANET_RADIUS_SCALE; // Moon is ~27.3% Earth
     this.SUN_TEXTURE_PATH = '/armillary/images/sun_texture.jpg';
     this.REALISTIC_SUN_TEXTURE_PATH = '/armillary/images/sun_texture_orange.jpg';
     this.MOON_TEXTURE_PATH = '/armillary/images/moon_texture.jpg';
@@ -635,10 +645,8 @@ export class ArmillaryScene {
 
     this.zodiacGroup.add(this.eclipticSunGroup);
 
-    // Realistic sun (far away)
-    const sunAngularDiameter = 0.53 * Math.PI / 180;
-    const sunDistance = this.CE_RADIUS * 50;
-    const realisticSunRadius = sunDistance * Math.tan(sunAngularDiameter / 2);
+    // Realistic sun (far away at 1 AU from Earth)
+    const realisticSunRadius = this.SUN_RADIUS;
 
     const realisticSun = new THREE.Mesh(
       new THREE.SphereGeometry(realisticSunRadius, 64, 64),
@@ -725,10 +733,8 @@ export class ArmillaryScene {
 
     this.zodiacGroup.add(this.eclipticMoonGroup);
 
-    // Realistic moon (far away, proper angular size)
-    const moonAngularDiameter = 0.52 * Math.PI / 180;
-    const moonDistance = this.CE_RADIUS * 50;
-    const realisticMoonRadius = moonDistance * Math.tan(moonAngularDiameter / 2);
+    // Realistic moon (orbits Earth at ~60 Earth radii)
+    const realisticMoonRadius = this.MOON_RADIUS;
 
     const realisticMoon = new THREE.Mesh(
       new THREE.SphereGeometry(realisticMoonRadius, 64, 64),
@@ -769,22 +775,23 @@ export class ArmillaryScene {
 
   createPlanets() {
     debugLog.log('=== Creating planets ===');
-    // Planet data: [name, relative diameter (Earth=1), color, distance multiplier]
-    // Using realistic relative sizes and colors
+    // Planet data: [name, relative diameter (Earth=1), orbital distance in AU]
+    // Distances scaled relative to 1 AU (Earth-Sun distance)
     const planetData = [
-      { name: 'mercury', diameter: 0.383, color: 0x8c7853, distance: 50 },
-      { name: 'venus', diameter: 0.949, color: 0xffc649, distance: 50 },
-      { name: 'mars', diameter: 0.532, color: 0xcd5c5c, distance: 50 },
-      { name: 'jupiter', diameter: 11.21, color: 0xc88b3a, distance: 50 },
-      { name: 'saturn', diameter: 9.45, color: 0xfad5a5, distance: 50 },
-      { name: 'uranus', diameter: 4.01, color: 0x4fd0e0, distance: 50 },
-      { name: 'neptune', diameter: 3.88, color: 0x4166f5, distance: 50 },
-      { name: 'pluto', diameter: 0.186, color: 0xbca89f, distance: 50 }
+      { name: 'mercury', diameter: 0.383, color: 0x8c7853, au: 0.39 },
+      { name: 'venus', diameter: 0.949, color: 0xffc649, au: 0.72 },
+      { name: 'mars', diameter: 0.532, color: 0xcd5c5c, au: 1.52 },
+      { name: 'jupiter', diameter: 11.21, color: 0xc88b3a, au: 5.20 },
+      { name: 'saturn', diameter: 9.45, color: 0xfad5a5, au: 9.54 },
+      { name: 'uranus', diameter: 4.01, color: 0x4fd0e0, au: 19.19 },
+      { name: 'neptune', diameter: 3.88, color: 0x4166f5, au: 30.07 },
+      { name: 'pluto', diameter: 0.186, color: 0xbca89f, au: 39.48 }
     ];
 
     // Base size for Earth (for scaling)
+    // Earth radius = this.EARTH_RADIUS, planets scale proportionally
     const earthDiameter = 1.0;
-    const baseRadius = 0.15; // Base radius in scene units (increased for visibility at distance)
+    const baseRadius = this.EARTH_RADIUS; // Earth's actual radius as base
 
     debugLog.log('CE_RADIUS:', this.CE_RADIUS, 'baseRadius:', baseRadius);
 
@@ -816,9 +823,9 @@ export class ArmillaryScene {
     );
 
     planetData.forEach(planet => {
-      // Calculate radius based on relative diameter
-      const radius = baseRadius * (planet.diameter / earthDiameter);
-      const distance = this.CE_RADIUS * planet.distance;
+      // Calculate radius based on relative diameter (scaled up for visibility)
+      const radius = baseRadius * (planet.diameter / earthDiameter) * this.PLANET_RADIUS_SCALE;
+      const distance = planet.au * this.PLANET_DISTANCE_SCALE; // Scaled distances for visibility
 
       // Create material with texture
       const material = new THREE.MeshBasicMaterial({
@@ -1494,10 +1501,8 @@ export class ArmillaryScene {
 
     this.eclipticSunGroup.position.copy(placeOnZodiac(sunDeg));
 
-    // Realistic distant sun
-    const distance = this.CE_RADIUS * 50;
-    const sRad = THREE.MathUtils.degToRad(sunDeg) - ayanamsha;
-    this.realisticSunGroup.position.set(Math.cos(sRad) * distance, Math.sin(sRad) * distance, 0);
+    // Realistic sun at ORIGIN (0,0,0) for heliocentric system
+    this.realisticSunGroup.position.set(0, 0, 0);
 
     // Update sun color based on whether it's above or below the horizon
     // Force matrix update to get accurate world position
@@ -1527,8 +1532,8 @@ export class ArmillaryScene {
     const moonDeg = THREE.MathUtils.radToDeg(moonLonRad);
     this.eclipticMoonGroup.position.copy(placeOnZodiac(moonDeg));
 
-    // Realistic distant moon
-    const moonDistance = this.CE_RADIUS * 50;
+    // Realistic moon at proper distance from Earth (~60 Earth radii)
+    const moonDistance = this.MOON_DISTANCE;
     const mRad = THREE.MathUtils.degToRad(moonDeg) - ayanamsha;
     this.realisticMoonGroup.position.set(Math.cos(mRad) * moonDistance, Math.sin(mRad) * moonDistance, 0);
 
@@ -1554,34 +1559,70 @@ export class ArmillaryScene {
       this.realisticSunMesh.material.opacity = 1.0;
     }
 
-    // Update planet positions
+    // Update planet positions (geocentric - from Earth's perspective)
     debugLog.log('=== Updating planet positions ===');
     debugLog.log('Available planet groups:', Object.keys(this.planetGroups));
+
+    // In heliocentric view, calculate Earth's position first
+    // Earth is 1 AU from Sun, at opposite side of Sun from geocentric Sun position
+    const earthHeliocentricLon = (sunDeg + 180) % 360; // Earth is opposite to Sun
+    const earthDistance = 1.0 * this.PLANET_DISTANCE_SCALE; // Earth at 1 AU
+    const earthRad = THREE.MathUtils.degToRad(earthHeliocentricLon) - ayanamsha;
+
+    // In heliocentric system, "Earth" position is where we need to offset from
+    const earthHelioPos = new THREE.Vector3(
+      Math.cos(earthRad) * earthDistance,
+      Math.sin(earthRad) * earthDistance,
+      0
+    );
+    debugLog.log('Earth heliocentric position:', earthHelioPos.x, earthHelioPos.y);
+
     const planetNames = ['mercury', 'venus', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune', 'pluto'];
+
+    // Sun is at origin (0,0,0) in heliocentric system
+    debugLog.log('Sun at origin (0,0,0) for heliocentric coords');
+
     planetNames.forEach(planetName => {
       if (this.planetGroups[planetName]) {
         debugLog.log(`Processing ${planetName}...`);
-        const planetLonRad = astroCalc.calculatePlanetPosition(
+        const planetData = astroCalc.calculatePlanetPosition(
           planetName, currentDay, currentYear, month, day, hours, minutes
         );
-        debugLog.log(`  ${planetName} longitude (rad):`, planetLonRad);
-        const planetDeg = THREE.MathUtils.radToDeg(planetLonRad);
-        debugLog.log(`  ${planetName} longitude (deg):`, planetDeg);
-        const distance = this.planetGroups[planetName].distance;
-        debugLog.log(`  ${planetName} distance:`, distance);
-        const pRad = THREE.MathUtils.degToRad(planetDeg) - ayanamsha;
+
+        // Use geocentric longitude for tooltip display
+        const geocentricDeg = THREE.MathUtils.radToDeg(planetData.geocentricLongitude);
+        debugLog.log(`  ${planetName} geocentric longitude (deg):`, geocentricDeg);
+
+        // Use heliocentric coordinates for 3D positioning relative to Sun
+        let planetLonRad, distance;
+
+        if (planetData.heliocentricLongitude !== null && planetData.heliocentricDistance !== null) {
+          // Use actual heliocentric position
+          planetLonRad = planetData.heliocentricLongitude;
+          distance = planetData.heliocentricDistance * this.PLANET_DISTANCE_SCALE;
+          debugLog.log(`  ${planetName} heliocentric longitude (rad):`, planetLonRad);
+          debugLog.log(`  ${planetName} heliocentric distance (AU):`, planetData.heliocentricDistance, '-> scene units:', distance);
+        } else {
+          // Fallback to average orbital distance
+          planetLonRad = planetData.geocentricLongitude;
+          distance = this.planetGroups[planetName].distance;
+          debugLog.log(`  ${planetName} using fallback distance:`, distance);
+        }
+
+        const pRad = planetLonRad - ayanamsha;
         debugLog.log(`  ${planetName} adjusted rad:`, pRad, 'ayanamsha:', ayanamsha);
 
+        // Position planet relative to Sun at origin (heliocentric)
         const x = Math.cos(pRad) * distance;
         const y = Math.sin(pRad) * distance;
         this.planetGroups[planetName].group.position.set(x, y, 0);
 
-        debugLog.log(`  Positioned ${planetName} at (${x.toFixed(2)}, ${y.toFixed(2)}, 0) - ${planetDeg.toFixed(1)}°`);
+        debugLog.log(`  Positioned ${planetName} at (${x.toFixed(2)}, ${y.toFixed(2)}, 0) - geocentric: ${geocentricDeg.toFixed(1)}°`);
         debugLog.log(`  Planet group visible:`, this.planetGroups[planetName].group.visible);
         debugLog.log(`  Planet mesh radius:`, this.planetGroups[planetName].mesh.geometry.parameters.radius);
 
-        // Store planet zodiac position for tooltip
-        this.planetZodiacPositions[planetName] = astroCalc.toZodiacString(planetDeg - ayanamshaDeg);
+        // Store planet zodiac position for tooltip (using geocentric longitude)
+        this.planetZodiacPositions[planetName] = astroCalc.toZodiacString(geocentricDeg - ayanamshaDeg);
       } else {
         debugLog.warn(`Planet group not found: ${planetName}`);
       }
