@@ -65,6 +65,7 @@ export class ArmillaryScene {
     this.starMeshes = {}; // Store star meshes for hover detection
 
     // Store reference circles for hover detection
+    this.horizonPlane = null;
     this.horizonOutline = null;
     this.meridianOutline = null;
     this.primeVerticalOutline = null;
@@ -181,12 +182,12 @@ export class ArmillaryScene {
     const sphereRadius = this.CE_RADIUS * 1.6;
 
     // Horizon plane
-    const horizonPlane = new THREE.Mesh(
+    this.horizonPlane = new THREE.Mesh(
       new THREE.CircleGeometry(sphereRadius, 64),
       new THREE.MeshBasicMaterial({ color: 0x00ff00, ...planeOpts })
     );
-    horizonPlane.rotation.x = -Math.PI / 2;
-    this.armillaryRoot.add(horizonPlane);
+    this.horizonPlane.rotation.x = -Math.PI / 2;
+    this.armillaryRoot.add(this.horizonPlane);
 
     // Horizon outline
     const horizonOutlinePoints = [];
@@ -1016,13 +1017,14 @@ export class ArmillaryScene {
 
       raycaster.setFromCamera(mouse, camera);
 
-      // Check for stars, sun, moon, planets, and angle spheres
+      // Check for stars, sun, moon, earth, planets, and angle spheres
       const starIntersects = raycaster.intersectObjects(this.starGroup.children, false);
       const sunIntersects = raycaster.intersectObjects(this.eclipticSunGroup.children, false);
       const realisticSunIntersects = raycaster.intersectObjects(this.realisticSunGroup.children, false);
       const eclipticMoonIntersects = raycaster.intersectObjects(this.eclipticMoonGroup.children, false);
       const realisticMoonIntersects = raycaster.intersectObjects(this.realisticMoonGroup.children, false);
-      
+      const earthIntersects = this.earthGroup ? raycaster.intersectObjects(this.earthGroup.children, false) : [];
+
       // Check all planet groups
       const planetIntersects = [];
       Object.entries(this.planetGroups).forEach(([name, planetData]) => {
@@ -1065,6 +1067,10 @@ export class ArmillaryScene {
 
       const starInfoElement = document.getElementById('starInfo');
 
+      // Check if Earth is visible enough to show tooltip
+      const earthOpacity = this.earthMesh?.material?.uniforms?.opacity?.value || 0;
+      const showEarthTooltip = earthIntersects.length > 0 && earthOpacity > 0.1;
+
       // Check sun first (priority) - both ecliptic and realistic sun
       if (sunIntersects.length > 0 || realisticSunIntersects.length > 0) {
         document.getElementById('starName').textContent = `☉ Sun ${this.sunZodiacPosition}`;
@@ -1073,7 +1079,15 @@ export class ArmillaryScene {
         this.positionTooltip(starInfoElement, event);
         this.renderer.domElement.style.cursor = 'pointer';
       }
-      // Check planets second
+      // Check Earth second (only if visible/opaque enough)
+      else if (showEarthTooltip) {
+        document.getElementById('starName').textContent = `⊕ Earth`;
+        document.getElementById('constellationName').textContent = `Planet`;
+
+        this.positionTooltip(starInfoElement, event);
+        this.renderer.domElement.style.cursor = 'pointer';
+      }
+      // Check planets third
       else if (planetIntersects.length > 0) {
         const planet = planetIntersects[0];
         const planetSymbols = {
@@ -1229,11 +1243,21 @@ export class ArmillaryScene {
       // Check realistic moon
       const moonIntersects = raycaster.intersectObjects(this.realisticMoonGroup.children, false);
 
+      // Check Earth
+      const earthIntersects = this.earthGroup ? raycaster.intersectObjects(this.earthGroup.children, false) : [];
+
+      // Check horizon plane
+      const horizonIntersects = this.horizonPlane ? raycaster.intersectObject(this.horizonPlane, false) : [];
+
       let targetObject = null;
       let targetRadius = null;
       let targetWorldPos = new THREE.Vector3();
 
-      if (planetIntersects.length > 0) {
+      if (horizonIntersects.length > 0) {
+        this.armillaryRoot.getWorldPosition(targetWorldPos);
+        targetRadius = this.CE_RADIUS;
+        targetObject = 'horizon';
+      } else if (planetIntersects.length > 0) {
         const planet = planetIntersects[0];
         planet.planetData.group.getWorldPosition(targetWorldPos);
         // Account for planet scale when calculating zoom distance
@@ -1245,6 +1269,10 @@ export class ArmillaryScene {
         this.realisticSunGroup.getWorldPosition(targetWorldPos);
         targetRadius = this.realisticSunMesh.geometry.parameters.radius;
         targetObject = 'sun';
+      } else if (earthIntersects.length > 0) {
+        this.earthGroup.getWorldPosition(targetWorldPos);
+        targetRadius = this.EARTH_RADIUS;
+        targetObject = 'earth';
       } else if (moonIntersects.length > 0) {
         this.realisticMoonGroup.getWorldPosition(targetWorldPos);
         targetRadius = this.realisticMoonMesh.geometry.parameters.radius;
@@ -1253,18 +1281,36 @@ export class ArmillaryScene {
 
       if (targetObject) {
         // Calculate camera position (offset from target)
-        // Use a smaller multiplier for better planet viewing (fills ~1/2 screen)
-        const zoomDistance = targetRadius * 4; // Distance from surface
+        let newCameraPos;
+        let newUp = new THREE.Vector3(0, 1, 0); // Default to world up
 
-        // Get direction from target to current camera
-        const direction = camera.position.clone().sub(targetWorldPos).normalize();
+        if (targetObject === 'horizon') {
+          // Orient facing North (Local +Z) from South (Local -Z)
+          // Position camera at South (-Z) and slightly Up (+Y)
+          const localOffset = new THREE.Vector3(0, targetRadius * 2.0, -targetRadius * 6.0);
 
-        // Calculate new camera position
-        const newCameraPos = targetWorldPos.clone().add(direction.multiplyScalar(zoomDistance));
+          // Transform to world space
+          const worldOffset = localOffset.applyQuaternion(this.armillaryRoot.quaternion);
+          newCameraPos = targetWorldPos.clone().add(worldOffset);
+
+          // Align camera up with local up
+          const localUp = new THREE.Vector3(0, 1, 0);
+          newUp = localUp.applyQuaternion(this.armillaryRoot.quaternion);
+        } else {
+          // Use a smaller multiplier for better planet viewing (fills ~1/2 screen)
+          const zoomDistance = targetRadius * 4; // Distance from surface
+
+          // Get direction from target to current camera
+          const direction = camera.position.clone().sub(targetWorldPos).normalize();
+
+          // Calculate new camera position
+          newCameraPos = targetWorldPos.clone().add(direction.multiplyScalar(zoomDistance));
+        }
 
         // Smoothly animate camera
         const startPos = camera.position.clone();
         const startTarget = this.controls.target.clone();
+        const startUp = camera.up.clone();
         const duration = 1000; // 1 second
         const startTime = performance.now();
 
@@ -1282,6 +1328,12 @@ export class ArmillaryScene {
 
           // Interpolate target
           this.controls.target.lerpVectors(startTarget, targetWorldPos, eased);
+
+          // Interpolate up vector
+          camera.up.lerpVectors(startUp, newUp, eased).normalize();
+
+          // Ensure camera looks at target during transition
+          camera.lookAt(this.controls.target);
 
           if (progress < 1) {
             requestAnimationFrame(animateCamera);
