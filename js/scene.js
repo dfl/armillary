@@ -794,6 +794,7 @@ export class ArmillaryScene {
         opacity: { value: 1.0 }
       },
       transparent: true,
+      depthWrite: false,
       vertexShader: `
         varying vec2 vUv;
         varying vec3 vNormal;
