@@ -123,3 +123,48 @@ input[type="text"] {
   color: #fff;
   font-weight: bold;
 }
+
+/* Context menu styles */
+.context-menu {
+  position: fixed;
+  background: rgba(0, 0, 0, 0.9);
+  border: 1px solid #444;
+  border-radius: 0.5rem;
+  padding: 8px 0;
+  min-width: 180px;
+  z-index: 10000;
+  display: none;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.7);
+  font-family: sans-serif;
+  color: white;
+}
+
+.context-menu.visible {
+  display: block;
+}
+
+.context-menu-title {
+  padding: 6px 16px;
+  font-weight: bold;
+  font-size: 12px;
+  color: #aaa;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.context-menu-item {
+  padding: 10px 16px;
+  cursor: pointer;
+  font-size: 15px;
+  transition: background-color 0.15s;
+}
+
+.context-menu-item:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.context-menu-separator {
+  height: 1px;
+  background: #444;
+  margin: 4px 0;
+}

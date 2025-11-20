@@ -97,6 +97,7 @@ export class ArmillaryScene {
     this.createAngleLabels();
     this.setupStarHover();
     this.setupPlanetDoubleClick();
+    this.setupContextMenu();
   }
 
   initScene() {
@@ -1237,6 +1238,102 @@ export class ArmillaryScene {
     };
 
     this.renderer.domElement.addEventListener('dblclick', onDoubleClick);
+  }
+
+  zoomToTarget(targetName) {
+    let targetWorldPos = new THREE.Vector3();
+    let targetRadius = null;
+    const camera = this.stereoEnabled ? this.camera : this.camera;
+
+    // Get target position and radius based on name
+    if (targetName === 'sun') {
+      this.realisticSunGroup.getWorldPosition(targetWorldPos);
+      targetRadius = this.realisticSunMesh.geometry.parameters.radius;
+    } else if (targetName === 'moon') {
+      this.realisticMoonGroup.getWorldPosition(targetWorldPos);
+      targetRadius = this.realisticMoonMesh.geometry.parameters.radius;
+    } else if (this.planetGroups[targetName]) {
+      this.planetGroups[targetName].group.getWorldPosition(targetWorldPos);
+      targetRadius = this.planetGroups[targetName].mesh.geometry.parameters.radius;
+    } else {
+      debugLog.warn('Target not found:', targetName);
+      return;
+    }
+
+    // Calculate camera position (offset from target)
+    const zoomDistance = targetRadius * 8; // Distance from surface
+
+    // Get direction from target to current camera
+    const direction = camera.position.clone().sub(targetWorldPos).normalize();
+
+    // Calculate new camera position
+    const newCameraPos = targetWorldPos.clone().add(direction.multiplyScalar(zoomDistance));
+
+    // Smoothly animate camera
+    const startPos = camera.position.clone();
+    const startTarget = this.controls.target.clone();
+    const duration = 1000; // 1 second
+    const startTime = performance.now();
+
+    const animateCamera = () => {
+      const elapsed = performance.now() - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+
+      // Ease-in-out function
+      const eased = progress < 0.5
+        ? 2 * progress * progress
+        : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+
+      // Interpolate position
+      camera.position.lerpVectors(startPos, newCameraPos, eased);
+
+      // Interpolate target
+      this.controls.target.lerpVectors(startTarget, targetWorldPos, eased);
+
+      if (progress < 1) {
+        requestAnimationFrame(animateCamera);
+      }
+    };
+
+    animateCamera();
+  }
+
+  setupContextMenu() {
+    const contextMenu = document.getElementById('contextMenu');
+    const menuItems = contextMenu.querySelectorAll('.context-menu-item');
+
+    // Show context menu on right-click
+    this.renderer.domElement.addEventListener('contextmenu', (event) => {
+      event.preventDefault();
+
+      // Position menu at mouse location
+      contextMenu.style.left = event.clientX + 'px';
+      contextMenu.style.top = event.clientY + 'px';
+      contextMenu.classList.add('visible');
+    });
+
+    // Hide context menu on click outside
+    document.addEventListener('click', (event) => {
+      if (!contextMenu.contains(event.target)) {
+        contextMenu.classList.remove('visible');
+      }
+    });
+
+    // Handle menu item clicks
+    menuItems.forEach(item => {
+      item.addEventListener('click', () => {
+        const target = item.getAttribute('data-target');
+        this.zoomToTarget(target);
+        contextMenu.classList.remove('visible');
+      });
+    });
+
+    // Hide context menu on escape key
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') {
+        contextMenu.classList.remove('visible');
+      }
+    });
   }
 
   positionTooltip(tooltipElement, event) {
