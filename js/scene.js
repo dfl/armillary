@@ -721,6 +721,16 @@ export class ArmillaryScene {
     this.cameraController.toggleStarfield(visible);
   }
 
+  togglePlanets(visible) {
+    // Toggle planets (Mercury through Pluto) and the realistic sun
+    // Keep Earth, Moon, and ecliptic sun visible
+    Object.keys(this.celestialObjects.planetGroups).forEach(planetName => {
+      this.celestialObjects.planetGroups[planetName].group.visible = visible;
+    });
+    // Hide the realistic sun (keep ecliptic sun for reference)
+    this.celestialObjects.realisticSunGroup.visible = visible;
+  }
+
   // ===================================================================
   // Debug Helper
   // ===================================================================

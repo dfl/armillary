@@ -95,6 +95,12 @@ starfieldToggle.addEventListener('change', () => {
   scene.toggleStarfield(starfieldToggle.checked);
 });
 
+// Planets toggle
+const planetsToggle = document.getElementById('planetsToggle');
+planetsToggle.addEventListener('change', () => {
+  scene.togglePlanets(planetsToggle.checked);
+});
+
 // Stereo view toggle
 const stereoToggle = document.getElementById('stereoToggle');
 stereoToggle.addEventListener('change', () => {
