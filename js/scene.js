@@ -1414,12 +1414,13 @@ export class ArmillaryScene {
     // Show context menu on right-click
     this.renderer.domElement.addEventListener('contextmenu', (event) => {
       event.preventDefault();
+      event.stopPropagation(); // Prevent browser extensions from interfering
 
       // Position menu at mouse location
       contextMenu.style.left = event.clientX + 'px';
       contextMenu.style.top = event.clientY + 'px';
       contextMenu.classList.add('visible');
-    });
+    }, true); // Use capture phase to intercept before extensions
 
     // Hide context menu on click outside
     document.addEventListener('click', (event) => {

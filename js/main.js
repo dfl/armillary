@@ -175,6 +175,12 @@ if (!hasURLState) {
   updateVisualization();
 }
 
+// Set default camera zoom to horizon (slightly zoomed out)
+// Use setTimeout to ensure armillaryRoot is positioned after updateSphere
+setTimeout(() => {
+  scene.zoomToTarget('horizon');
+}, 500);
+
 // Start animation loop
 scene.animate();
 
