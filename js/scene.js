@@ -1723,7 +1723,7 @@ export class ArmillaryScene {
     const planetNames = ['mercury', 'venus', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune', 'pluto'];
 
     // Scale planets down in horizon view to make them look less overwhelming
-    const planetScale = distToObserver < 50.0 ? 0.05 : 1.0;
+    const planetScale = distToObserver < 50.0 ? 0.005 : 1.0;
 
     planetNames.forEach(planetName => {
       if (this.planetGroups[planetName]) {
