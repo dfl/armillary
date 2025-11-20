@@ -179,7 +179,7 @@ if (!hasURLState) {
 // Use setTimeout to ensure armillaryRoot is positioned after updateSphere
 setTimeout(() => {
   scene.zoomToTarget('horizon');
-}, 500);
+}, 1000);
 
 // Start animation loop
 scene.animate();
