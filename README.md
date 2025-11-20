@@ -171,3 +171,4 @@ This project is provided as-is for educational and astronomical purposes.
 - Three.js community
 - Moshier Ephemeris library
 - chrono-node for natural language date parsing
+- Texture Maps: https://planetpixelemporium.com/

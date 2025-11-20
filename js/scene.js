@@ -10,6 +10,14 @@ export class ArmillaryScene {
     this.CE_RADIUS = 3;
     this.SUN_TEXTURE_PATH = '/armillary/images/sun_texture.jpg';
     this.MOON_TEXTURE_PATH = '/armillary/images/moon_texture.jpg';
+    this.MERCURY_TEXTURE_PATH = '/armillary/images/mercury_texture.jpg';
+    this.VENUS_TEXTURE_PATH = '/armillary/images/venus_texture.jpg';
+    this.MARS_TEXTURE_PATH = '/armillary/images/mars_texture.jpg';
+    this.JUPITER_TEXTURE_PATH = '/armillary/images/jupiter_texture.jpg';
+    this.SATURN_TEXTURE_PATH = '/armillary/images/saturn_texture.jpg';
+    this.URANUS_TEXTURE_PATH = '/armillary/images/uranus_texture.jpg';
+    this.NEPTUNE_TEXTURE_PATH = '/armillary/images/neptune_texture.jpg';
+    this.PLUTO_TEXTURE_PATH = '/armillary/images/pluto_texture.jpg';
 
     this.scene = null;
     this.camera = null;
@@ -722,14 +730,32 @@ export class ArmillaryScene {
 
     console.log('CE_RADIUS:', this.CE_RADIUS, 'baseRadius:', baseRadius);
 
+    // Load textures
+    const textureLoader = new THREE.TextureLoader();
+    const planetTextures = {
+      mercury: textureLoader.load(this.MERCURY_TEXTURE_PATH),
+      venus: textureLoader.load(this.VENUS_TEXTURE_PATH),
+      mars: textureLoader.load(this.MARS_TEXTURE_PATH),
+      jupiter: textureLoader.load(this.JUPITER_TEXTURE_PATH),
+      saturn: textureLoader.load(this.SATURN_TEXTURE_PATH),
+      uranus: textureLoader.load(this.URANUS_TEXTURE_PATH),
+      neptune: textureLoader.load(this.NEPTUNE_TEXTURE_PATH),
+      pluto: textureLoader.load(this.PLUTO_TEXTURE_PATH)
+    };
+
     planetData.forEach(planet => {
       // Calculate radius based on relative diameter
       const radius = baseRadius * (planet.diameter / earthDiameter);
       const distance = this.CE_RADIUS * planet.distance;
 
+      // Create material with texture
+      const material = new THREE.MeshBasicMaterial({
+        map: planetTextures[planet.name]
+      });
+
       const planetMesh = new THREE.Mesh(
         new THREE.SphereGeometry(radius, 32, 32),
-        new THREE.MeshBasicMaterial({ color: planet.color })
+        material
       );
 
       // Add subtle glow for larger planets
