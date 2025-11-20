@@ -290,6 +290,24 @@ export class AstronomyCalculator {
   }
 
   /**
+   * Get Earth's heliocentric position derived from Sun's geocentric position
+   * Returns { longitude: radians, distance: AU }
+   */
+  getEarthHeliocentricPosition(currentDay, currentYear, month, day, hours, minutes) {
+    // Calculate Sun's geocentric position
+    const sunLonRad = this.calculateSunPosition(currentDay, currentYear, month, day, hours, minutes);
+    
+    // Earth is opposite to Sun
+    const earthLonRad = (sunLonRad + Math.PI) % (2 * Math.PI);
+    
+    // Distance is effectively 1 AU (simplified, or could use ephemeris distance if available)
+    return {
+      longitude: earthLonRad,
+      distance: 1.0
+    };
+  }
+
+  /**
    * Calculate planet's position using ephemeris npm package
    * planetName: 'mercury', 'venus', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune', 'pluto'
    * Returns {

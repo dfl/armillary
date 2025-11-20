@@ -8,16 +8,17 @@ export class ArmillaryScene {
   constructor() {
     this.obliquity = 23.44 * Math.PI / 180;
     this.CE_RADIUS = 3; // Celestial sphere radius (local horizon visualization scale)
-    this.EARTH_RADIUS = 1.0; // Earth's radius in scene units
+    this.EARTH_RADIUS = 0.5; // Earth's radius in scene units
 
     // Fudged distances for visibility (keeping relative proportions)
-    this.PLANET_RADIUS_SCALE = 3; // Scale factor to make all bodies visible
-    this.PLANET_DISTANCE_SCALE = 30; // Scale factor for planet orbital distances
+    this.PLANET_RADIUS_SCALE = 1.0; // Scale factor to make all bodies visible
+    this.PLANET_DISTANCE_SCALE = 80; // Scale factor for planet orbital distances (1 AU = 80 units)
 
-    this.SUN_DISTANCE = 300; // Sun distance (much closer than reality for visibility)
-    this.SUN_RADIUS = 109 * this.EARTH_RADIUS * this.PLANET_RADIUS_SCALE; // Sun is ~109× Earth
-    this.MOON_DISTANCE = 15; // Moon distance from Earth
-    this.MOON_RADIUS = 0.273 * this.EARTH_RADIUS * this.PLANET_RADIUS_SCALE; // Moon is ~27.3% Earth
+    this.SUN_RADIUS = 15; // Sun radius (scaled down from reality but large enough)
+    this.MOON_DISTANCE = 4; // Moon distance from Earth (scaled)
+    this.MOON_RADIUS = 0.273 * this.EARTH_RADIUS; // Moon is ~27.3% Earth
+    
+    this.EARTH_TEXTURE_PATH = '/armillary/images/earth_texture.jpg';
     this.SUN_TEXTURE_PATH = '/armillary/images/sun_texture.jpg';
     this.REALISTIC_SUN_TEXTURE_PATH = '/armillary/images/sun_texture_orange.jpg';
     this.MOON_TEXTURE_PATH = '/armillary/images/moon_texture.jpg';
@@ -41,6 +42,8 @@ export class ArmillaryScene {
     this.stereoEnabled = false;
     this.eyeSeparation = 0.3; // Distance between eyes for stereo effect
 
+    this.armillaryRoot = null; // Root group for the observer-centric armillary sphere
+    this.earthGroup = null; // Earth mesh group
     this.tiltGroup = null;
     this.celestial = null;
     this.zodiacGroup = null;
@@ -139,8 +142,12 @@ export class ArmillaryScene {
   }
 
   initGroups() {
+    // Armillary Root holds the observer-centric visualization (Horizon, Celestial Sphere, etc.)
+    this.armillaryRoot = new THREE.Group();
+    this.scene.add(this.armillaryRoot);
+
     this.tiltGroup = new THREE.Group();
-    this.scene.add(this.tiltGroup);
+    this.armillaryRoot.add(this.tiltGroup);
 
     this.celestial = new THREE.Group();
     this.tiltGroup.add(this.celestial);
@@ -159,7 +166,7 @@ export class ArmillaryScene {
       new THREE.MeshBasicMaterial({ color: 0x00ff00, ...planeOpts })
     );
     horizonPlane.rotation.x = -Math.PI / 2;
-    this.scene.add(horizonPlane);
+    this.armillaryRoot.add(horizonPlane);
 
     // Horizon outline
     const horizonOutlinePoints = [];
@@ -173,7 +180,7 @@ export class ArmillaryScene {
     );
     this.horizonOutline.rotation.x = -Math.PI / 2;
     this.horizonOutline.userData.circleName = "Horizon";
-    this.scene.add(this.horizonOutline);
+    this.armillaryRoot.add(this.horizonOutline);
 
     // Compass rose
     this.createCompassRose();
@@ -190,7 +197,7 @@ export class ArmillaryScene {
     );
     this.meridianOutline.rotation.y = Math.PI / 2;
     this.meridianOutline.userData.circleName = "Meridian";
-    this.scene.add(this.meridianOutline);
+    this.armillaryRoot.add(this.meridianOutline);
 
     // Prime vertical outline
     const pvOutlinePoints = [];
@@ -203,7 +210,7 @@ export class ArmillaryScene {
       new THREE.LineBasicMaterial({ color: 0x00ff00, opacity: 0.5, transparent: true })
     );
     this.primeVerticalOutline.userData.circleName = "Prime Vertical";
-    this.scene.add(this.primeVerticalOutline);
+    this.armillaryRoot.add(this.primeVerticalOutline);
 
     // Compass labels
     this.addCompassLabels();
@@ -297,7 +304,7 @@ export class ArmillaryScene {
     });
 
     compassRosetteGroup.position.y = 0.01;
-    this.scene.add(compassRosetteGroup);
+    this.armillaryRoot.add(compassRosetteGroup);
   }
 
   addCompassLabels() {
@@ -318,7 +325,7 @@ export class ArmillaryScene {
       mesh.position.set(x, 0.01, z);
       mesh.rotation.x = -Math.PI / 2;
       mesh.rotation.z = rotZ;
-      this.scene.add(mesh);
+      this.armillaryRoot.add(mesh);
     };
 
     addCompassLabel('N', 0, compassRadius, 0);
@@ -687,7 +694,8 @@ export class ArmillaryScene {
       this.realisticSunGlowMeshes.push(glowMesh);
     });
 
-    this.zodiacGroup.add(this.realisticSunGroup);
+    // Add realistic sun to the root scene (heliocentric center)
+    this.scene.add(this.realisticSunGroup);
   }
 
   createMoon() {
@@ -770,7 +778,8 @@ export class ArmillaryScene {
       this.realisticMoonGlowMeshes.push(glowMesh);
     });
 
-    this.zodiacGroup.add(this.realisticMoonGroup);
+    // Add realistic moon to the root scene (will be positioned relative to Earth)
+    this.scene.add(this.realisticMoonGroup);
   }
 
   createPlanets() {
@@ -807,6 +816,16 @@ export class ArmillaryScene {
       neptune: textureLoader.load(this.NEPTUNE_TEXTURE_PATH),
       pluto: textureLoader.load(this.PLUTO_TEXTURE_PATH)
     };
+
+    // Create Earth
+    const earthTexture = textureLoader.load(this.EARTH_TEXTURE_PATH);
+    const earthMesh = new THREE.Mesh(
+      new THREE.SphereGeometry(this.EARTH_RADIUS, 32, 32),
+      new THREE.MeshBasicMaterial({ map: earthTexture })
+    );
+    this.earthGroup = new THREE.Group();
+    this.earthGroup.add(earthMesh);
+    this.scene.add(this.earthGroup);
 
     // Load Saturn ring textures
     const saturnRingsTexture = textureLoader.load(
@@ -883,7 +902,7 @@ export class ArmillaryScene {
         distance: distance
       };
 
-      this.zodiacGroup.add(planetGroup);
+      this.scene.add(planetGroup);
       debugLog.log(`Created planet ${planet.name} with radius ${radius} at distance ${distance}`);
     });
   }
@@ -1512,30 +1531,40 @@ export class ArmillaryScene {
     this.eclipticSunGroup.getWorldPosition(sunWorldPos);
     const isSunAboveHorizon = sunWorldPos.y > 0;
 
-    debugLog.log('Sun world Y:', sunWorldPos.y, 'Above horizon:', isSunAboveHorizon);
-
     if (isSunAboveHorizon) {
-      // Bright sun with texture when above horizon
       this.eclipticSunMesh.material.color.setHex(0xffaa44);
-      debugLog.log('Setting sun to bright color with texture');
     } else {
-      // Dark gray without texture when below horizon
       this.eclipticSunMesh.material.color.setHex(0xA04C28);
-      debugLog.log('Setting sun to dark color without texture');
     }
     this.eclipticSunMesh.material.needsUpdate = true;
 
-    // Moon position
+    // --- HELIOCENTRIC POSITIONING ---
+
+    // 1. Position Earth
+    const earthData = astroCalc.getEarthHeliocentricPosition(currentDay, currentYear, month, day, hours, minutes);
+    const earthRad = earthData.longitude - ayanamsha;
+    const earthDist = earthData.distance * this.PLANET_DISTANCE_SCALE;
+    
+    const earthX = Math.cos(earthRad) * earthDist;
+    const earthY = Math.sin(earthRad) * earthDist;
+    
+    this.earthGroup.position.set(earthX, earthY, 0);
+    
+    // Move the Armillary Sphere (Observer View) to Earth's position
+    this.armillaryRoot.position.copy(this.earthGroup.position);
+
+    // 2. Position Moon (Relative to Earth)
     const moonLonRad = astroCalc.calculateMoonPosition(
       currentDay, currentYear, month, day, hours, minutes, currentLongitude
     );
     const moonDeg = THREE.MathUtils.radToDeg(moonLonRad);
     this.eclipticMoonGroup.position.copy(placeOnZodiac(moonDeg));
 
-    // Realistic moon at proper distance from Earth (~60 Earth radii)
-    const moonDistance = this.MOON_DISTANCE;
+    // Realistic moon orbits Earth
     const mRad = THREE.MathUtils.degToRad(moonDeg) - ayanamsha;
-    this.realisticMoonGroup.position.set(Math.cos(mRad) * moonDistance, Math.sin(mRad) * moonDistance, 0);
+    const moonX = earthX + Math.cos(mRad) * this.MOON_DISTANCE;
+    const moonY = earthY + Math.sin(mRad) * this.MOON_DISTANCE;
+    this.realisticMoonGroup.position.set(moonX, moonY, 0);
 
     // Store moon zodiac position for tooltip
     this.moonZodiacPosition = astroCalc.toZodiacString(moonDeg - ayanamshaDeg);
@@ -1543,55 +1572,17 @@ export class ArmillaryScene {
     // Calculate lunar phase
     this.lunarPhase = astroCalc.calculateLunarPhase(sunLonRad, moonLonRad);
 
-    // Check for sun-moon collision and adjust sun transparency
-    const sunMoonDistance = this.eclipticSunGroup.position.distanceTo(this.eclipticMoonGroup.position);
-    const collisionThreshold = 0.35; // Adjust this value to control when transparency kicks in
-
-    if (sunMoonDistance < collisionThreshold) {
-      // Collision detected - make sun transparent (closer = more transparent)
-      // When distance = 0, opacity = 0.5; when distance = threshold, opacity = 1.0
-      const opacity = 0.5 + (sunMoonDistance / collisionThreshold) * 0.5;
-      this.eclipticSunMesh.material.opacity = opacity;
-      this.realisticSunMesh.material.opacity = opacity;
-    } else {
-      // No collision - keep sun opaque
-      this.eclipticSunMesh.material.opacity = 1.0;
-      this.realisticSunMesh.material.opacity = 1.0;
-    }
-
-    // Update planet positions (geocentric - from Earth's perspective)
-    debugLog.log('=== Updating planet positions ===');
-    debugLog.log('Available planet groups:', Object.keys(this.planetGroups));
-
-    // In heliocentric view, calculate Earth's position first
-    // Earth is 1 AU from Sun, at opposite side of Sun from geocentric Sun position
-    const earthHeliocentricLon = (sunDeg + 180) % 360; // Earth is opposite to Sun
-    const earthDistance = 1.0 * this.PLANET_DISTANCE_SCALE; // Earth at 1 AU
-    const earthRad = THREE.MathUtils.degToRad(earthHeliocentricLon) - ayanamsha;
-
-    // In heliocentric system, "Earth" position is where we need to offset from
-    const earthHelioPos = new THREE.Vector3(
-      Math.cos(earthRad) * earthDistance,
-      Math.sin(earthRad) * earthDistance,
-      0
-    );
-    debugLog.log('Earth heliocentric position:', earthHelioPos.x, earthHelioPos.y);
-
+    // 3. Position Planets (Heliocentric)
     const planetNames = ['mercury', 'venus', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune', 'pluto'];
-
-    // Sun is at origin (0,0,0) in heliocentric system
-    debugLog.log('Sun at origin (0,0,0) for heliocentric coords');
 
     planetNames.forEach(planetName => {
       if (this.planetGroups[planetName]) {
-        debugLog.log(`Processing ${planetName}...`);
         const planetData = astroCalc.calculatePlanetPosition(
           planetName, currentDay, currentYear, month, day, hours, minutes
         );
 
         // Use geocentric longitude for tooltip display
         const geocentricDeg = THREE.MathUtils.radToDeg(planetData.geocentricLongitude);
-        debugLog.log(`  ${planetName} geocentric longitude (deg):`, geocentricDeg);
 
         // Use heliocentric coordinates for 3D positioning relative to Sun
         let planetLonRad, distance;
@@ -1600,31 +1591,21 @@ export class ArmillaryScene {
           // Use actual heliocentric position
           planetLonRad = planetData.heliocentricLongitude;
           distance = planetData.heliocentricDistance * this.PLANET_DISTANCE_SCALE;
-          debugLog.log(`  ${planetName} heliocentric longitude (rad):`, planetLonRad);
-          debugLog.log(`  ${planetName} heliocentric distance (AU):`, planetData.heliocentricDistance, '-> scene units:', distance);
         } else {
           // Fallback to average orbital distance
           planetLonRad = planetData.geocentricLongitude;
           distance = this.planetGroups[planetName].distance;
-          debugLog.log(`  ${planetName} using fallback distance:`, distance);
         }
 
         const pRad = planetLonRad - ayanamsha;
-        debugLog.log(`  ${planetName} adjusted rad:`, pRad, 'ayanamsha:', ayanamsha);
 
         // Position planet relative to Sun at origin (heliocentric)
         const x = Math.cos(pRad) * distance;
         const y = Math.sin(pRad) * distance;
         this.planetGroups[planetName].group.position.set(x, y, 0);
 
-        debugLog.log(`  Positioned ${planetName} at (${x.toFixed(2)}, ${y.toFixed(2)}, 0) - geocentric: ${geocentricDeg.toFixed(1)}°`);
-        debugLog.log(`  Planet group visible:`, this.planetGroups[planetName].group.visible);
-        debugLog.log(`  Planet mesh radius:`, this.planetGroups[planetName].mesh.geometry.parameters.radius);
-
         // Store planet zodiac position for tooltip (using geocentric longitude)
         this.planetZodiacPositions[planetName] = astroCalc.toZodiacString(geocentricDeg - ayanamshaDeg);
-      } else {
-        debugLog.warn(`Planet group not found: ${planetName}`);
       }
     });
     debugLog.log('=== Done updating planets ===');
