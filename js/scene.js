@@ -1628,26 +1628,11 @@ export class ArmillaryScene {
     // Realistic sun at ORIGIN (0,0,0) for heliocentric system
     this.realisticSunGroup.position.set(0, 0, 0);
 
-    // Update sun color based on whether it's above or below the horizon
-    // Force matrix update to get accurate world position
-    this.scene.updateMatrixWorld(true);
-
-    const sunWorldPos = new THREE.Vector3();
-    this.eclipticSunGroup.getWorldPosition(sunWorldPos);
-    const isSunAboveHorizon = sunWorldPos.y > 0;
-
-    if (isSunAboveHorizon) {
-      this.eclipticSunMesh.material.color.setHex(0xffaa44);
-    } else {
-      this.eclipticSunMesh.material.color.setHex(0xA04C28);
-    }
-    this.eclipticSunMesh.material.needsUpdate = true;
-
     // --- HELIOCENTRIC POSITIONING ---
 
     // 1. Position Earth
     const earthData = astroCalc.getEarthHeliocentricPosition(currentDay, currentYear, month, day, hours, minutes);
-    const earthRad = earthData.longitude - ayanamsha;
+    const earthRad = earthData.longitude;
     const earthDist = earthData.distance * this.PLANET_DISTANCE_SCALE;
     
     const earthX = Math.cos(earthRad) * earthDist;
@@ -1722,7 +1707,7 @@ export class ArmillaryScene {
     this.eclipticMoonGroup.position.copy(placeOnZodiac(moonDeg));
 
     // Realistic moon orbits Earth
-    const mRad = THREE.MathUtils.degToRad(moonDeg) - ayanamsha;
+    const mRad = THREE.MathUtils.degToRad(moonDeg);
     const moonX = earthX + Math.cos(mRad) * this.MOON_DISTANCE;
     const moonY = earthY + Math.sin(mRad) * this.MOON_DISTANCE;
     this.realisticMoonGroup.position.set(moonX, moonY, 0);
@@ -1764,7 +1749,7 @@ export class ArmillaryScene {
           distance = this.planetGroups[planetName].distance;
         }
 
-        const pRad = planetLonRad - ayanamsha;
+        const pRad = planetLonRad;
 
         // Position planet relative to Sun at origin (heliocentric)
         const x = Math.cos(pRad) * distance;
@@ -1799,6 +1784,21 @@ export class ArmillaryScene {
         sunset: this.cachedRiseSet.sunset
       };
     }
+
+    // Update sun color based on whether it's above or below the horizon
+    // We check the sun's position in the armillaryRoot's local space (where Y is Up)
+    this.scene.updateMatrixWorld(true);
+    const sunWorldPos = new THREE.Vector3();
+    this.eclipticSunGroup.getWorldPosition(sunWorldPos);
+    const sunLocalPos = this.armillaryRoot.worldToLocal(sunWorldPos.clone());
+
+    // Use a small negative threshold to account for the sun's radius and visual overlap
+    if (sunLocalPos.y > -0.05) {
+      this.eclipticSunMesh.material.color.setHex(0xffaa44);
+    } else {
+      this.eclipticSunMesh.material.color.setHex(0xA04C28);
+    }
+    this.eclipticSunMesh.material.needsUpdate = true;
   }
 
   toggleStarfield(visible) {
