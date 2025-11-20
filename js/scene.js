@@ -44,6 +44,7 @@ export class ArmillaryScene {
 
     this.armillaryRoot = null; // Root group for the observer-centric armillary sphere
     this.earthGroup = null; // Earth mesh group
+    this.earthMesh = null; // Earth sphere mesh
     this.tiltGroup = null;
     this.celestial = null;
     this.zodiacGroup = null;
@@ -819,12 +820,12 @@ export class ArmillaryScene {
 
     // Create Earth
     const earthTexture = textureLoader.load(this.EARTH_TEXTURE_PATH);
-    const earthMesh = new THREE.Mesh(
+    this.earthMesh = new THREE.Mesh(
       new THREE.SphereGeometry(this.EARTH_RADIUS, 32, 32),
       new THREE.MeshBasicMaterial({ map: earthTexture })
     );
     this.earthGroup = new THREE.Group();
-    this.earthGroup.add(earthMesh);
+    this.earthGroup.add(this.earthMesh);
     this.scene.add(this.earthGroup);
 
     // Load Saturn ring textures
@@ -1575,6 +1576,21 @@ export class ArmillaryScene {
     const oldEarthPos = this.earthGroup.position.clone();
 
     this.earthGroup.position.copy(newEarthPos);
+
+    // Update Earth Rotation (Spin + Tilt)
+    // Calculate GST (Greenwich Sidereal Time) for Earth spin
+    const { LST: GSTdeg } = astroCalc.calculateLST(currentDay, currentTime, 0, currentYear);
+    const gstRad = THREE.MathUtils.degToRad(GSTdeg);
+
+    // Rotate Earth: Spin (Y) then Tilt (X)
+    // Tilt is (90 - obliquity) around X to bring Y-axis (poles) to point to NCP
+    const tiltQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI / 2 - this.obliquity);
+    // Add PI to gstRad to fix texture phase (Greenwich usually at center/edge)
+    const spinQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), gstRad + Math.PI);
+
+    if (this.earthMesh) {
+      this.earthMesh.quaternion.copy(tiltQ).multiply(spinQ);
+    }
     
     // Move the Armillary Sphere (Observer View) to Earth's position
     this.armillaryRoot.position.copy(this.earthGroup.position);
