@@ -67,9 +67,10 @@ export default class CameraController {
     let newUp = new THREE.Vector3(0, 1, 0); // Default to world up
 
     if (targetName === 'horizon') {
-      // Orient facing North (Local +Z) from South (Local -Z)
-      // Position camera at South (-Z) and slightly Up (+Y)
-      const localOffset = new THREE.Vector3(0, targetRadius * 2.0, -targetRadius * 6.0);
+      // Orient facing South (Local -Z) from North (Local +Z)
+      // Position camera at North (+Z) and slightly Up (+Y)
+      // This places ASC on the left and DSC on the right
+      const localOffset = new THREE.Vector3(0, targetRadius * 2.0, targetRadius * 6.0);
 
       // Transform to world space
       const worldOffset = localOffset.applyQuaternion(this.sceneRef.armillaryRoot.quaternion);

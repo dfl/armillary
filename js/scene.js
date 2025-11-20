@@ -167,7 +167,7 @@ export class ArmillaryScene {
     this.scene.add(new THREE.AmbientLight(0x111111));
 
     // Create main camera for normal (non-stereo) view and controls
-    // Position camera to view from north (East/ASC on left, West/DSC on right)
+    // Horizon view positions camera to face south (East/ASC on left, West/DSC on right)
     this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 500000);
     this.camera.position.set(0, 3.2, 6);
     this.camera.lookAt(0, 0, 0);
