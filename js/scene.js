@@ -924,6 +924,15 @@ export class ArmillaryScene {
     // precise obliquity
     this.obliquity = astroCalc.getObliquity(julianDate);
 
+    // Handle Sidereal Mode
+    const siderealCheckbox = document.getElementById('siderealMode');
+    if (siderealCheckbox && siderealCheckbox.checked) {
+        const ayanamsha = astroCalc.calculateAyanamsha(currentYear);
+        this.zodiacGroup.rotation.z = ayanamsha;
+    } else {
+        this.zodiacGroup.rotation.z = 0;
+    }
+
     // -----------------------------------------------------------
     // 2. Orient the Celestial Sphere (The Equator)
     // -----------------------------------------------------------

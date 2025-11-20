@@ -37,6 +37,40 @@ export class AstronomyCalculator {
    *
    * Returns { LST: degrees (0..360), julianDate }
    */
+  equatorialToEcliptic(raRad, decRad, obliquityRad) {
+    const sinLon = Math.sin(raRad) * Math.cos(obliquityRad) + Math.tan(decRad) * Math.sin(obliquityRad);
+    const cosLon = Math.cos(raRad);
+    const lon = Math.atan2(sinLon, cosLon);
+
+    const sinLat = Math.sin(decRad) * Math.cos(obliquityRad) - Math.cos(decRad) * Math.sin(obliquityRad) * Math.sin(raRad);
+    const lat = Math.asin(sinLat);
+
+    return { lon, lat };
+  }
+
+  calculateAyanamsha(year) {
+    // Aldebaran J2000 coordinates: RA 4.599h, Dec 16.51°
+    const ra = this._degToRad(4.599 * 15);
+    const dec = this._degToRad(16.51);
+    const oblJ2000 = this._degToRad(23.43929);
+
+    // J2000 Ecliptic Longitude of Aldebaran
+    const { lon } = this.equatorialToEcliptic(ra, dec, oblJ2000);
+
+    // Precession: approx 50.29 arcsec/year
+    const yearsSince2000 = year - 2000;
+    const precession = this._degToRad(yearsSince2000 * (50.29 / 3600));
+
+    // Current Tropical Longitude
+    const currentLon = lon + precession;
+
+    // Fagan-Bradley: Aldebaran at 15° Taurus (45°)
+    const targetSiderealLon = this._degToRad(45);
+
+    // Ayanamsha = Tropical - Sidereal
+    return currentLon - targetSiderealLon;
+  }
+
   calculateLST(currentDay, currentTime, currentLongitude, currentYear) {
     // Build a UTC Date from day-of-year + minutes:
     const isLeap = (currentYear % 4 === 0 && currentYear % 100 !== 0) || (currentYear % 400 === 0);

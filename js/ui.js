@@ -197,6 +197,7 @@ export class UIManager {
       lonInput: document.getElementById('lonInput'),
       timeSlider: document.getElementById('timeSlider'),
       timeValue: document.getElementById('timeValue'),
+      siderealCheckbox: this.createSiderealCheckbox(),
       daySlider: document.getElementById('daySlider'),
       dayValue: document.getElementById('dayValue'),
       datetimeInput: document.getElementById('datetimeInput'),
@@ -206,7 +207,40 @@ export class UIManager {
     };
   }
 
+  createSiderealCheckbox() {
+    const container = document.createElement('div');
+    container.style.marginTop = '10px';
+    
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.id = 'siderealMode';
+    
+    const label = document.createElement('label');
+    label.htmlFor = 'siderealMode';
+    label.textContent = ' Sidereal Mode (Fagan-Bradley)';
+    label.style.color = 'white';
+    label.style.marginLeft = '5px';
+    
+    container.appendChild(checkbox);
+    container.appendChild(label);
+    
+    // Append to controls area - assuming latSlider's parent is the controls container
+    const parent = document.getElementById('latSlider')?.parentNode;
+    if (parent) {
+      parent.appendChild(container);
+    }
+    
+    return checkbox;
+  }
+
   setupEventListeners() {
+    // Sidereal checkbox
+    if (this.elements.siderealCheckbox) {
+      this.elements.siderealCheckbox.addEventListener('change', () => {
+        this.updateCallback();
+      });
+    }
+
     // Latitude slider
     this.elements.latSlider.addEventListener('input', () => {
       this.currentLatitude = parseFloat(this.elements.latSlider.value);
