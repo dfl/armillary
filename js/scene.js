@@ -1735,24 +1735,32 @@ export class ArmillaryScene {
         const geocentricDeg = THREE.MathUtils.radToDeg(planetData.geocentricLongitude);
 
         // Use heliocentric coordinates for 3D positioning relative to Sun
-        let planetLonRad, distance;
+        let planetLonRad, planetLatRad, distance;
 
         if (planetData.heliocentricLongitude !== null && planetData.heliocentricDistance !== null) {
           // Use actual heliocentric position
           planetLonRad = planetData.heliocentricLongitude;
+          planetLatRad = planetData.heliocentricLatitude || 0;
           distance = planetData.heliocentricDistance * this.PLANET_DISTANCE_SCALE;
         } else {
           // Fallback to average orbital distance
           planetLonRad = planetData.geocentricLongitude;
+          planetLatRad = 0;
           distance = this.planetGroups[planetName].distance;
         }
 
         const pRad = planetLonRad;
+        const pLat = planetLatRad;
 
         // Position planet relative to Sun at origin (heliocentric)
-        const x = Math.cos(pRad) * distance;
-        const y = Math.sin(pRad) * distance;
-        this.planetGroups[planetName].group.position.set(x, y, 0);
+        // x = r * cos(lat) * cos(lon)
+        // y = r * cos(lat) * sin(lon)
+        // z = r * sin(lat)
+        const x = distance * Math.cos(pLat) * Math.cos(pRad);
+        const y = distance * Math.cos(pLat) * Math.sin(pRad);
+        const z = distance * Math.sin(pLat);
+        
+        this.planetGroups[planetName].group.position.set(x, y, z);
         this.planetGroups[planetName].group.scale.set(planetScale, planetScale, planetScale);
 
         // Store planet zodiac position for tooltip (using geocentric longitude)

@@ -313,6 +313,7 @@ export class AstronomyCalculator {
    * Returns {
    *   geocentricLongitude: radians (0..2π) - for zodiac display
    *   heliocentricLongitude: radians (0..2π) - for 3D positioning
+   *   heliocentricLatitude: radians - for 3D positioning
    *   heliocentricDistance: AU - distance from Sun
    * }
    */
@@ -342,10 +343,12 @@ export class AstronomyCalculator {
 
         // Try to get heliocentric position
         const heliocentricLon = heliocentricObj ? (heliocentricObj.longitude ?? heliocentricObj.lon ?? heliocentricObj.lambda) : null;
+        const heliocentricLat = heliocentricObj ? (heliocentricObj.latitude ?? heliocentricObj.lat ?? heliocentricObj.beta) : null;
         const heliocentricDist = heliocentricObj ? (heliocentricObj.distance ?? heliocentricObj.dist ?? heliocentricObj.r) : null;
 
         debugLog.log(`  Geocentric longitude value:`, geocentricLon);
         debugLog.log(`  Heliocentric longitude value:`, heliocentricLon);
+        debugLog.log(`  Heliocentric latitude value:`, heliocentricLat);
         debugLog.log(`  Heliocentric distance value:`, heliocentricDist);
 
         if (typeof geocentricLon === 'number' && !Number.isNaN(geocentricLon)) {
@@ -357,6 +360,9 @@ export class AstronomyCalculator {
             heliocentricLongitude: (typeof heliocentricLon === 'number' && !Number.isNaN(heliocentricLon))
               ? this._degToRad(this._deg(heliocentricLon))
               : null,
+            heliocentricLatitude: (typeof heliocentricLat === 'number' && !Number.isNaN(heliocentricLat))
+              ? this._degToRad(heliocentricLat)
+              : 0,
             heliocentricDistance: (typeof heliocentricDist === 'number' && !Number.isNaN(heliocentricDist))
               ? heliocentricDist
               : null
@@ -369,7 +375,7 @@ export class AstronomyCalculator {
 
     // Fallback
     debugLog.warn(`Using fallback position for ${planetName}`);
-    return { geocentricLongitude: 0, heliocentricLongitude: null, heliocentricDistance: null };
+    return { geocentricLongitude: 0, heliocentricLongitude: null, heliocentricLatitude: 0, heliocentricDistance: null };
   }
 
   /**
