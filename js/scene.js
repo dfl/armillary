@@ -1,11 +1,22 @@
-// scene.js - 3D scene rendering with Three.js
+// scene.js - 3D scene rendering with Three.js (refactored with modules)
 
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { starData, constellationLines } from './stardata.js';
 
+// Import scene modules
+import ReferenceGeometry from './scene/references.js';
+import ZodiacWheel from './scene/zodiac.js';
+import CelestialObjects from './scene/celestialObjects.js';
+import AngleMarkers from './scene/angles.js';
+import InteractionManager from './scene/interactions.js';
+import CameraController from './scene/camera.js';
+
 export class ArmillaryScene {
   constructor() {
+    // ===================================================================
+    // Constants and Configuration
+    // ===================================================================
     this.obliquity = 23.44 * Math.PI / 180;
     this.CE_RADIUS = 2.0; // Celestial sphere radius (local horizon visualization scale)
     this.EARTH_RADIUS = 100.0; // Earth's radius in scene units (much larger than horizon)
@@ -26,7 +37,8 @@ export class ArmillaryScene {
     this.SUN_RADIUS = this.EARTH_RADIUS * (this.SUN_RADIUS_KM / this.EARTH_RADIUS_KM) * 0.05; // ~109x Earth, scaled
     this.MOON_RADIUS = this.EARTH_RADIUS * (this.MOON_RADIUS_KM / this.EARTH_RADIUS_KM); // ~27.3% Earth
     this.MOON_DISTANCE = 300; // Moon distance from Earth (scaled for visibility, not to scale with radii)
-    
+
+    // Texture paths
     this.EARTH_TEXTURE_PATH = '/armillary/images/earth_texture.jpg';
     this.EARTH_NIGHT_TEXTURE_PATH = '/armillary/images/earth_texture_night.jpg';
     this.SUN_TEXTURE_PATH = '/armillary/images/sun_texture.jpg';
@@ -44,49 +56,71 @@ export class ArmillaryScene {
     this.NEPTUNE_TEXTURE_PATH = '/armillary/images/neptune_texture.jpg';
     this.PLUTO_TEXTURE_PATH = '/armillary/images/pluto_texture.jpg';
 
+    // ===================================================================
+    // Core Three.js Objects
+    // ===================================================================
     this.scene = null;
     this.camera = null;
     this.leftCamera = null;
     this.rightCamera = null;
     this.renderer = null;
     this.controls = null;
-    this.stereoEnabled = false;
-    this.eyeSeparation = 0.3; // Distance between eyes for stereo effect
 
+    // ===================================================================
+    // Scene Groups
+    // ===================================================================
     this.armillaryRoot = null; // Root group for the observer-centric armillary sphere
     this.earthGroup = null; // Earth mesh group
     this.earthMesh = null; // Earth sphere mesh
     this.tiltGroup = null;
     this.celestial = null;
     this.zodiacGroup = null;
+
+    // ===================================================================
+    // Module Instances
+    // ===================================================================
+    this.references = null;
+    this.zodiacWheel = null;
+    this.celestialObjects = null;
+    this.angleMarkers = null;
+    this.interactions = null;
+    this.cameraController = null;
+
+    // ===================================================================
+    // Properties for backward compatibility (mapped from modules)
+    // ===================================================================
     this.starGroup = null;
     this.constellationLineGroup = null;
     this.bgStarField = null;
     this.starMeshes = {}; // Store star meshes for hover detection
-
-    // Store reference circles for hover detection
     this.horizonPlane = null;
     this.horizonOutline = null;
     this.meridianOutline = null;
     this.primeVerticalOutline = null;
     this.celestialEquatorOutline = null;
     this.outerEclipticLine = null;
-
     this.spheres = {};
     this.angleLabels = {};
     this.poleLabels = {}; // Store pole label sprites
     this.eclipticSunGroup = null;
     this.realisticSunGroup = null;
     this.sunTexture = null; // Store texture reference for toggling
+    this.eclipticSunMesh = null;
+    this.eclipticSunGlowMeshes = [];
     this.eclipticMoonGroup = null;
     this.eclipticMoonMesh = null;
     this.realisticMoonGroup = null;
     this.realisticMoonMesh = null;
     this.moonGlowMeshes = [];
     this.realisticMoonGlowMeshes = [];
+    this.realisticSunMesh = null;
+    this.realisticSunGlowMeshes = [];
     this.planetGroups = {}; // Store planet groups
     this.planetZodiacPositions = {}; // Store planet zodiac positions for tooltips
 
+    // ===================================================================
+    // State Management
+    // ===================================================================
     // Track previous armillary state for camera synchronization
     this.prevArmillaryPos = null;
     this.prevArmillaryQuat = null;
@@ -113,22 +147,17 @@ export class ArmillaryScene {
       AVX: ""
     };
 
+    // ===================================================================
+    // Initialization
+    // ===================================================================
     this.initScene();
     this.initGroups();
-    this.createFixedReferences();
-    this.createCelestialEquator();
-    this.createEclipticZodiacWheel();
-    this.createStarField();
-    this.createSun();
-    this.createMoon();
-    this.createPlanets();
-    debugLog.log('After createPlanets, planetGroups:', Object.keys(this.planetGroups));
-    this.createAngleSpheres();
-    this.createAngleLabels();
-    this.setupStarHover();
-    this.setupPlanetDoubleClick();
-    this.setupContextMenu();
+    this.initModules();
   }
+
+  // ===================================================================
+  // Core Initialization Methods
+  // ===================================================================
 
   initScene() {
     this.scene = new THREE.Scene();
@@ -155,10 +184,6 @@ export class ArmillaryScene {
 
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.enableDamping = true;
-
-    window.addEventListener('resize', () => {
-      this.onWindowResize();
-    });
   }
 
   initGroups() {
@@ -177,1412 +202,129 @@ export class ArmillaryScene {
     this.celestial.add(this.zodiacGroup);
   }
 
-  createFixedReferences() {
-    const planeOpts = { side: THREE.DoubleSide, transparent: true, opacity: 0.1 };
-    const sphereRadius = this.CE_RADIUS * 1.6;
+  initModules() {
+    // Initialize all scene modules and map their properties
 
-    // Horizon plane
-    this.horizonPlane = new THREE.Mesh(
-      new THREE.CircleGeometry(sphereRadius, 64),
-      new THREE.MeshBasicMaterial({ color: 0x00ff00, ...planeOpts })
+    // 1. Reference Geometry (horizon, meridian, celestial equator, compass)
+    this.references = new ReferenceGeometry(
+      this.scene,
+      this.armillaryRoot,
+      this.celestial,
+      this.CE_RADIUS
     );
-    this.horizonPlane.rotation.x = -Math.PI / 2;
-    this.armillaryRoot.add(this.horizonPlane);
+    // Map properties for backward compatibility
+    this.horizonPlane = this.references.horizonPlane;
+    this.horizonOutline = this.references.horizonOutline;
+    this.meridianOutline = this.references.meridianOutline;
+    this.primeVerticalOutline = this.references.primeVerticalOutline;
+    this.celestialEquatorOutline = this.references.celestialEquatorOutline;
+    this.poleLabels = this.references.poleLabels;
 
-    // Horizon outline
-    const horizonOutlinePoints = [];
-    for (let i = 0; i <= 64; i++) {
-      const angle = (i / 64) * Math.PI * 2;
-      horizonOutlinePoints.push(new THREE.Vector3(sphereRadius * Math.cos(angle), sphereRadius * Math.sin(angle), 0));
-    }
-    this.horizonOutline = new THREE.Line(
-      new THREE.BufferGeometry().setFromPoints(horizonOutlinePoints),
-      new THREE.LineBasicMaterial({ color: 0x00ff00, opacity: 0.5, transparent: true })
+    // 2. Zodiac Wheel (ecliptic plane and zodiac signs)
+    this.zodiacWheel = new ZodiacWheel(
+      this.zodiacGroup,
+      this.CE_RADIUS,
+      this.obliquity
     );
-    this.horizonOutline.rotation.x = -Math.PI / 2;
-    this.horizonOutline.userData.circleName = "Horizon";
-    this.armillaryRoot.add(this.horizonOutline);
+    // Map properties for backward compatibility
+    this.outerEclipticLine = this.zodiacWheel.outerEclipticLine;
 
-    // Compass rose
-    this.createCompassRose();
-
-    // Meridian outline
-    const meridianOutlinePoints = [];
-    for (let i = 0; i <= 64; i++) {
-      const angle = (i / 64) * Math.PI * 2;
-      meridianOutlinePoints.push(new THREE.Vector3(sphereRadius * Math.cos(angle), sphereRadius * Math.sin(angle), 0));
-    }
-    this.meridianOutline = new THREE.Line(
-      new THREE.BufferGeometry().setFromPoints(meridianOutlinePoints),
-      new THREE.LineBasicMaterial({ color: 0x00ff00, opacity: 0.5, transparent: true })
-    );
-    this.meridianOutline.rotation.y = Math.PI / 2;
-    this.meridianOutline.userData.circleName = "Meridian";
-    this.armillaryRoot.add(this.meridianOutline);
-
-    // Prime vertical outline
-    const pvOutlinePoints = [];
-    for (let i = 0; i <= 64; i++) {
-      const angle = (i / 64) * Math.PI * 2;
-      pvOutlinePoints.push(new THREE.Vector3(sphereRadius * Math.cos(angle), sphereRadius * Math.sin(angle), 0));
-    }
-    this.primeVerticalOutline = new THREE.Line(
-      new THREE.BufferGeometry().setFromPoints(pvOutlinePoints),
-      new THREE.LineBasicMaterial({ color: 0x00ff00, opacity: 0.5, transparent: true })
-    );
-    this.primeVerticalOutline.userData.circleName = "Prime Vertical";
-    this.armillaryRoot.add(this.primeVerticalOutline);
-
-    // Compass labels
-    this.addCompassLabels();
-  }
-
-  createCompassRose() {
-    // Load compass rosette texture
-    const textureLoader = new THREE.TextureLoader();
-    const compassTexture = textureLoader.load('/armillary/images/compass_rosette.png');
-
-    // Create a plane geometry to display the image
-    const scale = this.CE_RADIUS * 1.2; // Size of the compass rosette
-    const compassGeometry = new THREE.PlaneGeometry(scale, scale);
-
-    const compassMaterial = new THREE.MeshBasicMaterial({
-      map: compassTexture,
-      transparent: true,
-      opacity: 0.5, // Semi-transparent
-      side: THREE.DoubleSide,
-      depthWrite: false
-    });
-
-    const compassRosette = new THREE.Mesh(compassGeometry, compassMaterial);
-
-    // Rotate to lie flat on the horizon plane
-    compassRosette.rotation.x = -Math.PI / 2;
-
-    // Position slightly above the horizon to avoid z-fighting
-    compassRosette.position.y = 0.01;
-
-    this.armillaryRoot.add(compassRosette);
-  }
-
-  addCompassLabels() {
-    const compassRadius = this.CE_RADIUS * 1.1;
-    const scale = this.CE_RADIUS / 1.5;
-    const addCompassLabel = (text, x, z, rotZ = 0) => {
-      const canvas = document.createElement('canvas');
-      canvas.width = 128;
-      canvas.height = 128;
-      const ctx = canvas.getContext('2d');
-      ctx.fillStyle = 'white';
-      ctx.font = 'bold 64px Arial';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(text, 64, 64);
-      const texture = new THREE.CanvasTexture(canvas);
-      const mat = new THREE.MeshBasicMaterial({ map: texture, transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthTest: false });
-      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1 * scale, 1 * scale), mat);
-      mesh.position.set(x, 0.01, z);
-      mesh.rotation.x = -Math.PI / 2;
-      mesh.rotation.z = rotZ;
-      this.armillaryRoot.add(mesh);
+    // 3. Celestial Objects (stars, sun, moon, planets, Earth)
+    const constants = {
+      CE_RADIUS: this.CE_RADIUS,
+      EARTH_RADIUS: this.EARTH_RADIUS,
+      SUN_RADIUS: this.SUN_RADIUS,
+      MOON_RADIUS: this.MOON_RADIUS,
+      MOON_DISTANCE: this.MOON_DISTANCE,
+      STAR_FIELD_RADIUS: this.STAR_FIELD_RADIUS,
+      PLANET_RADIUS_SCALE: this.PLANET_RADIUS_SCALE,
+      PLANET_DISTANCE_SCALE: this.PLANET_DISTANCE_SCALE
     };
-
-    addCompassLabel('N', 0, compassRadius, 0);
-    addCompassLabel('S', 0, -compassRadius, Math.PI);
-    addCompassLabel('E', -compassRadius, 0, Math.PI / 2);  // Swapped: E is now at -X (left when facing N)
-    addCompassLabel('W', compassRadius, 0, -Math.PI / 2);   // Swapped: W is now at +X (right when facing N)
-  }
-
-  createCelestialEquator() {
-    const sphereRadius = this.CE_RADIUS * 1.6;
-    const ceqPoints = [];
-    for (let i = 0; i <= 128; i++) {
-      const a = (i / 128) * Math.PI * 2;
-      ceqPoints.push(new THREE.Vector3(sphereRadius * Math.cos(a), sphereRadius * Math.sin(a), 0));
-    }
-    this.celestialEquatorOutline = new THREE.Line(
-      new THREE.BufferGeometry().setFromPoints(ceqPoints),
-      new THREE.LineDashedMaterial({ color: 0x00ffff, opacity: 0.6, transparent: true, dashSize: 0.5, gapSize: 0.3 })
-    );
-    this.celestialEquatorOutline.computeLineDistances();
-    this.celestialEquatorOutline.userData.circleName = "Celestial Equator";
-    this.celestial.add(this.celestialEquatorOutline);
-
-    // Celestial poles
-    const polarLineMaterial = new THREE.LineBasicMaterial({ color: 0x00ffff, opacity: 0.6, transparent: true });
-    const polarLineLength = this.CE_RADIUS * 0.45;
-
-    const npLine = new THREE.Line(
-      new THREE.BufferGeometry().setFromPoints([
-        new THREE.Vector3(0, 0, sphereRadius),
-        new THREE.Vector3(0, 0, sphereRadius + polarLineLength)
-      ]),
-      polarLineMaterial
-    );
-    this.celestial.add(npLine);
-
-    const spLine = new THREE.Line(
-      new THREE.BufferGeometry().setFromPoints([
-        new THREE.Vector3(0, 0, -sphereRadius),
-        new THREE.Vector3(0, 0, -sphereRadius - polarLineLength)
-      ]),
-      polarLineMaterial
-    );
-    this.celestial.add(spLine);
-
-    // Pole labels
-    const addPoleLabel = (name, z) => {
-      const canvas = document.createElement('canvas');
-      canvas.width = 128;
-      canvas.height = 64;
-      const ctx = canvas.getContext('2d');
-      ctx.fillStyle = 'white';
-      ctx.font = '24px Arial';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(name, 64, 32);
-      const texture = new THREE.CanvasTexture(canvas);
-      const mat = new THREE.SpriteMaterial({ map: texture, depthTest: false });
-      const sprite = new THREE.Sprite(mat);
-      const s = this.CE_RADIUS / 1.5;
-      sprite.scale.set(1 * s, 0.5 * s, 1);
-      sprite.position.set(0, 0, z);
-      sprite.userData.poleName = name; // Store pole name for tooltip
-      this.celestial.add(sprite);
-      return sprite;
+    const texturePaths = {
+      EARTH_TEXTURE_PATH: this.EARTH_TEXTURE_PATH,
+      EARTH_NIGHT_TEXTURE_PATH: this.EARTH_NIGHT_TEXTURE_PATH,
+      SUN_TEXTURE_PATH: this.SUN_TEXTURE_PATH,
+      REALISTIC_SUN_TEXTURE_PATH: this.REALISTIC_SUN_TEXTURE_PATH,
+      MOON_TEXTURE_PATH: this.MOON_TEXTURE_PATH,
+      MOON_BUMP_TEXTURE_PATH: this.MOON_BUMP_TEXTURE_PATH,
+      MERCURY_TEXTURE_PATH: this.MERCURY_TEXTURE_PATH,
+      VENUS_TEXTURE_PATH: this.VENUS_TEXTURE_PATH,
+      MARS_TEXTURE_PATH: this.MARS_TEXTURE_PATH,
+      JUPITER_TEXTURE_PATH: this.JUPITER_TEXTURE_PATH,
+      SATURN_TEXTURE_PATH: this.SATURN_TEXTURE_PATH,
+      SATURN_RINGS_TEXTURE_PATH: this.SATURN_RINGS_TEXTURE_PATH,
+      SATURN_RINGS_ALPHA_PATH: this.SATURN_RINGS_ALPHA_PATH,
+      URANUS_TEXTURE_PATH: this.URANUS_TEXTURE_PATH,
+      NEPTUNE_TEXTURE_PATH: this.NEPTUNE_TEXTURE_PATH,
+      PLUTO_TEXTURE_PATH: this.PLUTO_TEXTURE_PATH
     };
-
-    this.poleLabels.NP = addPoleLabel('NP', sphereRadius + polarLineLength);
-    this.poleLabels.SP = addPoleLabel('SP', -sphereRadius - polarLineLength);
-  }
-
-  createEclipticZodiacWheel() {
-    const sphereRadius = this.CE_RADIUS * 1.6;
-    const ecliptic = new THREE.Mesh(
-      new THREE.CircleGeometry(sphereRadius, 128),
-      new THREE.MeshBasicMaterial({ color: 0x888888, side: THREE.DoubleSide, transparent: true, opacity: 0.1, depthWrite: false })
+    this.celestialObjects = new CelestialObjects(
+      this.scene,
+      this.celestial,
+      this.zodiacGroup,
+      constants,
+      texturePaths
     );
-    this.zodiacGroup.add(ecliptic);
+    // Map properties for backward compatibility
+    this.starGroup = this.celestialObjects.starGroup;
+    this.starMeshes = this.celestialObjects.starMeshes;
+    this.constellationLineGroup = this.celestialObjects.constellationLineGroup;
+    this.bgStarField = this.celestialObjects.bgStarField;
+    this.eclipticSunGroup = this.celestialObjects.eclipticSunGroup;
+    this.realisticSunGroup = this.celestialObjects.realisticSunGroup;
+    this.sunTexture = this.celestialObjects.sunTexture;
+    this.eclipticSunMesh = this.celestialObjects.eclipticSunMesh;
+    this.eclipticSunGlowMeshes = this.celestialObjects.eclipticSunGlowMeshes;
+    this.realisticSunMesh = this.celestialObjects.realisticSunMesh;
+    this.realisticSunGlowMeshes = this.celestialObjects.realisticSunGlowMeshes;
+    this.eclipticMoonGroup = this.celestialObjects.eclipticMoonGroup;
+    this.eclipticMoonMesh = this.celestialObjects.eclipticMoonMesh;
+    this.realisticMoonGroup = this.celestialObjects.realisticMoonGroup;
+    this.realisticMoonMesh = this.celestialObjects.realisticMoonMesh;
+    this.moonGlowMeshes = this.celestialObjects.moonGlowMeshes;
+    this.realisticMoonGlowMeshes = this.celestialObjects.realisticMoonGlowMeshes;
+    this.planetGroups = this.celestialObjects.planetGroups;
+    this.earthGroup = this.celestialObjects.earthGroup;
+    this.earthMesh = this.celestialObjects.earthMesh;
+    debugLog.log('After celestialObjects init, planetGroups:', Object.keys(this.planetGroups));
 
-    const eclipticOutlinePoints = [];
-    for (let i = 0; i <= 64; i++) {
-      const angle = (i / 64) * Math.PI * 2;
-      eclipticOutlinePoints.push(new THREE.Vector3(sphereRadius * Math.cos(angle), sphereRadius * Math.sin(angle), 0));
-    }
-    const eclipticOutline = new THREE.Line(
-      new THREE.BufferGeometry().setFromPoints(eclipticOutlinePoints),
-      new THREE.LineBasicMaterial({ color: 0x888888, opacity: 0.5, transparent: true })
+    // 4. Angle Markers (MC, IC, ASC, DSC, VTX, AVX)
+    this.angleMarkers = new AngleMarkers(
+      this.zodiacGroup,
+      this.CE_RADIUS
     );
-    this.zodiacGroup.add(eclipticOutline);
+    // Map properties for backward compatibility
+    this.spheres = this.angleMarkers.spheres;
+    this.angleLabels = this.angleMarkers.angleLabels;
 
-    // Radial lines
-    const radialLineMaterial = new THREE.LineBasicMaterial({ color: 0x888888, opacity: 0.3, transparent: true });
-    for (let i = 0; i < 12; i++) {
-      const angle = THREE.MathUtils.degToRad(i * 30);
-      const radialLine = new THREE.Line(
-        new THREE.BufferGeometry().setFromPoints([
-          new THREE.Vector3(0, 0, 0),
-          new THREE.Vector3(sphereRadius * Math.cos(angle), sphereRadius * Math.sin(angle), 0)
-        ]),
-        radialLineMaterial
-      );
-      this.zodiacGroup.add(radialLine);
-    }
-
-    // Zodiac glyphs
-    const zodiacRadius = this.CE_RADIUS * 1.35;
-    const zodiacGlyphs = Array.from({ length: 12 }, (_, i) => String.fromCodePoint(0x2648 + i) + '\uFE0E');
-
-    const scale = this.CE_RADIUS / 1.5;
-    zodiacGlyphs.forEach((glyph, i) => {
-      const angle = THREE.MathUtils.degToRad(i * 30 + 15);
-      const canvas = document.createElement('canvas');
-      canvas.width = 128;
-      canvas.height = 128;
-      const ctx = canvas.getContext('2d');
-
-      // RENDER TEXT NORMALLY
-      // Removed ctx.scale(-1, 1) which was causing the "backwards" mirror effect.
-      ctx.fillStyle = 'white';
-      ctx.font = 'bold 84px Arial';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(glyph, 64, 64);
-
-      const texture = new THREE.CanvasTexture(canvas);
-      const mat = new THREE.MeshBasicMaterial({ map: texture, transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthTest: false });
-      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1.2 * scale, 1.2 * scale), mat);
-      mesh.position.set(zodiacRadius * Math.cos(angle), zodiacRadius * Math.sin(angle), 0);
-      
-      // ROTATION FIX:
-      // angle is direction from center.
-      // angle - Math.PI/2 ensures the local "Up" (top of glyph) aligns with the outward vector.
-      mesh.rotation.z = angle - Math.PI / 2;
-      this.zodiacGroup.add(mesh);
-    });
-  }
-
-  createStarField() {
-    this.starGroup = new THREE.Group();
-    this.constellationLineGroup = new THREE.Group();
-
-    // Convert RA/Dec to cartesian coordinates on celestial sphere
-    const raDecToVector3 = (ra_hours, dec_deg, radius) => {
-      const ra = (ra_hours / 24) * Math.PI * 2;
-      const dec = THREE.MathUtils.degToRad(dec_deg);
-
-      const x = radius * Math.cos(dec) * Math.cos(ra);
-      const y = radius * Math.cos(dec) * Math.sin(ra);
-      const z = radius * Math.sin(dec);
-
-      return new THREE.Vector3(x, y, z);
-    };
-
-    // Star size multiplier - adjust this constant to make stars larger/smaller
-    const k = 200.0; // Scaled up for larger star field radius
-
-    // Create stars
-    starData.forEach(([name, ra, dec, mag, constellation]) => {
-      const size = k * Math.max(0.3, 1.0 - mag * 0.2);
-      const brightness = Math.max(0.3, 1.0 - mag * 0.15);
-
-      const starGeometry = new THREE.SphereGeometry(size, 8, 8);
-      const starMaterial = new THREE.MeshBasicMaterial({
-        color: new THREE.Color(brightness, brightness, brightness * 0.95)
-      });
-
-      const star = new THREE.Mesh(starGeometry, starMaterial);
-      const position = raDecToVector3(ra, dec, this.STAR_FIELD_RADIUS);
-      star.position.copy(position);
-      star.userData = { name, constellation };
-
-      this.starGroup.add(star);
-      this.starMeshes[name] = star; // Store in instance variable
-
-      // Add glow layers
-      const baseGlowOpacity = Math.max(0.15, 0.5 - mag * 0.06);
-      const starGlowLayers = [
-        { size: size * 1.5, opacity: baseGlowOpacity * 0.9, color: new THREE.Color(brightness, brightness, brightness * 0.98) },
-        { size: size * 2.5, opacity: baseGlowOpacity * 0.6, color: new THREE.Color(brightness * 0.95, brightness * 0.95, brightness * 0.9) },
-        { size: size * 4.0, opacity: baseGlowOpacity * 0.4, color: new THREE.Color(brightness * 0.9, brightness * 0.9, brightness * 0.85) },
-        { size: size * 6.0, opacity: baseGlowOpacity * 0.2, color: new THREE.Color(brightness * 0.85, brightness * 0.85, brightness * 0.8) }
-      ];
-
-      starGlowLayers.forEach((layer) => {
-        const glowGeometry = new THREE.SphereGeometry(layer.size, 16, 16);
-        const glowMaterial = new THREE.MeshBasicMaterial({
-          color: layer.color,
-          transparent: true,
-          opacity: layer.opacity,
-          blending: THREE.AdditiveBlending
-        });
-
-        const glow = new THREE.Mesh(glowGeometry, glowMaterial);
-        glow.position.copy(position);
-        glow.userData = { name, constellation };
-
-        this.starGroup.add(glow);
-      });
-    });
-
-    // Add constellation lines
-    const lineMaterial = new THREE.LineBasicMaterial({
-      color: 0x5555cc,
-      transparent: true,
-      opacity: 0.3,
-      linewidth: 1
-    });
-
-    constellationLines.forEach(([star1, star2]) => {
-      if (this.starMeshes[star1] && this.starMeshes[star2]) {
-        const points = [
-          this.starMeshes[star1].position.clone(),
-          this.starMeshes[star2].position.clone()
-        ];
-        const lineGeometry = new THREE.BufferGeometry().setFromPoints(points);
-        const line = new THREE.Line(lineGeometry, lineMaterial);
-        this.constellationLineGroup.add(line);
-      }
-    });
-
-    this.celestial.add(this.starGroup);
-    this.celestial.add(this.constellationLineGroup);
-
-    // Outer ecliptic line (gray dashed circle in the star field)
-    const outerEclipticRadius = this.STAR_FIELD_RADIUS;
-    const outerEclipticPoints = [];
-    for (let i = 0; i <= 128; i++) {
-      const a = (i / 128) * Math.PI * 2;
-      outerEclipticPoints.push(new THREE.Vector3(
-        outerEclipticRadius * Math.cos(a),
-        outerEclipticRadius * Math.sin(a),
-        0
-      ));
-    }
-    this.outerEclipticLine = new THREE.Line(
-      new THREE.BufferGeometry().setFromPoints(outerEclipticPoints),
-      new THREE.LineDashedMaterial({
-        color: 0x888888,
-        opacity: 0.3,
-        transparent: true,
-        dashSize: 2.0,
-        gapSize: 2.0
-      })
-    );
-    this.outerEclipticLine.computeLineDistances();
-    this.outerEclipticLine.userData.circleName = "Ecliptic";
-    this.zodiacGroup.add(this.outerEclipticLine);
-
-    // Background stars
-    const bgStarCount = 1000;
-    const bgStarGeometry = new THREE.BufferGeometry();
-    const bgStarPositions = [];
-    const bgStarColors = [];
-
-    for (let i = 0; i < bgStarCount; i++) {
-      const theta = Math.random() * Math.PI * 2;
-      const phi = Math.acos(2 * Math.random() - 1);
-      const r = this.STAR_FIELD_RADIUS * 1.2;
-
-      const x = r * Math.sin(phi) * Math.cos(theta);
-      const y = r * Math.sin(phi) * Math.sin(theta);
-      const z = r * Math.cos(phi);
-
-      bgStarPositions.push(x, y, z);
-
-      const brightness = 0.1 + Math.random() * 0.3;
-      bgStarColors.push(brightness, brightness, brightness * 0.98);
-    }
-
-    bgStarGeometry.setAttribute('position', new THREE.Float32BufferAttribute(bgStarPositions, 3));
-    bgStarGeometry.setAttribute('color', new THREE.Float32BufferAttribute(bgStarColors, 3));
-
-    const bgStarMaterial = new THREE.PointsMaterial({
-      size: 15.0,
-      vertexColors: true,
-      transparent: true,
-      opacity: 0.4
-    });
-
-    this.bgStarField = new THREE.Points(bgStarGeometry, bgStarMaterial);
-    this.celestial.add(this.bgStarField);
-  }
-
-  createSun() {
-    const textureLoader = new THREE.TextureLoader();
-    this.sunTexture = textureLoader.load(this.SUN_TEXTURE_PATH); // Store for referencing later
-    const realisticSunTexture = textureLoader.load(this.REALISTIC_SUN_TEXTURE_PATH);
-
-    // Scale sun relative to celestial sphere radius (approx 12% of radius)
-    const eclipticSunRadius = this.CE_RADIUS * 0.12;
-
-    const sun = new THREE.Mesh(
-      new THREE.SphereGeometry(eclipticSunRadius, 32, 32),
-      new THREE.MeshBasicMaterial({
-        map: this.sunTexture,
-        color: 0xffaa44,
-        transparent: true,
-        opacity: 1.0,
-        depthWrite: false
-      })
+    // 5. Camera Controller (zoom, stereo, starfield toggle)
+    this.cameraController = new CameraController(
+      this.camera,
+      this.leftCamera,
+      this.rightCamera,
+      this.renderer,
+      this.controls,
+      this // Pass reference to main scene for accessing properties
     );
 
-    const eclipticSunGlowLayers = [
-      { size: eclipticSunRadius * 1.15, opacity: 0.1, color: 0xffff99 },
-      { size: eclipticSunRadius * 1.4, opacity: 0.1, color: 0xffcc66 }
-    ];
-
-    this.eclipticSunGroup = new THREE.Group();
-    this.eclipticSunGroup.add(sun);
-
-    // Store reference to the main sun mesh for color updates
-    this.eclipticSunMesh = sun;
-    this.eclipticSunGlowMeshes = [];
-
-    eclipticSunGlowLayers.forEach(layer => {
-      const glowMesh = new THREE.Mesh(
-        new THREE.SphereGeometry(layer.size, 32, 32),
-        new THREE.MeshBasicMaterial({
-          color: layer.color,
-          transparent: true,
-          opacity: layer.opacity,
-          blending: THREE.AdditiveBlending,
-          depthWrite: false
-        })
-      );
-      glowMesh.raycast = () => {}; // Exclude from raycasting
-      this.eclipticSunGroup.add(glowMesh);
-      this.eclipticSunGlowMeshes.push(glowMesh);
-    });
-
-    this.zodiacGroup.add(this.eclipticSunGroup);
-
-    // Realistic sun (far away at 1 AU from Earth)
-    const realisticSunRadius = this.SUN_RADIUS;
-
-    const realisticSun = new THREE.Mesh(
-      new THREE.SphereGeometry(realisticSunRadius, 64, 64),
-      new THREE.MeshBasicMaterial({
-        map: realisticSunTexture,
-        color: 0xffffff,
-        transparent: true,
-        opacity: 1.0,
-        depthWrite: false
-      })
+    // 6. Interaction Manager (hover, double-click, context menu)
+    this.interactions = new InteractionManager(
+      this.camera,
+      this.leftCamera,
+      this.rightCamera,
+      this.renderer,
+      this // Pass reference to main scene for accessing properties
     );
 
-    const sunGlowLayers = [
-      { size: realisticSunRadius * 1.2, opacity: 0.1, color: 0xffff99 },
-      { size: realisticSunRadius * 1.5, opacity: 0.05, color: 0xffcc66 },
-      { size: realisticSunRadius * 2.0, opacity: 0.03, color: 0xff9933 }
-    ];
-
-    this.realisticSunGroup = new THREE.Group();
-    this.realisticSunGroup.add(realisticSun);
-
-    // Store reference to the realistic sun mesh for color updates
-    this.realisticSunMesh = realisticSun;
-    this.realisticSunGlowMeshes = [];
-
-    sunGlowLayers.forEach(layer => {
-      const glowMesh = new THREE.Mesh(
-        new THREE.SphereGeometry(layer.size, 32, 32),
-        new THREE.MeshBasicMaterial({
-          color: layer.color,
-          transparent: true,
-          opacity: layer.opacity,
-          blending: THREE.AdditiveBlending,
-          depthWrite: false
-        })
-      );
-      glowMesh.raycast = () => {}; // Exclude from raycasting
-      this.realisticSunGroup.add(glowMesh);
-      this.realisticSunGlowMeshes.push(glowMesh);
-    });
-
-    // Add a point light to represent the Sun
-    const sunLight = new THREE.PointLight(0xffffff, 2.0, 0, 0);
-    this.realisticSunGroup.add(sunLight);
-
-    // Add realistic sun to the root scene (heliocentric center)
-    this.scene.add(this.realisticSunGroup);
-  }
-
-  createMoon() {
-    const textureLoader = new THREE.TextureLoader();
-    const moonTexture = textureLoader.load(this.MOON_TEXTURE_PATH);
-    const moonBumpTexture = textureLoader.load(this.MOON_BUMP_TEXTURE_PATH);
-
-    // Ecliptic moon (on the ecliptic plane)
-    // Scale moon relative to celestial sphere radius (approx 9% of radius)
-    const eclipticMoonRadius = this.CE_RADIUS * 0.09;
-
-    const eclipticMoon = new THREE.Mesh(
-      new THREE.SphereGeometry(eclipticMoonRadius, 32, 32),
-      new THREE.MeshBasicMaterial({
-        map: moonTexture,
-        color: 0xaaaaaa
-      })
-    );
-
-    const eclipticMoonGlowLayers = [
-      { size: eclipticMoonRadius * 1.2, opacity: 0.15, color: 0xdddddd },
-      { size: eclipticMoonRadius * 1.5, opacity: 0.1, color: 0xcccccc }
-    ];
-
-    this.eclipticMoonGroup = new THREE.Group();
-    this.eclipticMoonGroup.add(eclipticMoon);
-
-    this.eclipticMoonMesh = eclipticMoon;
-    this.moonGlowMeshes = [];
-
-    eclipticMoonGlowLayers.forEach(layer => {
-      const glowMesh = new THREE.Mesh(
-        new THREE.SphereGeometry(layer.size, 32, 32),
-        new THREE.MeshBasicMaterial({
-          color: layer.color,
-          transparent: true,
-          opacity: layer.opacity,
-          blending: THREE.AdditiveBlending,
-          depthWrite: false
-        })
-      );
-      this.eclipticMoonGroup.add(glowMesh);
-      this.moonGlowMeshes.push(glowMesh);
-    });
-
-    this.zodiacGroup.add(this.eclipticMoonGroup);
-
-    // Realistic moon (orbits Earth at ~60 Earth radii)
-    const realisticMoonRadius = this.MOON_RADIUS;
-
-    const realisticMoon = new THREE.Mesh(
-      new THREE.SphereGeometry(realisticMoonRadius, 64, 64),
-      new THREE.MeshStandardMaterial({
-        map: moonTexture,
-        bumpMap: moonBumpTexture,
-        bumpScale: 0.05,
-        color: 0xffffff,
-        roughness: 0.9,
-        metalness: 0.0
-      })
-    );
-    // Align Moon's poles (Y-axis of texture) with the ecliptic normal (Z-axis)
-    realisticMoon.rotation.x = Math.PI / 2;
-
-    const realisticMoonGlowLayers = [
-      { size: realisticMoonRadius * 1.2, opacity: 0.08, color: 0xffffff },
-      { size: realisticMoonRadius * 1.4, opacity: 0.04, color: 0xffffff }
-    ];
-
-    this.realisticMoonGroup = new THREE.Group();
-    this.realisticMoonGroup.add(realisticMoon);
-
-    this.realisticMoonMesh = realisticMoon;
-    this.realisticMoonGlowMeshes = [];
-
-    realisticMoonGlowLayers.forEach(layer => {
-      const glowMesh = new THREE.Mesh(
-        new THREE.SphereGeometry(layer.size, 32, 32),
-        new THREE.MeshBasicMaterial({
-          color: layer.color,
-          transparent: true,
-          opacity: layer.opacity,
-          blending: THREE.AdditiveBlending,
-          depthWrite: false
-        })
-      );
-      this.realisticMoonGroup.add(glowMesh);
-      this.realisticMoonGlowMeshes.push(glowMesh);
-    });
-
-    // Add realistic moon to the root scene (will be positioned relative to Earth)
-    this.scene.add(this.realisticMoonGroup);
-  }
-
-  createPlanets() {
-    debugLog.log('=== Creating planets ===');
-    // Planet data: actual radii in km and orbital distances in AU
-    // Radii: Mercury 2440km, Venus 6052km, Earth 6371km, Mars 3390km,
-    //        Jupiter 69911km, Saturn 58232km, Uranus 25362km, Neptune 24622km
-    // Moon 1737km, Sun 696000km
-    const EARTH_RADIUS_KM = 6371;
-
-    const planetData = [
-      { name: 'mercury', radiusKm: 2440, color: 0x8c7853, au: 0.39 },
-      { name: 'venus', radiusKm: 6052, color: 0xffc649, au: 0.72 },
-      { name: 'mars', radiusKm: 3390, color: 0xcd5c5c, au: 1.52 },
-      { name: 'jupiter', radiusKm: 69911, color: 0xc88b3a, au: 5.20 },
-      { name: 'saturn', radiusKm: 58232, color: 0xfad5a5, au: 9.54 },
-      { name: 'uranus', radiusKm: 25362, color: 0x4fd0e0, au: 19.19 },
-      { name: 'neptune', radiusKm: 24622, color: 0x4166f5, au: 30.07 },
-      { name: 'pluto', radiusKm: 1188, color: 0xbca89f, au: 39.48 }
-    ];
-
-    // Earth's scene radius is the base unit
-    const baseRadius = this.EARTH_RADIUS;
-
-    debugLog.log('CE_RADIUS:', this.CE_RADIUS, 'baseRadius:', baseRadius);
-
-    // Load textures
-    const textureLoader = new THREE.TextureLoader();
-    const planetTextures = {
-      mercury: textureLoader.load(this.MERCURY_TEXTURE_PATH),
-      venus: textureLoader.load(this.VENUS_TEXTURE_PATH),
-      mars: textureLoader.load(this.MARS_TEXTURE_PATH),
-      jupiter: textureLoader.load(this.JUPITER_TEXTURE_PATH),
-      saturn: textureLoader.load(this.SATURN_TEXTURE_PATH),
-      uranus: textureLoader.load(this.URANUS_TEXTURE_PATH),
-      neptune: textureLoader.load(this.NEPTUNE_TEXTURE_PATH),
-      pluto: textureLoader.load(this.PLUTO_TEXTURE_PATH)
-    };
-
-    // Create Earth
-    const earthTexture = textureLoader.load(this.EARTH_TEXTURE_PATH);
-    const earthNightTexture = textureLoader.load(this.EARTH_NIGHT_TEXTURE_PATH);
-
-    const earthMaterial = new THREE.ShaderMaterial({
-      uniforms: {
-        dayTexture: { value: earthTexture },
-        nightTexture: { value: earthNightTexture },
-        sunPosition: { value: new THREE.Vector3(0, 0, 0) },
-        opacity: { value: 1.0 }
-      },
-      transparent: true,
-      depthWrite: false,
-      vertexShader: `
-        varying vec2 vUv;
-        varying vec3 vNormal;
-        varying vec3 vWorldPosition;
-        void main() {
-          vUv = uv;
-          vNormal = normalize(mat3(modelMatrix) * normal);
-          vec4 worldPosition = modelMatrix * vec4(position, 1.0);
-          vWorldPosition = worldPosition.xyz;
-          gl_Position = projectionMatrix * viewMatrix * worldPosition;
-        }
-      `,
-      fragmentShader: `
-        uniform sampler2D dayTexture;
-        uniform sampler2D nightTexture;
-        uniform vec3 sunPosition;
-        uniform float opacity;
-        varying vec2 vUv;
-        varying vec3 vNormal;
-        varying vec3 vWorldPosition;
-        void main() {
-          vec3 sunDirection = normalize(sunPosition - vWorldPosition);
-          float intensity = dot(vNormal, sunDirection);
-          float mixFactor = smoothstep(-0.2, 0.2, intensity);
-          vec4 dayColor = texture2D(dayTexture, vUv);
-          vec4 nightColor = texture2D(nightTexture, vUv);
-          vec4 finalColor = mix(nightColor, dayColor, mixFactor);
-          gl_FragColor = vec4(finalColor.rgb, opacity);
-        }
-      `
-    });
-
-    this.earthMesh = new THREE.Mesh(
-      new THREE.SphereGeometry(this.EARTH_RADIUS, 32, 32),
-      earthMaterial
-    );
-    this.earthGroup = new THREE.Group();
-    this.earthGroup.add(this.earthMesh);
-    this.scene.add(this.earthGroup);
-
-    // Load Saturn ring textures
-    const saturnRingsTexture = textureLoader.load(
-      this.SATURN_RINGS_TEXTURE_PATH,
-      () => debugLog.log('Saturn rings texture loaded successfully'),
-      undefined,
-      (err) => debugLog.error('Error loading Saturn rings texture:', err)
-    );
-    const saturnRingsAlpha = textureLoader.load(
-      this.SATURN_RINGS_ALPHA_PATH,
-      () => debugLog.log('Saturn rings alpha loaded successfully'),
-      undefined,
-      (err) => debugLog.error('Error loading Saturn rings alpha:', err)
-    );
-
-    planetData.forEach(planet => {
-      // Calculate radius proportional to Earth based on actual km
-      // Scale all radii up by PLANET_RADIUS_SCALE for visibility
-      const radius = baseRadius * (planet.radiusKm / EARTH_RADIUS_KM) * this.PLANET_RADIUS_SCALE;
-      const distance = planet.au * this.PLANET_DISTANCE_SCALE; // Scaled distances for visibility
-
-      // Create material with texture
-      const material = new THREE.MeshBasicMaterial({
-        map: planetTextures[planet.name]
-      });
-
-      const planetMesh = new THREE.Mesh(
-        new THREE.SphereGeometry(radius, 32, 32),
-        material
-      );
-
-      const planetGroup = new THREE.Group();
-      planetGroup.add(planetMesh);
-
-      // Add rings for Saturn
-      if (planet.name === 'saturn') {
-        const ringInnerRadius = radius * 1.2;
-        const ringOuterRadius = radius * 2.0;
-        const ringGeometry = new THREE.RingGeometry(ringInnerRadius, ringOuterRadius, 64);
-
-        // Fix UV mapping for ring texture
-        const pos = ringGeometry.attributes.position;
-        const uv = ringGeometry.attributes.uv;
-        const v3 = new THREE.Vector3();
-
-        for (let i = 0; i < pos.count; i++) {
-          v3.fromBufferAttribute(pos, i);
-          const dist = v3.length();
-          const u = (dist - ringInnerRadius) / (ringOuterRadius - ringInnerRadius);
-          uv.setXY(i, u, uv.getY(i));
-        }
-
-        const ringMaterial = new THREE.MeshBasicMaterial({
-          map: saturnRingsTexture,
-          alphaMap: saturnRingsAlpha,
-          transparent: true,
-          side: THREE.DoubleSide,
-          opacity: 1.0,
-          depthWrite: false
-        });
-
-        const ringMesh = new THREE.Mesh(ringGeometry, ringMaterial);
-        ringMesh.rotation.x = Math.PI / 2; // Rotate to be horizontal
-        planetGroup.add(ringMesh);
-
-        debugLog.log(`Saturn rings created: inner=${ringInnerRadius}, outer=${ringOuterRadius}`);
-        debugLog.log('Ring texture:', saturnRingsTexture);
-        debugLog.log('Ring alpha:', saturnRingsAlpha);
-      }
-
-      // Store the group and main mesh for later positioning
-      this.planetGroups[planet.name] = {
-        group: planetGroup,
-        mesh: planetMesh,
-        distance: distance
-      };
-
-      this.scene.add(planetGroup);
-      debugLog.log(`Created planet ${planet.name} with radius ${radius} at distance ${distance}`);
+    // 7. Setup window resize listener (after cameraController is initialized)
+    window.addEventListener('resize', () => {
+      this.cameraController.onWindowResize();
     });
   }
 
-  createAngleSpheres() {
-    const sphereRadius = this.CE_RADIUS * 1.6;
-    const addAngle = (name, color) => {
-      const mesh = new THREE.Mesh(
-        new THREE.SphereGeometry(0.08 * (this.CE_RADIUS / 1.5), 16, 16),
-        new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.6 })
-      );
-      mesh.userData.angleName = name; // Store angle name for tooltip
-      this.zodiacGroup.add(mesh);  // Add to zodiacGroup for astrology visualization
-      this.spheres[name] = mesh;
-    };
-
-    addAngle("MC", 0x888888);
-    addAngle("IC", 0x888888);
-    addAngle("ASC", 0x888888);
-    addAngle("DSC", 0x888888);
-    addAngle("VTX", 0x888888);
-    addAngle("AVX", 0x888888);
-  }
-
-
-  createAngleLabels() {
-    const addAngleLabel = (displayText, dataName) => {
-      const canvas = document.createElement('canvas');
-      canvas.width = 128;
-      canvas.height = 64;
-      const ctx = canvas.getContext('2d');
-      ctx.fillStyle = 'white';
-      ctx.font = 'bold 32px Arial';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(displayText, 64, 32);
-
-      const texture = new THREE.CanvasTexture(canvas);
-      const material = new THREE.SpriteMaterial({ map: texture, depthTest: false });
-      const sprite = new THREE.Sprite(material);
-      const s = this.CE_RADIUS / 1.5;
-      sprite.scale.set(1.2 * s, 0.6 * s, 1);
-      sprite.userData.angleName = dataName; // Store angle name for tooltip
-      this.zodiacGroup.add(sprite);
-      return sprite;
-    };
-
-    this.angleLabels = {
-      MC: addAngleLabel('MC', 'MC'),
-      IC: addAngleLabel('IC', 'IC'),
-      ASC: addAngleLabel('AC', 'ASC'),
-      DSC: addAngleLabel('DC', 'DSC'),
-      VTX: addAngleLabel('VX', 'VTX'),
-      AVX: addAngleLabel('AV', 'AVX')
-    };
-  }
-
-  setupStarHover() {
-    const raycaster = new THREE.Raycaster();
-    raycaster.params.Line.threshold = 0.05; // Make line detection more precise
-    const mouse = new THREE.Vector2();
-
-    const onStarHover = (event) => {
-      let camera, mouseX, mouseY;
-
-      if (this.stereoEnabled) {
-        // In stereo mode, determine which viewport (left or right) the mouse is in
-        const halfWidth = window.innerWidth / 2;
-        if (event.clientX < halfWidth) {
-          // Left viewport
-          camera = this.rightCamera; // Swapped for cross-eyed
-          mouseX = (event.clientX / halfWidth) * 2 - 1;
-        } else {
-          // Right viewport
-          camera = this.leftCamera; // Swapped for cross-eyed
-          mouseX = ((event.clientX - halfWidth) / halfWidth) * 2 - 1;
-        }
-        mouseY = -(event.clientY / window.innerHeight) * 2 + 1;
-      } else {
-        // Normal single viewport
-        camera = this.camera;
-        mouseX = (event.clientX / window.innerWidth) * 2 - 1;
-        mouseY = -(event.clientY / window.innerHeight) * 2 + 1;
-      }
-
-      mouse.x = mouseX;
-      mouse.y = mouseY;
-
-      raycaster.setFromCamera(mouse, camera);
-
-      // Check for stars, sun, moon, earth, planets, and angle spheres
-      const starIntersects = raycaster.intersectObjects(this.starGroup.children, false);
-      const sunIntersects = raycaster.intersectObjects(this.eclipticSunGroup.children, false);
-      const realisticSunIntersects = raycaster.intersectObjects(this.realisticSunGroup.children, false);
-      const eclipticMoonIntersects = raycaster.intersectObjects(this.eclipticMoonGroup.children, false);
-      const realisticMoonIntersects = raycaster.intersectObjects(this.realisticMoonGroup.children, false);
-      const earthIntersects = this.earthGroup ? raycaster.intersectObjects(this.earthGroup.children, false) : [];
-
-      // Check all planet groups
-      const planetIntersects = [];
-      Object.entries(this.planetGroups).forEach(([name, planetData]) => {
-        const intersects = raycaster.intersectObjects(planetData.group.children, false);
-        if (intersects.length > 0) {
-          planetIntersects.push({ name, intersects });
-        }
-      });
-
-      // Check angle spheres and labels
-      const angleIntersects = raycaster.intersectObjects([
-        this.spheres.MC,
-        this.spheres.IC,
-        this.spheres.ASC,
-        this.spheres.DSC,
-        this.spheres.VTX,
-        this.spheres.AVX,
-        this.angleLabels.MC,
-        this.angleLabels.IC,
-        this.angleLabels.ASC,
-        this.angleLabels.DSC,
-        this.angleLabels.VTX,
-        this.angleLabels.AVX
-      ], false);
-
-      // Check reference circles (Horizon, Meridian, Prime Vertical, Celestial Equator, Ecliptic)
-      const circleIntersects = raycaster.intersectObjects([
-        this.horizonOutline,
-        this.meridianOutline,
-        this.primeVerticalOutline,
-        this.celestialEquatorOutline,
-        this.outerEclipticLine
-      ], false);
-
-      // Check pole labels
-      const poleIntersects = raycaster.intersectObjects([
-        this.poleLabels.NP,
-        this.poleLabels.SP
-      ], false);
-
-      const starInfoElement = document.getElementById('starInfo');
-
-      // Check if Earth is visible enough to show tooltip
-      const earthOpacity = this.earthMesh?.material?.uniforms?.opacity?.value || 0;
-      const showEarthTooltip = earthIntersects.length > 0 && earthOpacity > 0.1;
-
-      // Check sun first (priority) - both ecliptic and realistic sun
-      if (sunIntersects.length > 0 || realisticSunIntersects.length > 0) {
-        document.getElementById('starName').textContent = `☉ Sun ${this.sunZodiacPosition}`;
-        document.getElementById('constellationName').textContent = `↑ ${this.sunRiseSet.sunrise} | ↓ ${this.sunRiseSet.sunset}`;
-
-        this.positionTooltip(starInfoElement, event);
-        this.renderer.domElement.style.cursor = 'pointer';
-      }
-      // Check Earth second (only if visible/opaque enough)
-      else if (showEarthTooltip) {
-        document.getElementById('starName').textContent = `⊕ Earth`;
-        document.getElementById('constellationName').textContent = `Planet`;
-
-        this.positionTooltip(starInfoElement, event);
-        this.renderer.domElement.style.cursor = 'pointer';
-      }
-      // Check planets third
-      else if (planetIntersects.length > 0) {
-        const planet = planetIntersects[0];
-        const planetSymbols = {
-          mercury: '☿',
-          venus: '♀',
-          mars: '♂',
-          jupiter: '♃',
-          saturn: '♄',
-          uranus: '♅',
-          neptune: '♆',
-          pluto: '♇'
-        };
-        const planetFullNames = {
-          mercury: 'Mercury',
-          venus: 'Venus',
-          mars: 'Mars',
-          jupiter: 'Jupiter',
-          saturn: 'Saturn',
-          uranus: 'Uranus',
-          neptune: 'Neptune',
-          pluto: 'Pluto'
-        };
-
-        const symbol = planetSymbols[planet.name] || planet.name;
-        const fullName = planetFullNames[planet.name] || planet.name;
-        const position = this.planetZodiacPositions[planet.name] || '';
-
-        document.getElementById('starName').textContent = `${symbol} ${fullName} ${position}`;
-        document.getElementById('constellationName').textContent = `Planet`;
-
-        this.positionTooltip(starInfoElement, event);
-        this.renderer.domElement.style.cursor = 'pointer';
-      }
-      // Check moon third - both ecliptic and realistic
-      else if (eclipticMoonIntersects.length > 0 || realisticMoonIntersects.length > 0) {
-        document.getElementById('starName').textContent = `☽ Moon ${this.moonZodiacPosition}`;
-        document.getElementById('constellationName').textContent = `${this.lunarPhase.phase} (${this.lunarPhase.illumination}% lit)`;
-
-        this.positionTooltip(starInfoElement, event);
-        this.renderer.domElement.style.cursor = 'pointer';
-      }
-      // Check angles fourth
-      else if (angleIntersects.length > 0) {
-        const angle = angleIntersects[0].object;
-        const angleName = angle.userData.angleName;
-        const fullNames = {
-          MC: "Midheaven",
-          IC: "Imum Coeli",
-          ASC: "Ascendant",
-          DSC: "Descendant",
-          VTX: "Vertex",
-          AVX: "Antivertex"
-        };
-
-        document.getElementById('starName').textContent = `${angleName} ${this.anglePositions[angleName]}`;
-        document.getElementById('constellationName').textContent = fullNames[angleName];
-
-        this.positionTooltip(starInfoElement, event);
-        this.renderer.domElement.style.cursor = 'pointer';
-      }
-      // Check reference circles fifth
-      else if (circleIntersects.length > 0) {
-        const circle = circleIntersects[0].object;
-        const circleName = circle.userData.circleName;
-        const descriptions = {
-          "Horizon": "Observer's local horizon plane",
-          "Meridian": "North-South great circle through zenith",
-          "Prime Vertical": "East-West great circle through zenith",
-          "Celestial Equator": "Projection of Earth's equator onto celestial sphere",
-          "Ecliptic": "Path of the Sun through the zodiac constellations"
-        };
-
-        document.getElementById('starName').textContent = circleName;
-        document.getElementById('constellationName').textContent = descriptions[circleName];
-
-        this.positionTooltip(starInfoElement, event);
-        this.renderer.domElement.style.cursor = 'pointer';
-      }
-      // Check pole labels sixth
-      else if (poleIntersects.length > 0) {
-        const pole = poleIntersects[0].object;
-        const poleName = pole.userData.poleName;
-        const descriptions = {
-          "NP": "North Celestial Pole",
-          "SP": "South Celestial Pole"
-        };
-
-        document.getElementById('starName').textContent = poleName;
-        document.getElementById('constellationName').textContent = descriptions[poleName];
-
-        this.positionTooltip(starInfoElement, event);
-        this.renderer.domElement.style.cursor = 'pointer';
-      }
-      // Check stars last
-      else if (starIntersects.length > 0) {
-        const hoveredObject = starIntersects[0].object;
-        if (hoveredObject.userData.name && hoveredObject.userData.constellation) {
-          document.getElementById('starName').textContent = hoveredObject.userData.name;
-          document.getElementById('constellationName').textContent = hoveredObject.userData.constellation;
-
-          this.positionTooltip(starInfoElement, event);
-          this.renderer.domElement.style.cursor = 'pointer';
-        }
-      } else {
-        starInfoElement.classList.remove('visible');
-        this.renderer.domElement.style.cursor = 'default';
-      }
-    };
-
-    this.renderer.domElement.addEventListener('mousemove', onStarHover);
-  }
-
-  setupPlanetDoubleClick() {
-    const raycaster = new THREE.Raycaster();
-    const mouse = new THREE.Vector2();
-
-    const onDoubleClick = (event) => {
-      let camera, mouseX, mouseY;
-
-      if (this.stereoEnabled) {
-        const halfWidth = window.innerWidth / 2;
-        if (event.clientX < halfWidth) {
-          camera = this.rightCamera;
-          mouseX = (event.clientX / halfWidth) * 2 - 1;
-        } else {
-          camera = this.leftCamera;
-          mouseX = ((event.clientX - halfWidth) / halfWidth) * 2 - 1;
-        }
-        mouseY = -(event.clientY / window.innerHeight) * 2 + 1;
-      } else {
-        camera = this.camera;
-        mouseX = (event.clientX / window.innerWidth) * 2 - 1;
-        mouseY = -(event.clientY / window.innerHeight) * 2 + 1;
-      }
-
-      mouse.x = mouseX;
-      mouse.y = mouseY;
-
-      raycaster.setFromCamera(mouse, camera);
-
-      // Check all planet groups
-      const planetIntersects = [];
-      Object.entries(this.planetGroups).forEach(([name, planetData]) => {
-        const intersects = raycaster.intersectObjects(planetData.group.children, false);
-        if (intersects.length > 0) {
-          planetIntersects.push({ name, planetData, intersects });
-        }
-      });
-
-      // Check realistic sun
-      const sunIntersects = raycaster.intersectObjects(this.realisticSunGroup.children, false);
-
-      // Check realistic moon
-      const moonIntersects = raycaster.intersectObjects(this.realisticMoonGroup.children, false);
-
-      // Check Earth
-      const earthIntersects = this.earthGroup ? raycaster.intersectObjects(this.earthGroup.children, false) : [];
-
-      // Check horizon plane
-      const horizonIntersects = this.horizonPlane ? raycaster.intersectObject(this.horizonPlane, false) : [];
-
-      let targetObject = null;
-      let targetRadius = null;
-      let targetWorldPos = new THREE.Vector3();
-
-      if (horizonIntersects.length > 0) {
-        this.armillaryRoot.getWorldPosition(targetWorldPos);
-        targetRadius = this.CE_RADIUS;
-        targetObject = 'horizon';
-      } else if (planetIntersects.length > 0) {
-        const planet = planetIntersects[0];
-        planet.planetData.group.getWorldPosition(targetWorldPos);
-        // Account for planet scale when calculating zoom distance
-        const geometryRadius = planet.planetData.mesh.geometry.parameters.radius;
-        const currentScale = planet.planetData.group.scale.x;
-        targetRadius = geometryRadius * currentScale;
-        targetObject = 'planet';
-      } else if (sunIntersects.length > 0) {
-        this.realisticSunGroup.getWorldPosition(targetWorldPos);
-        targetRadius = this.realisticSunMesh.geometry.parameters.radius;
-        targetObject = 'sun';
-      } else if (earthIntersects.length > 0) {
-        this.earthGroup.getWorldPosition(targetWorldPos);
-        targetRadius = this.EARTH_RADIUS;
-        targetObject = 'earth';
-      } else if (moonIntersects.length > 0) {
-        this.realisticMoonGroup.getWorldPosition(targetWorldPos);
-        targetRadius = this.realisticMoonMesh.geometry.parameters.radius;
-        targetObject = 'moon';
-      }
-
-      if (targetObject) {
-        // Calculate camera position (offset from target)
-        let newCameraPos;
-        let newUp = new THREE.Vector3(0, 1, 0); // Default to world up
-
-        if (targetObject === 'horizon') {
-          // Orient facing North (Local +Z) from South (Local -Z)
-          // Position camera at South (-Z) and slightly Up (+Y)
-          const localOffset = new THREE.Vector3(0, targetRadius * 2.0, -targetRadius * 6.0);
-
-          // Transform to world space
-          const worldOffset = localOffset.applyQuaternion(this.armillaryRoot.quaternion);
-          newCameraPos = targetWorldPos.clone().add(worldOffset);
-
-          // Align camera up with local up
-          const localUp = new THREE.Vector3(0, 1, 0);
-          newUp = localUp.applyQuaternion(this.armillaryRoot.quaternion);
-        } else {
-          // Use a smaller multiplier for better planet viewing (fills ~1/2 screen)
-          const zoomDistance = targetRadius * 4; // Distance from surface
-
-          // Get direction from target to current camera
-          const direction = camera.position.clone().sub(targetWorldPos).normalize();
-
-          // Calculate new camera position
-          newCameraPos = targetWorldPos.clone().add(direction.multiplyScalar(zoomDistance));
-        }
-
-        // Smoothly animate camera
-        const startPos = camera.position.clone();
-        const startTarget = this.controls.target.clone();
-        const startUp = camera.up.clone();
-        const duration = 1000; // 1 second
-        const startTime = performance.now();
-
-        const animateCamera = () => {
-          const elapsed = performance.now() - startTime;
-          const progress = Math.min(elapsed / duration, 1);
-
-          // Ease-in-out function
-          const eased = progress < 0.5
-            ? 2 * progress * progress
-            : 1 - Math.pow(-2 * progress + 2, 2) / 2;
-
-          // Interpolate position
-          camera.position.lerpVectors(startPos, newCameraPos, eased);
-
-          // Interpolate target
-          this.controls.target.lerpVectors(startTarget, targetWorldPos, eased);
-
-          // Interpolate up vector
-          camera.up.lerpVectors(startUp, newUp, eased).normalize();
-
-          // Ensure camera looks at target during transition
-          camera.lookAt(this.controls.target);
-
-          if (progress < 1) {
-            requestAnimationFrame(animateCamera);
-          }
-        };
-
-        animateCamera();
-      }
-    };
-
-    this.renderer.domElement.addEventListener('dblclick', onDoubleClick);
-  }
-
-  zoomToTarget(targetName) {
-    let targetWorldPos = new THREE.Vector3();
-    let targetRadius = null;
-    const camera = this.stereoEnabled ? this.camera : this.camera;
-
-    // Get target position and radius based on name
-    if (targetName === 'horizon') {
-      this.armillaryRoot.getWorldPosition(targetWorldPos);
-      targetRadius = this.CE_RADIUS;
-    } else if (targetName === 'earth') {
-      this.earthGroup.getWorldPosition(targetWorldPos);
-      targetRadius = this.EARTH_RADIUS;
-    } else if (targetName === 'sun') {
-      this.realisticSunGroup.getWorldPosition(targetWorldPos);
-      targetRadius = this.realisticSunMesh.geometry.parameters.radius;
-    } else if (targetName === 'moon') {
-      this.realisticMoonGroup.getWorldPosition(targetWorldPos);
-      targetRadius = this.realisticMoonMesh.geometry.parameters.radius;
-    } else if (targetName === 'ecliptic-north') {
-      // Special case: view from ecliptic north pole, looking down at solar system
-      // Position camera high above the ecliptic plane to see all planets including Pluto
-      this.realisticSunGroup.getWorldPosition(targetWorldPos);
-      targetRadius = 39.48 * this.PLANET_DISTANCE_SCALE * 1.3; // Pluto's orbit * 1.3 for margin
-    } else if (this.planetGroups[targetName]) {
-      this.planetGroups[targetName].group.getWorldPosition(targetWorldPos);
-      // Get the actual visual radius (accounting for planet scale)
-      const geometryRadius = this.planetGroups[targetName].mesh.geometry.parameters.radius;
-      const currentScale = this.planetGroups[targetName].group.scale.x;
-      targetRadius = geometryRadius * currentScale;
-    } else {
-      debugLog.warn('Target not found:', targetName);
-      return;
-    }
-
-    // Calculate camera position (offset from target)
-    let newCameraPos;
-    let newUp = new THREE.Vector3(0, 1, 0); // Default to world up
-
-    if (targetName === 'horizon') {
-      // Orient facing North (Local +Z) from South (Local -Z)
-      // Position camera at South (-Z) and slightly Up (+Y)
-      const localOffset = new THREE.Vector3(0, targetRadius * 2.0, -targetRadius * 6.0);
-
-      // Transform to world space
-      const worldOffset = localOffset.applyQuaternion(this.armillaryRoot.quaternion);
-      newCameraPos = targetWorldPos.clone().add(worldOffset);
-
-      // Align camera up with local up
-      const localUp = new THREE.Vector3(0, 1, 0);
-      newUp = localUp.applyQuaternion(this.armillaryRoot.quaternion);
-    } else if (targetName === 'ecliptic-north') {
-      // Position camera directly above ecliptic north pole, looking straight down at the ecliptic plane
-      // The zodiacGroup has the ecliptic plane in the XY plane (Z=0) in local coordinates
-      // The ecliptic north pole is therefore in the +Z direction in zodiacGroup's local space
-      const localOffset = new THREE.Vector3(0, 0, targetRadius);
-
-      // Get the zodiacGroup's world quaternion to transform our local offset
-      const zodiacWorldQuaternion = new THREE.Quaternion();
-      this.zodiacGroup.getWorldQuaternion(zodiacWorldQuaternion);
-
-      // Transform offset to world space
-      const worldOffset = localOffset.applyQuaternion(zodiacWorldQuaternion);
-      newCameraPos = targetWorldPos.clone().add(worldOffset);
-
-      // Camera up vector should point toward 90° on the zodiac (along +Y in zodiacGroup's local space)
-      // This orients the view with 0° Aries (vernal equinox) pointing to the right (+X)
-      const localUp = new THREE.Vector3(0, 1, 0);
-      newUp = localUp.applyQuaternion(zodiacWorldQuaternion);
-    } else {
-      // For planets and other bodies, use a multiplier to fill ~1/2 of screen
-      const zoomDistance = targetRadius * 4; // Distance from surface
-      const direction = camera.position.clone().sub(targetWorldPos).normalize();
-      newCameraPos = targetWorldPos.clone().add(direction.multiplyScalar(zoomDistance));
-    }
-
-    // Smoothly animate camera
-    const startPos = camera.position.clone();
-    const startTarget = this.controls.target.clone();
-    const startUp = camera.up.clone();
-    const duration = 1000; // 1 second
-    const startTime = performance.now();
-
-    // Disable controls during animation to prevent conflict
-    this.controls.enabled = false;
-
-    const animateCamera = () => {
-      const elapsed = performance.now() - startTime;
-      const progress = Math.min(elapsed / duration, 1);
-
-      // Ease-in-out function
-      const eased = progress < 0.5
-        ? 2 * progress * progress
-        : 1 - Math.pow(-2 * progress + 2, 2) / 2;
-
-      // Interpolate position
-      camera.position.lerpVectors(startPos, newCameraPos, eased);
-
-      // Interpolate target
-      this.controls.target.lerpVectors(startTarget, targetWorldPos, eased);
-
-      // Interpolate up vector
-      camera.up.lerpVectors(startUp, newUp, eased).normalize();
-
-      // Ensure camera looks at target during transition
-      camera.lookAt(this.controls.target);
-
-      if (progress < 1) {
-        requestAnimationFrame(animateCamera);
-      } else {
-        // Animation complete
-        this.controls.enabled = true;
-        this.controls.update();
-      }
-    };
-
-    animateCamera();
-  }
-
-  setupContextMenu() {
-    const contextMenu = document.getElementById('contextMenu');
-
-    // Add Horizon and Earth options if they don't exist
-    if (!contextMenu.querySelector('[data-target="horizon"]')) {
-      const item = document.createElement('div');
-      item.className = 'context-menu-item';
-      item.setAttribute('data-target', 'horizon');
-      item.textContent = 'Zoom to Horizon';
-      contextMenu.insertBefore(item, contextMenu.firstChild);
-    }
-    if (!contextMenu.querySelector('[data-target="earth"]')) {
-      const item = document.createElement('div');
-      item.className = 'context-menu-item';
-      item.setAttribute('data-target', 'earth');
-      item.textContent = 'Zoom to Earth';
-      contextMenu.insertBefore(item, contextMenu.firstChild);
-    }
-
-    const menuItems = contextMenu.querySelectorAll('.context-menu-item');
-
-    // Show context menu on right-click
-    this.renderer.domElement.addEventListener('contextmenu', (event) => {
-      event.preventDefault();
-      event.stopPropagation(); // Prevent browser extensions from interfering
-
-      // Position menu at mouse location with boundary checking
-      contextMenu.classList.add('visible');
-      const rect = contextMenu.getBoundingClientRect();
-
-      let left = event.clientX;
-      let top = event.clientY;
-
-      // Check right boundary
-      if (left + rect.width > window.innerWidth) {
-        left = window.innerWidth - rect.width - 5;
-      }
-
-      // Check bottom boundary
-      if (top + rect.height > window.innerHeight) {
-        top = window.innerHeight - rect.height - 5;
-      }
-
-      // Ensure menu doesn't go off left edge
-      if (left < 5) {
-        left = 5;
-      }
-
-      // Ensure menu doesn't go off top edge
-      if (top < 5) {
-        top = 5;
-      }
-
-      contextMenu.style.left = left + 'px';
-      contextMenu.style.top = top + 'px';
-    }, true); // Use capture phase to intercept before extensions
-
-    // Hide context menu on click outside
-    document.addEventListener('click', (event) => {
-      if (!contextMenu.contains(event.target)) {
-        contextMenu.classList.remove('visible');
-      }
-    });
-
-    // Handle menu item clicks
-    menuItems.forEach(item => {
-      item.addEventListener('click', () => {
-        const target = item.getAttribute('data-target');
-        this.zoomToTarget(target);
-        contextMenu.classList.remove('visible');
-      });
-    });
-
-    // Hide context menu on escape key
-    document.addEventListener('keydown', (event) => {
-      if (event.key === 'Escape') {
-        contextMenu.classList.remove('visible');
-      }
-    });
-  }
-
-  positionTooltip(tooltipElement, event) {
-    // Position tooltip near mouse with boundary checking
-    const offset = 15; // Distance from cursor
-    const padding = 10; // Padding from screen edges
-
-    // Get tooltip dimensions (need to make it visible first to measure)
-    tooltipElement.style.visibility = 'hidden';
-    tooltipElement.classList.add('visible');
-    const rect = tooltipElement.getBoundingClientRect();
-    tooltipElement.style.visibility = '';
-
-    let left = event.clientX + offset;
-    let top = event.clientY + offset;
-
-    // Check right boundary
-    if (left + rect.width > window.innerWidth - padding) {
-      left = event.clientX - rect.width - offset;
-    }
-
-    // Check bottom boundary
-    if (top + rect.height > window.innerHeight - padding) {
-      top = event.clientY - rect.height - offset;
-    }
-
-    // Check left boundary
-    if (left < padding) {
-      left = padding;
-    }
-
-    // Check top boundary
-    if (top < padding) {
-      top = padding;
-    }
-
-    tooltipElement.style.left = left + 'px';
-    tooltipElement.style.top = top + 'px';
-  }
+  // ===================================================================
+  // Main Update Method
+  // ===================================================================
 
   updateSphere(astroCalc, currentLatitude, currentLongitude, currentTime, currentDay, currentYear, timezone = null) {
     debugLog.log('=== updateSphere called ===');
@@ -1611,15 +353,15 @@ export class ArmillaryScene {
     // -----------------------------------------------------------
     // Hierarchy: World -> TiltGroup -> CelestialGroup -> ZodiacGroup
 
-    // TILT (X): 
+    // TILT (X):
     // Rotate the entire celestial sphere assembly to match Latitude.
     // Axis: World X (East-West).
     this.tiltGroup.rotation.x = -latRad;
 
-    // SPIN (Z): 
+    // SPIN (Z):
     // Rotate the sky opposite to Earth's spin (-LST).
     // Axis: Celestial Pole (Local Z of TiltGroup).
-    // Phase shift: At LST 0, 0° Aries is on the Meridian. 
+    // Phase shift: At LST 0, 0° Aries is on the Meridian.
     // In our geometry (0° = +X axis), we need to rotate it to the Zenith (+Y axis).
     // So we need +90 degrees offset.
     this.celestial.rotation.z = Math.PI / 2 - lstRad;
@@ -1629,8 +371,8 @@ export class ArmillaryScene {
     // 3. Orient the Zodiac Wheel (The Ecliptic)
     // -----------------------------------------------------------
     // The Zodiac is a child of Celestial. It represents the Solar System plane.
-    // It is purely a static tilt relative to the Equator. 
-    
+    // It is purely a static tilt relative to the Equator.
+
     this.zodiacGroup.rotation.x = this.obliquity;
 
 
@@ -1723,13 +465,11 @@ export class ArmillaryScene {
     const earthData = astroCalc.getEarthHeliocentricPosition(currentDay, currentYear, month, day, hours, minutes);
     const earthRad = earthData.longitude;
     const earthDist = earthData.distance * this.PLANET_DISTANCE_SCALE;
-    
+
     const earthX = Math.cos(earthRad) * earthDist;
     const earthY = Math.sin(earthRad) * earthDist;
-    
-    const newEarthPos = new THREE.Vector3(earthX, earthY, 0);
-    const oldEarthPos = this.earthGroup.position.clone();
 
+    const newEarthPos = new THREE.Vector3(earthX, earthY, 0);
     this.earthGroup.position.copy(newEarthPos);
 
     // Update Earth Rotation (Spin + Tilt)
@@ -1878,7 +618,7 @@ export class ArmillaryScene {
         const x = distance * Math.cos(pLat) * Math.cos(pRad);
         const y = distance * Math.cos(pLat) * Math.sin(pRad);
         const z = distance * Math.sin(pLat);
-        
+
         this.planetGroups[planetName].group.position.set(x, y, z);
         this.planetGroups[planetName].group.scale.set(planetScale, planetScale, planetScale);
 
@@ -1927,93 +667,18 @@ export class ArmillaryScene {
     this.eclipticSunMesh.material.needsUpdate = true;
   }
 
-  toggleStarfield(visible) {
-    this.starGroup.visible = visible;
-    this.constellationLineGroup.visible = visible;
-    this.bgStarField.visible = visible;
-  }
-
-  toggleStereo(enabled) {
-    this.stereoEnabled = enabled;
-    this.onWindowResize(); // Update camera aspects
-  }
-
-  setEyeSeparation(separation) {
-    this.eyeSeparation = separation;
-  }
-
-  onWindowResize() {
-    if (this.stereoEnabled) {
-      // Split viewport mode - each camera gets half the width
-      const aspect = (window.innerWidth / 2) / window.innerHeight;
-      this.leftCamera.aspect = aspect;
-      this.leftCamera.updateProjectionMatrix();
-      this.rightCamera.aspect = aspect;
-      this.rightCamera.updateProjectionMatrix();
-    } else {
-      // Normal single viewport
-      this.camera.aspect = window.innerWidth / window.innerHeight;
-      this.camera.updateProjectionMatrix();
-    }
-    this.renderer.setSize(window.innerWidth, window.innerHeight);
-  }
-
-  updateStereoCameras() {
-    // Copy main camera position and rotation to stereo cameras
-    this.leftCamera.position.copy(this.camera.position);
-    this.leftCamera.rotation.copy(this.camera.rotation);
-    this.rightCamera.position.copy(this.camera.position);
-    this.rightCamera.rotation.copy(this.camera.rotation);
-
-    // Offset cameras horizontally (left/right) for stereo effect
-    // We offset along the camera's local X-axis
-    const cameraRight = new THREE.Vector3();
-    this.camera.getWorldDirection(cameraRight);
-    cameraRight.cross(this.camera.up).normalize();
-
-    this.leftCamera.position.add(cameraRight.clone().multiplyScalar(-this.eyeSeparation / 2));
-    this.rightCamera.position.add(cameraRight.clone().multiplyScalar(this.eyeSeparation / 2));
-  }
-
-  updateEarthVisibility() {
-    if (!this.earthGroup || !this.camera || !this.earthMesh) return;
-
-    const dist = this.camera.position.distanceTo(this.earthGroup.position);
-    const surfaceDist = dist - this.EARTH_RADIUS;
-
-    // Opacity logic:
-    // Close (surface view): Transparent
-    // Far (space view): Opaque
-    const minVal = 0.0;
-    const maxVal = 1.0;
-    const minRange = 10.0;
-    const maxRange = 100.0;
-
-    let opacity = 1.0;
-    if (surfaceDist < minRange) {
-      opacity = minVal;
-    } else if (surfaceDist > maxRange) {
-      opacity = maxVal;
-    } else {
-      const t = (surfaceDist - minRange) / (maxRange - minRange);
-      opacity = minVal + t * (maxVal - minVal);
-    }
-
-    if (this.earthMesh.material.uniforms && this.earthMesh.material.uniforms.opacity) {
-      this.earthMesh.material.uniforms.opacity.value = opacity;
-    }
-
-    this.earthGroup.visible = true;
-  }
+  // ===================================================================
+  // Animation Loop
+  // ===================================================================
 
   animate() {
     requestAnimationFrame(() => this.animate());
     this.controls.update();
-    this.updateEarthVisibility();
+    this.cameraController.updateEarthVisibility();
 
-    if (this.stereoEnabled) {
+    if (this.cameraController.stereoEnabled) {
       // Update stereo camera positions based on main camera
-      this.updateStereoCameras();
+      this.cameraController.updateStereoCameras();
 
       const width = window.innerWidth;
       const height = window.innerHeight;
@@ -2035,6 +700,30 @@ export class ArmillaryScene {
       this.renderer.render(this.scene, this.camera);
     }
   }
+
+  // ===================================================================
+  // Delegated Methods (forwarded to modules)
+  // ===================================================================
+
+  zoomToTarget(targetName) {
+    this.cameraController.zoomToTarget(targetName);
+  }
+
+  toggleStereo(enabled) {
+    this.cameraController.toggleStereo(enabled);
+  }
+
+  setEyeSeparation(separation) {
+    this.cameraController.setEyeSeparation(separation);
+  }
+
+  toggleStarfield(visible) {
+    this.cameraController.toggleStarfield(visible);
+  }
+
+  // ===================================================================
+  // Debug Helper
+  // ===================================================================
 
   addDiagnosticMarkers() {
     const material = new THREE.MeshBasicMaterial({ color: 0xff0000 });
@@ -2061,5 +750,4 @@ export class ArmillaryScene {
         debugLog.log("Placed diagnostic marker:", label, deg);
     }
   }
-
 }
