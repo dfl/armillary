@@ -576,7 +576,9 @@ export class ArmillaryScene {
       new THREE.SphereGeometry(eclipticSunRadius, 32, 32),
       new THREE.MeshBasicMaterial({
         map: this.sunTexture,
-        color: 0xffaa44
+        color: 0xffaa44,
+        transparent: true,
+        opacity: 1.0
       })
     );
 
@@ -615,7 +617,11 @@ export class ArmillaryScene {
 
     const realisticSun = new THREE.Mesh(
       new THREE.SphereGeometry(realisticSunRadius, 64, 64),
-      new THREE.MeshBasicMaterial({ color: 0xffaa44 })
+      new THREE.MeshBasicMaterial({
+        color: 0xffaa44,
+        transparent: true,
+        opacity: 1.0
+      })
     );
 
     const sunGlowLayers = [
@@ -1191,6 +1197,22 @@ export class ArmillaryScene {
 
     // Calculate lunar phase
     this.lunarPhase = astroCalc.calculateLunarPhase(sunLonRad, moonLonRad);
+
+    // Check for sun-moon collision and adjust sun transparency
+    const sunMoonDistance = this.eclipticSunGroup.position.distanceTo(this.moonGroup.position);
+    const collisionThreshold = 0.35; // Adjust this value to control when transparency kicks in
+
+    if (sunMoonDistance < collisionThreshold) {
+      // Collision detected - make sun transparent (closer = more transparent)
+      // When distance = 0, opacity = 0.5; when distance = threshold, opacity = 1.0
+      const opacity = 0.5 + (sunMoonDistance / collisionThreshold) * 0.5;
+      this.eclipticSunMesh.material.opacity = opacity;
+      this.realisticSunMesh.material.opacity = opacity;
+    } else {
+      // No collision - keep sun opaque
+      this.eclipticSunMesh.material.opacity = 1.0;
+      this.realisticSunMesh.material.opacity = 1.0;
+    }
 
     // Update planet positions
     console.log('=== Updating planet positions ===');
