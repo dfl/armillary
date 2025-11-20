@@ -453,7 +453,6 @@ export class UIManager {
     this.currentLongitude = parseFloat(this.elements.lonSlider.value);
     this.currentTime = parseFloat(this.elements.timeSlider.value);
     this.currentDay = parseFloat(this.elements.daySlider.value);
-    this.currentYear = 2000;
 
     this.elements.latValue.textContent = this.currentLatitude.toFixed(1) + "°";
     this.elements.lonValue.textContent = this.currentLongitude.toFixed(1) + "°";
@@ -592,6 +591,9 @@ export class UIManager {
       // Rails sends datetime like "1979-05-08 10:57:00" in LOCAL time
       // We set the slider values directly without timezone conversion
       this.setTimeFromLocalString(datetimeWithoutTz);
+
+      // Ensure date display is updated with correct year
+      this.updateDateDisplay();
     }
 
     // Always trigger a visualization update after loading calc_params
@@ -602,6 +604,18 @@ export class UIManager {
     setTimeout(() => { window.isLoadingFromURL = false; }, 500);
 
     return true;
+  }
+
+  updateDateDisplay() {
+    // Update day display with correct year
+    if (this.currentTimezone) {
+      const { month, day } = this.dayOfYearToMonthDay(this.currentDay, this.currentYear);
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      this.elements.dayValue.textContent = `${monthNames[month]} ${day}, ${this.currentYear}`;
+    } else {
+      const jd = this.currentDay + (this.currentTime / 1440);
+      this.elements.dayValue.textContent = `Day ${jd.toFixed(4)}: ${this.dayToStr(this.currentDay, this.currentYear)}`;
+    }
   }
 
   loadStateFromURL(parser) {

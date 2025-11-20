@@ -175,12 +175,10 @@ window.addEventListener('keydown', (e) => {
 // Load state from URL first
 const hasURLState = uiManager.loadStateFromURL(parser);
 
-// Initialize UI values (this sets defaults but shouldn't trigger rendering yet)
-uiManager.initialize();
-
-// Initial update (only if no URL state was loaded)
-// If URL state exists, updateSlidersFromDate will call updateCallback
+// Initialize UI values only if no URL state was loaded
+// (this sets defaults but shouldn't trigger rendering yet)
 if (!hasURLState) {
+  uiManager.initialize();
   parser.setNow();
 }
 
