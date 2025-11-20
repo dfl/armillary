@@ -1393,6 +1393,9 @@ export class ArmillaryScene {
     const duration = 1000; // 1 second
     const startTime = performance.now();
 
+    // Disable controls during animation to prevent conflict
+    this.controls.enabled = false;
+
     const animateCamera = () => {
       const elapsed = performance.now() - startTime;
       const progress = Math.min(elapsed / duration, 1);
@@ -1411,8 +1414,15 @@ export class ArmillaryScene {
       // Interpolate up vector
       camera.up.lerpVectors(startUp, newUp, eased).normalize();
 
+      // Ensure camera looks at target during transition
+      camera.lookAt(this.controls.target);
+
       if (progress < 1) {
         requestAnimationFrame(animateCamera);
+      } else {
+        // Animation complete
+        this.controls.enabled = true;
+        this.controls.update();
       }
     };
 
