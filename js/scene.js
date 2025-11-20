@@ -166,10 +166,11 @@ export class ArmillaryScene {
 
   createFixedReferences() {
     const planeOpts = { side: THREE.DoubleSide, transparent: true, opacity: 0.1 };
+    const sphereRadius = this.CE_RADIUS * 1.6;
 
     // Horizon plane
     const horizonPlane = new THREE.Mesh(
-      new THREE.CircleGeometry(this.CE_RADIUS, 64),
+      new THREE.CircleGeometry(sphereRadius, 64),
       new THREE.MeshBasicMaterial({ color: 0x00ff00, ...planeOpts })
     );
     horizonPlane.rotation.x = -Math.PI / 2;
@@ -179,7 +180,7 @@ export class ArmillaryScene {
     const horizonOutlinePoints = [];
     for (let i = 0; i <= 64; i++) {
       const angle = (i / 64) * Math.PI * 2;
-      horizonOutlinePoints.push(new THREE.Vector3(this.CE_RADIUS * Math.cos(angle), this.CE_RADIUS * Math.sin(angle), 0));
+      horizonOutlinePoints.push(new THREE.Vector3(sphereRadius * Math.cos(angle), sphereRadius * Math.sin(angle), 0));
     }
     this.horizonOutline = new THREE.Line(
       new THREE.BufferGeometry().setFromPoints(horizonOutlinePoints),
@@ -196,7 +197,7 @@ export class ArmillaryScene {
     const meridianOutlinePoints = [];
     for (let i = 0; i <= 64; i++) {
       const angle = (i / 64) * Math.PI * 2;
-      meridianOutlinePoints.push(new THREE.Vector3(this.CE_RADIUS * Math.cos(angle), this.CE_RADIUS * Math.sin(angle), 0));
+      meridianOutlinePoints.push(new THREE.Vector3(sphereRadius * Math.cos(angle), sphereRadius * Math.sin(angle), 0));
     }
     this.meridianOutline = new THREE.Line(
       new THREE.BufferGeometry().setFromPoints(meridianOutlinePoints),
@@ -210,7 +211,7 @@ export class ArmillaryScene {
     const pvOutlinePoints = [];
     for (let i = 0; i <= 64; i++) {
       const angle = (i / 64) * Math.PI * 2;
-      pvOutlinePoints.push(new THREE.Vector3(this.CE_RADIUS * Math.cos(angle), this.CE_RADIUS * Math.sin(angle), 0));
+      pvOutlinePoints.push(new THREE.Vector3(sphereRadius * Math.cos(angle), sphereRadius * Math.sin(angle), 0));
     }
     this.primeVerticalOutline = new THREE.Line(
       new THREE.BufferGeometry().setFromPoints(pvOutlinePoints),
@@ -344,10 +345,11 @@ export class ArmillaryScene {
   }
 
   createCelestialEquator() {
+    const sphereRadius = this.CE_RADIUS * 1.6;
     const ceqPoints = [];
     for (let i = 0; i <= 128; i++) {
       const a = (i / 128) * Math.PI * 2;
-      ceqPoints.push(new THREE.Vector3(this.CE_RADIUS * Math.cos(a), this.CE_RADIUS * Math.sin(a), 0));
+      ceqPoints.push(new THREE.Vector3(sphereRadius * Math.cos(a), sphereRadius * Math.sin(a), 0));
     }
     this.celestialEquatorOutline = new THREE.Line(
       new THREE.BufferGeometry().setFromPoints(ceqPoints),
@@ -363,8 +365,8 @@ export class ArmillaryScene {
 
     const npLine = new THREE.Line(
       new THREE.BufferGeometry().setFromPoints([
-        new THREE.Vector3(0, 0, this.CE_RADIUS),
-        new THREE.Vector3(0, 0, this.CE_RADIUS + polarLineLength)
+        new THREE.Vector3(0, 0, sphereRadius),
+        new THREE.Vector3(0, 0, sphereRadius + polarLineLength)
       ]),
       polarLineMaterial
     );
@@ -372,8 +374,8 @@ export class ArmillaryScene {
 
     const spLine = new THREE.Line(
       new THREE.BufferGeometry().setFromPoints([
-        new THREE.Vector3(0, 0, -this.CE_RADIUS),
-        new THREE.Vector3(0, 0, -this.CE_RADIUS - polarLineLength)
+        new THREE.Vector3(0, 0, -sphereRadius),
+        new THREE.Vector3(0, 0, -sphereRadius - polarLineLength)
       ]),
       polarLineMaterial
     );
@@ -401,8 +403,8 @@ export class ArmillaryScene {
       return sprite;
     };
 
-    this.poleLabels.NP = addPoleLabel('NP', this.CE_RADIUS + polarLineLength);
-    this.poleLabels.SP = addPoleLabel('SP', -this.CE_RADIUS - polarLineLength);
+    this.poleLabels.NP = addPoleLabel('NP', sphereRadius + polarLineLength);
+    this.poleLabels.SP = addPoleLabel('SP', -sphereRadius - polarLineLength);
   }
 
   createEclipticZodiacWheel() {
