@@ -15,6 +15,8 @@ export class ArmillaryScene {
     this.MARS_TEXTURE_PATH = '/armillary/images/mars_texture.jpg';
     this.JUPITER_TEXTURE_PATH = '/armillary/images/jupiter_texture.jpg';
     this.SATURN_TEXTURE_PATH = '/armillary/images/saturn_texture.jpg';
+    this.SATURN_RINGS_TEXTURE_PATH = '/armillary/images/saturn_rings_texture.png';
+    this.SATURN_RINGS_ALPHA_PATH = '/armillary/images/saturn_rings_alpha.png';
     this.URANUS_TEXTURE_PATH = '/armillary/images/uranus_texture.jpg';
     this.NEPTUNE_TEXTURE_PATH = '/armillary/images/neptune_texture.jpg';
     this.PLUTO_TEXTURE_PATH = '/armillary/images/pluto_texture.jpg';
@@ -743,6 +745,10 @@ export class ArmillaryScene {
       pluto: textureLoader.load(this.PLUTO_TEXTURE_PATH)
     };
 
+    // Load Saturn ring textures
+    const saturnRingsTexture = textureLoader.load(this.SATURN_RINGS_TEXTURE_PATH);
+    const saturnRingsAlpha = textureLoader.load(this.SATURN_RINGS_ALPHA_PATH);
+
     planetData.forEach(planet => {
       // Calculate radius based on relative diameter
       const radius = baseRadius * (planet.diameter / earthDiameter);
@@ -786,6 +792,25 @@ export class ArmillaryScene {
         );
         planetGroup.add(glowMesh);
       });
+
+      // Add rings for Saturn
+      if (planet.name === 'saturn') {
+        const ringInnerRadius = radius * 1.2;
+        const ringOuterRadius = radius * 2.0;
+        const ringGeometry = new THREE.RingGeometry(ringInnerRadius, ringOuterRadius, 64);
+
+        const ringMaterial = new THREE.MeshBasicMaterial({
+          map: saturnRingsTexture,
+          alphaMap: saturnRingsAlpha,
+          transparent: true,
+          side: THREE.DoubleSide,
+          depthWrite: false
+        });
+
+        const ringMesh = new THREE.Mesh(ringGeometry, ringMaterial);
+        ringMesh.rotation.x = Math.PI / 2; // Rotate to be horizontal
+        planetGroup.add(ringMesh);
+      }
 
       // Store the group and main mesh for later positioning
       this.planetGroups[planet.name] = {
