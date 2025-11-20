@@ -9,14 +9,15 @@ export class ArmillaryScene {
     this.obliquity = 23.44 * Math.PI / 180;
     this.CE_RADIUS = 3;
     this.SUN_TEXTURE_PATH = '/armillary/images/sun_texture.jpg';
+    this.REALISTIC_SUN_TEXTURE_PATH = '/armillary/images/sun_texture_orange.jpg';
     this.MOON_TEXTURE_PATH = '/armillary/images/moon_texture.jpg';
     this.MERCURY_TEXTURE_PATH = '/armillary/images/mercury_texture.jpg';
     this.VENUS_TEXTURE_PATH = '/armillary/images/venus_texture.jpg';
     this.MARS_TEXTURE_PATH = '/armillary/images/mars_texture.jpg';
     this.JUPITER_TEXTURE_PATH = '/armillary/images/jupiter_texture.jpg';
     this.SATURN_TEXTURE_PATH = '/armillary/images/saturn_texture.jpg';
-    this.SATURN_RINGS_TEXTURE_PATH = '/armillary/images/saturn_rings_texture.png';
-    this.SATURN_RINGS_ALPHA_PATH = '/armillary/images/saturn_rings_alpha.png';
+    this.SATURN_RINGS_TEXTURE_PATH = '/armillary/images/saturn_ring_color.jpg';
+    this.SATURN_RINGS_ALPHA_PATH = '/armillary/images/saturn_ring_alpha.gif';
     this.URANUS_TEXTURE_PATH = '/armillary/images/uranus_texture.jpg';
     this.NEPTUNE_TEXTURE_PATH = '/armillary/images/neptune_texture.jpg';
     this.PLUTO_TEXTURE_PATH = '/armillary/images/pluto_texture.jpg';
@@ -50,9 +51,12 @@ export class ArmillaryScene {
     this.eclipticSunGroup = null;
     this.realisticSunGroup = null;
     this.sunTexture = null; // Store texture reference for toggling
-    this.moonGroup = null;
-    this.moonMesh = null;
+    this.eclipticMoonGroup = null;
+    this.eclipticMoonMesh = null;
+    this.realisticMoonGroup = null;
+    this.realisticMoonMesh = null;
     this.moonGlowMeshes = [];
+    this.realisticMoonGlowMeshes = [];
     this.planetGroups = {}; // Store planet groups
     this.planetZodiacPositions = {}; // Store planet zodiac positions for tooltips
 
@@ -91,6 +95,7 @@ export class ArmillaryScene {
     this.createAngleSpheres();
     this.createAngleLabels();
     this.setupStarHover();
+    this.setupPlanetDoubleClick();
   }
 
   initScene() {
@@ -579,6 +584,7 @@ export class ArmillaryScene {
   createSun() {
     const textureLoader = new THREE.TextureLoader();
     this.sunTexture = textureLoader.load(this.SUN_TEXTURE_PATH); // Store for referencing later
+    const realisticSunTexture = textureLoader.load(this.REALISTIC_SUN_TEXTURE_PATH);
 
     const eclipticSunRadius = 0.18;
 
@@ -630,7 +636,8 @@ export class ArmillaryScene {
     const realisticSun = new THREE.Mesh(
       new THREE.SphereGeometry(realisticSunRadius, 64, 64),
       new THREE.MeshBasicMaterial({
-        color: 0xffaa44,
+        map: realisticSunTexture,
+        color: 0xffffff,
         transparent: true,
         opacity: 1.0,
         depthWrite: false
@@ -638,10 +645,9 @@ export class ArmillaryScene {
     );
 
     const sunGlowLayers = [
-      { size: realisticSunRadius * 1.15, opacity: 0.7, color: 0xffff99 },
-      { size: realisticSunRadius * 1.4, opacity: 0.5, color: 0xffcc66 },
-      { size: realisticSunRadius * 2.0, opacity: 0.3, color: 0xff9933 },
-      { size: realisticSunRadius * 3.0, opacity: 0.15, color: 0xff6600 }
+      { size: realisticSunRadius * 1.2, opacity: 0.1, color: 0xffff99 },
+      { size: realisticSunRadius * 1.5, opacity: 0.05, color: 0xffcc66 },
+      { size: realisticSunRadius * 2.0, opacity: 0.03, color: 0xff9933 }
     ];
 
     this.realisticSunGroup = new THREE.Group();
@@ -673,42 +679,85 @@ export class ArmillaryScene {
     const textureLoader = new THREE.TextureLoader();
     const moonTexture = textureLoader.load(this.MOON_TEXTURE_PATH);
 
-    const moonRadius = 0.13;
+    // Ecliptic moon (on the ecliptic plane)
+    const eclipticMoonRadius = 0.13;
 
-    const moon = new THREE.Mesh(
-      new THREE.SphereGeometry(moonRadius, 32, 32),
+    const eclipticMoon = new THREE.Mesh(
+      new THREE.SphereGeometry(eclipticMoonRadius, 32, 32),
       new THREE.MeshBasicMaterial({
         map: moonTexture,
         color: 0xaaaaaa
       })
     );
 
-    const moonGlowLayers = [
-      { size: moonRadius * 1.2, opacity: 0.15, color: 0xdddddd },
-      { size: moonRadius * 1.5, opacity: 0.1, color: 0xcccccc }
+    const eclipticMoonGlowLayers = [
+      { size: eclipticMoonRadius * 1.2, opacity: 0.15, color: 0xdddddd },
+      { size: eclipticMoonRadius * 1.5, opacity: 0.1, color: 0xcccccc }
     ];
 
-    this.moonGroup = new THREE.Group();
-    this.moonGroup.add(moon);
+    this.eclipticMoonGroup = new THREE.Group();
+    this.eclipticMoonGroup.add(eclipticMoon);
 
-    this.moonMesh = moon;
+    this.eclipticMoonMesh = eclipticMoon;
     this.moonGlowMeshes = [];
 
-    moonGlowLayers.forEach(layer => {
+    eclipticMoonGlowLayers.forEach(layer => {
       const glowMesh = new THREE.Mesh(
         new THREE.SphereGeometry(layer.size, 32, 32),
         new THREE.MeshBasicMaterial({
           color: layer.color,
           transparent: true,
           opacity: layer.opacity,
-          blending: THREE.AdditiveBlending
+          blending: THREE.AdditiveBlending,
+          depthWrite: false
         })
       );
-      this.moonGroup.add(glowMesh);
+      this.eclipticMoonGroup.add(glowMesh);
       this.moonGlowMeshes.push(glowMesh);
     });
 
-    this.zodiacGroup.add(this.moonGroup);
+    this.zodiacGroup.add(this.eclipticMoonGroup);
+
+    // Realistic moon (far away, proper angular size)
+    const moonAngularDiameter = 0.52 * Math.PI / 180;
+    const moonDistance = this.CE_RADIUS * 50;
+    const realisticMoonRadius = moonDistance * Math.tan(moonAngularDiameter / 2);
+
+    const realisticMoon = new THREE.Mesh(
+      new THREE.SphereGeometry(realisticMoonRadius, 64, 64),
+      new THREE.MeshBasicMaterial({
+        map: moonTexture,
+        color: 0xaaaaaa
+      })
+    );
+
+    const realisticMoonGlowLayers = [
+      { size: realisticMoonRadius * 1.2, opacity: 0.08, color: 0xffffff },
+      { size: realisticMoonRadius * 1.4, opacity: 0.04, color: 0xffffff }
+    ];
+
+    this.realisticMoonGroup = new THREE.Group();
+    this.realisticMoonGroup.add(realisticMoon);
+
+    this.realisticMoonMesh = realisticMoon;
+    this.realisticMoonGlowMeshes = [];
+
+    realisticMoonGlowLayers.forEach(layer => {
+      const glowMesh = new THREE.Mesh(
+        new THREE.SphereGeometry(layer.size, 32, 32),
+        new THREE.MeshBasicMaterial({
+          color: layer.color,
+          transparent: true,
+          opacity: layer.opacity,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false
+        })
+      );
+      this.realisticMoonGroup.add(glowMesh);
+      this.realisticMoonGlowMeshes.push(glowMesh);
+    });
+
+    this.zodiacGroup.add(this.realisticMoonGroup);
   }
 
   createPlanets() {
@@ -746,8 +795,18 @@ export class ArmillaryScene {
     };
 
     // Load Saturn ring textures
-    const saturnRingsTexture = textureLoader.load(this.SATURN_RINGS_TEXTURE_PATH);
-    const saturnRingsAlpha = textureLoader.load(this.SATURN_RINGS_ALPHA_PATH);
+    const saturnRingsTexture = textureLoader.load(
+      this.SATURN_RINGS_TEXTURE_PATH,
+      () => console.log('Saturn rings texture loaded successfully'),
+      undefined,
+      (err) => console.error('Error loading Saturn rings texture:', err)
+    );
+    const saturnRingsAlpha = textureLoader.load(
+      this.SATURN_RINGS_ALPHA_PATH,
+      () => console.log('Saturn rings alpha loaded successfully'),
+      undefined,
+      (err) => console.error('Error loading Saturn rings alpha:', err)
+    );
 
     planetData.forEach(planet => {
       // Calculate radius based on relative diameter
@@ -764,34 +823,8 @@ export class ArmillaryScene {
         material
       );
 
-      // Add subtle glow for larger planets
-      const glowLayers = [];
-      if (planet.diameter > 3) {
-        glowLayers.push(
-          { size: radius * 1.15, opacity: 0.3, color: planet.color },
-          { size: radius * 1.3, opacity: 0.15, color: planet.color }
-        );
-      } else {
-        glowLayers.push(
-          { size: radius * 1.2, opacity: 0.2, color: planet.color }
-        );
-      }
-
       const planetGroup = new THREE.Group();
       planetGroup.add(planetMesh);
-
-      glowLayers.forEach(layer => {
-        const glowMesh = new THREE.Mesh(
-          new THREE.SphereGeometry(layer.size, 32, 32),
-          new THREE.MeshBasicMaterial({
-            color: layer.color,
-            transparent: true,
-            opacity: layer.opacity,
-            blending: THREE.AdditiveBlending
-          })
-        );
-        planetGroup.add(glowMesh);
-      });
 
       // Add rings for Saturn
       if (planet.name === 'saturn') {
@@ -799,17 +832,34 @@ export class ArmillaryScene {
         const ringOuterRadius = radius * 2.0;
         const ringGeometry = new THREE.RingGeometry(ringInnerRadius, ringOuterRadius, 64);
 
+        // Fix UV mapping for ring texture
+        const pos = ringGeometry.attributes.position;
+        const uv = ringGeometry.attributes.uv;
+        const v3 = new THREE.Vector3();
+
+        for (let i = 0; i < pos.count; i++) {
+          v3.fromBufferAttribute(pos, i);
+          const dist = v3.length();
+          const u = (dist - ringInnerRadius) / (ringOuterRadius - ringInnerRadius);
+          uv.setXY(i, u, uv.getY(i));
+        }
+
         const ringMaterial = new THREE.MeshBasicMaterial({
           map: saturnRingsTexture,
           alphaMap: saturnRingsAlpha,
           transparent: true,
           side: THREE.DoubleSide,
+          opacity: 1.0,
           depthWrite: false
         });
 
         const ringMesh = new THREE.Mesh(ringGeometry, ringMaterial);
         ringMesh.rotation.x = Math.PI / 2; // Rotate to be horizontal
         planetGroup.add(ringMesh);
+
+        console.log(`Saturn rings created: inner=${ringInnerRadius}, outer=${ringOuterRadius}`);
+        console.log('Ring texture:', saturnRingsTexture);
+        console.log('Ring alpha:', saturnRingsAlpha);
       }
 
       // Store the group and main mesh for later positioning
@@ -912,7 +962,8 @@ export class ArmillaryScene {
       const starIntersects = raycaster.intersectObjects(this.starGroup.children, false);
       const sunIntersects = raycaster.intersectObjects(this.eclipticSunGroup.children, false);
       const realisticSunIntersects = raycaster.intersectObjects(this.realisticSunGroup.children, false);
-      const moonIntersects = raycaster.intersectObjects(this.moonGroup.children, false);
+      const eclipticMoonIntersects = raycaster.intersectObjects(this.eclipticMoonGroup.children, false);
+      const realisticMoonIntersects = raycaster.intersectObjects(this.realisticMoonGroup.children, false);
       
       // Check all planet groups
       const planetIntersects = [];
@@ -992,8 +1043,8 @@ export class ArmillaryScene {
         this.positionTooltip(starInfoElement, event);
         this.renderer.domElement.style.cursor = 'pointer';
       }
-      // Check moon third
-      else if (moonIntersects.length > 0) {
+      // Check moon third - both ecliptic and realistic
+      else if (eclipticMoonIntersects.length > 0 || realisticMoonIntersects.length > 0) {
         document.getElementById('starName').textContent = `☽ Moon ${this.moonZodiacPosition}`;
         document.getElementById('constellationName').textContent = `${this.lunarPhase.phase} (${this.lunarPhase.illumination}% lit)`;
 
@@ -1054,6 +1105,111 @@ export class ArmillaryScene {
     };
 
     this.renderer.domElement.addEventListener('mousemove', onStarHover);
+  }
+
+  setupPlanetDoubleClick() {
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+
+    const onDoubleClick = (event) => {
+      let camera, mouseX, mouseY;
+
+      if (this.stereoEnabled) {
+        const halfWidth = window.innerWidth / 2;
+        if (event.clientX < halfWidth) {
+          camera = this.rightCamera;
+          mouseX = (event.clientX / halfWidth) * 2 - 1;
+        } else {
+          camera = this.leftCamera;
+          mouseX = ((event.clientX - halfWidth) / halfWidth) * 2 - 1;
+        }
+        mouseY = -(event.clientY / window.innerHeight) * 2 + 1;
+      } else {
+        camera = this.camera;
+        mouseX = (event.clientX / window.innerWidth) * 2 - 1;
+        mouseY = -(event.clientY / window.innerHeight) * 2 + 1;
+      }
+
+      mouse.x = mouseX;
+      mouse.y = mouseY;
+
+      raycaster.setFromCamera(mouse, camera);
+
+      // Check all planet groups
+      const planetIntersects = [];
+      Object.entries(this.planetGroups).forEach(([name, planetData]) => {
+        const intersects = raycaster.intersectObjects(planetData.group.children, false);
+        if (intersects.length > 0) {
+          planetIntersects.push({ name, planetData, intersects });
+        }
+      });
+
+      // Check realistic sun
+      const sunIntersects = raycaster.intersectObjects(this.realisticSunGroup.children, false);
+
+      // Check realistic moon
+      const moonIntersects = raycaster.intersectObjects(this.realisticMoonGroup.children, false);
+
+      let targetObject = null;
+      let targetRadius = null;
+      let targetWorldPos = new THREE.Vector3();
+
+      if (planetIntersects.length > 0) {
+        const planet = planetIntersects[0];
+        planet.planetData.group.getWorldPosition(targetWorldPos);
+        targetRadius = planet.planetData.mesh.geometry.parameters.radius;
+        targetObject = 'planet';
+      } else if (sunIntersects.length > 0) {
+        this.realisticSunGroup.getWorldPosition(targetWorldPos);
+        targetRadius = this.realisticSunMesh.geometry.parameters.radius;
+        targetObject = 'sun';
+      } else if (moonIntersects.length > 0) {
+        this.realisticMoonGroup.getWorldPosition(targetWorldPos);
+        targetRadius = this.realisticMoonMesh.geometry.parameters.radius;
+        targetObject = 'moon';
+      }
+
+      if (targetObject) {
+        // Calculate camera position (offset from target)
+        const zoomDistance = targetRadius * 8; // Distance from surface
+
+        // Get direction from target to current camera
+        const direction = camera.position.clone().sub(targetWorldPos).normalize();
+
+        // Calculate new camera position
+        const newCameraPos = targetWorldPos.clone().add(direction.multiplyScalar(zoomDistance));
+
+        // Smoothly animate camera
+        const startPos = camera.position.clone();
+        const startTarget = this.controls.target.clone();
+        const duration = 1000; // 1 second
+        const startTime = performance.now();
+
+        const animateCamera = () => {
+          const elapsed = performance.now() - startTime;
+          const progress = Math.min(elapsed / duration, 1);
+
+          // Ease-in-out function
+          const eased = progress < 0.5
+            ? 2 * progress * progress
+            : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+
+          // Interpolate position
+          camera.position.lerpVectors(startPos, newCameraPos, eased);
+
+          // Interpolate target
+          this.controls.target.lerpVectors(startTarget, targetWorldPos, eased);
+
+          if (progress < 1) {
+            requestAnimationFrame(animateCamera);
+          }
+        };
+
+        animateCamera();
+      }
+    };
+
+    this.renderer.domElement.addEventListener('dblclick', onDoubleClick);
   }
 
   positionTooltip(tooltipElement, event) {
@@ -1245,7 +1401,12 @@ export class ArmillaryScene {
       currentDay, currentYear, month, day, hours, minutes, currentLongitude
     );
     const moonDeg = THREE.MathUtils.radToDeg(moonLonRad);
-    this.moonGroup.position.copy(placeOnZodiac(moonDeg));
+    this.eclipticMoonGroup.position.copy(placeOnZodiac(moonDeg));
+
+    // Realistic distant moon
+    const moonDistance = this.CE_RADIUS * 50;
+    const mRad = THREE.MathUtils.degToRad(moonDeg) - ayanamsha;
+    this.realisticMoonGroup.position.set(Math.cos(mRad) * moonDistance, Math.sin(mRad) * moonDistance, 0);
 
     // Store moon zodiac position for tooltip
     this.moonZodiacPosition = astroCalc.toZodiacString(moonDeg - ayanamshaDeg);
@@ -1254,7 +1415,7 @@ export class ArmillaryScene {
     this.lunarPhase = astroCalc.calculateLunarPhase(sunLonRad, moonLonRad);
 
     // Check for sun-moon collision and adjust sun transparency
-    const sunMoonDistance = this.eclipticSunGroup.position.distanceTo(this.moonGroup.position);
+    const sunMoonDistance = this.eclipticSunGroup.position.distanceTo(this.eclipticMoonGroup.position);
     const collisionThreshold = 0.35; // Adjust this value to control when transparency kicks in
 
     if (sunMoonDistance < collisionThreshold) {
