@@ -132,6 +132,8 @@ input[type="text"] {
   border-radius: 0.5rem;
   padding: 8px 0;
   min-width: 180px;
+  max-height: 80vh;
+  overflow-y: auto;
   z-index: 10000;
   display: none;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.7);

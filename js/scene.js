@@ -1491,10 +1491,35 @@ export class ArmillaryScene {
       event.preventDefault();
       event.stopPropagation(); // Prevent browser extensions from interfering
 
-      // Position menu at mouse location
-      contextMenu.style.left = event.clientX + 'px';
-      contextMenu.style.top = event.clientY + 'px';
+      // Position menu at mouse location with boundary checking
       contextMenu.classList.add('visible');
+      const rect = contextMenu.getBoundingClientRect();
+
+      let left = event.clientX;
+      let top = event.clientY;
+
+      // Check right boundary
+      if (left + rect.width > window.innerWidth) {
+        left = window.innerWidth - rect.width - 5;
+      }
+
+      // Check bottom boundary
+      if (top + rect.height > window.innerHeight) {
+        top = window.innerHeight - rect.height - 5;
+      }
+
+      // Ensure menu doesn't go off left edge
+      if (left < 5) {
+        left = 5;
+      }
+
+      // Ensure menu doesn't go off top edge
+      if (top < 5) {
+        top = 5;
+      }
+
+      contextMenu.style.left = left + 'px';
+      contextMenu.style.top = top + 'px';
     }, true); // Use capture phase to intercept before extensions
 
     // Hide context menu on click outside
