@@ -1398,10 +1398,10 @@ export class ArmillaryScene {
       const localUp = new THREE.Vector3(0, 1, 0);
       newUp = localUp.applyQuaternion(this.armillaryRoot.quaternion);
     } else if (targetName === 'ecliptic-north') {
-      // Position camera directly above ecliptic north pole, looking straight down
-      // This makes the ecliptic plane appear face-on (perpendicular to camera)
-      // The ecliptic north pole is in the +Y direction of the zodiacGroup's local space
-      const localOffset = new THREE.Vector3(0, targetRadius, 0);
+      // Position camera directly above ecliptic north pole, looking straight down at the ecliptic plane
+      // The zodiacGroup has the ecliptic plane in the XY plane (Z=0) in local coordinates
+      // The ecliptic north pole is therefore in the +Z direction in zodiacGroup's local space
+      const localOffset = new THREE.Vector3(0, 0, targetRadius);
 
       // Get the zodiacGroup's world quaternion to transform our local offset
       const zodiacWorldQuaternion = new THREE.Quaternion();
@@ -1411,9 +1411,9 @@ export class ArmillaryScene {
       const worldOffset = localOffset.applyQuaternion(zodiacWorldQuaternion);
       newCameraPos = targetWorldPos.clone().add(worldOffset);
 
-      // Camera up vector should align with the vernal equinox direction (0° Aries)
-      // This is the +Z direction in the zodiacGroup's local space
-      const localUp = new THREE.Vector3(0, 0, 1);
+      // Camera up vector should point toward 90° on the zodiac (along +Y in zodiacGroup's local space)
+      // This orients the view with 0° Aries (vernal equinox) pointing to the right (+X)
+      const localUp = new THREE.Vector3(0, 1, 0);
       newUp = localUp.applyQuaternion(zodiacWorldQuaternion);
     } else {
       // For planets and other bodies, use a multiplier to fill ~1/2 of screen
