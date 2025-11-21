@@ -187,6 +187,25 @@ export default class PlanetaryReferences {
       this.sunReferencesGroup.add(radialLine);
     }
 
+    // 360 dots around the outer rim, one for each zodiac degree
+    const dotGeometry = new THREE.SphereGeometry(eclipticRadius * 0.002, 8, 8);
+    const dotMaterial = new THREE.MeshBasicMaterial({
+      color: 0xaaaaaa,
+      transparent: true,
+      opacity: 0.6
+    });
+
+    for (let i = 0; i < 360; i++) {
+      const angle = THREE.MathUtils.degToRad(i);
+      const dot = new THREE.Mesh(dotGeometry, dotMaterial);
+      dot.position.set(
+        eclipticRadius * Math.cos(angle),
+        eclipticRadius * Math.sin(angle),
+        0
+      );
+      this.sunReferencesGroup.add(dot);
+    }
+
     // Hide by default
     this.sunReferencesGroup.visible = false;
   }
