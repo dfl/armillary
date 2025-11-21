@@ -119,6 +119,7 @@ export class ArmillaryScene {
     this.realisticSunGlowMeshes = [];
     this.planetGroups = {}; // Store planet groups
     this.planetZodiacPositions = {}; // Store planet zodiac positions for tooltips
+    this.eclipticDots = []; // Store ecliptic rim dots for hover detection
 
     // ===================================================================
     // State Management
@@ -311,6 +312,8 @@ export class ArmillaryScene {
       this.PLANET_DISTANCE_SCALE,
       this.STAR_FIELD_RADIUS
     );
+    // Map ecliptic dots for hover detection
+    this.eclipticDots = this.planetaryReferences.eclipticDots;
 
     // 6. Camera Controller (zoom, stereo, starfield toggle)
     this.cameraController = new CameraController(
@@ -587,10 +590,15 @@ export class ArmillaryScene {
         document.getElementById('earthReferencesToggle').checked;
       this.planetaryReferences.earthReferencesGroup.visible = shouldShowEarthRefs;
 
-      // Only enable Earth depthWrite when Earth references are actually visible
-      // This allows equator to clip in Earth view without affecting horizon view
-      if (this.earthMaterial && this.earthMaterial.depthWrite !== shouldShowEarthRefs) {
-        this.earthMaterial.depthWrite = shouldShowEarthRefs;
+      // Check if Sun ecliptic plane is visible
+      const sunEclipticVisible = document.getElementById('sunReferencesToggle') &&
+        document.getElementById('sunReferencesToggle').checked;
+
+      // Enable Earth depthWrite when Earth references OR Sun ecliptic plane are visible
+      // This allows them to properly clip against Earth
+      const shouldEnableEarthDepth = shouldShowEarthRefs || sunEclipticVisible;
+      if (this.earthMaterial && this.earthMaterial.depthWrite !== shouldEnableEarthDepth) {
+        this.earthMaterial.depthWrite = shouldEnableEarthDepth;
         this.earthMaterial.needsUpdate = true;
       }
     }
@@ -876,7 +884,14 @@ export class ArmillaryScene {
     // Only enable in Earth view (not horizon view)
     const distToObserver = this.camera.position.distanceTo(this.armillaryRoot.position);
     const isEarthView = (distToObserver >= 50.0);
-    const shouldEnableDepth = visible && isEarthView;
+    const shouldShowEarthRefs = visible && isEarthView;
+
+    // Check if Sun ecliptic plane is visible
+    const sunEclipticVisible = document.getElementById('sunReferencesToggle') &&
+      document.getElementById('sunReferencesToggle').checked;
+
+    // Enable Earth depthWrite when Earth references OR Sun ecliptic plane are visible
+    const shouldEnableDepth = shouldShowEarthRefs || sunEclipticVisible;
 
     if (this.earthMaterial && this.earthMaterial.depthWrite !== shouldEnableDepth) {
       this.earthMaterial.depthWrite = shouldEnableDepth;
@@ -886,6 +901,22 @@ export class ArmillaryScene {
 
   toggleSunReferences(visible) {
     this.planetaryReferences.toggleSunReferences(visible);
+
+    // Update Earth depthWrite when ecliptic plane is toggled
+    // Check if Earth references are also visible
+    const distToObserver = this.camera.position.distanceTo(this.armillaryRoot.position);
+    const isEarthView = (distToObserver >= 50.0);
+    const shouldShowEarthRefs = isEarthView &&
+      document.getElementById('earthReferencesToggle') &&
+      document.getElementById('earthReferencesToggle').checked;
+
+    // Enable Earth depthWrite when Earth references OR Sun ecliptic plane are visible
+    const shouldEnableDepth = shouldShowEarthRefs || visible;
+
+    if (this.earthMaterial && this.earthMaterial.depthWrite !== shouldEnableDepth) {
+      this.earthMaterial.depthWrite = shouldEnableDepth;
+      this.earthMaterial.needsUpdate = true;
+    }
   }
 
   // ===================================================================

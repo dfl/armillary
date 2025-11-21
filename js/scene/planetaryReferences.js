@@ -30,6 +30,7 @@ export default class PlanetaryReferences {
     this.earthPoleLabels = {};
     this.sunEclipticPlane = null;
     this.sunEclipticOutline = null;
+    this.eclipticDots = []; // Store ecliptic rim dots for hover detection
 
     // Create all reference geometry
     this.createEarthReferences();
@@ -161,7 +162,9 @@ export default class PlanetaryReferences {
         opacity: 0.3,
         transparent: true,
         dashSize: 100.0,
-        gapSize: 100.0
+        gapSize: 100.0,
+        depthTest: true,
+        depthWrite: false
       })
     );
     this.sunEclipticOutline.computeLineDistances();
@@ -172,7 +175,9 @@ export default class PlanetaryReferences {
     const radialLineMaterial = new THREE.LineBasicMaterial({
       color: 0x888888,
       opacity: 0.3,
-      transparent: true
+      transparent: true,
+      depthTest: true,
+      depthWrite: false
     });
 
     for (let i = 0; i < 12; i++) {
@@ -188,11 +193,13 @@ export default class PlanetaryReferences {
     }
 
     // 360 dots around the outer rim, one for each zodiac degree
-    const dotGeometry = new THREE.SphereGeometry(eclipticRadius * 0.002, 8, 8);
+    const dotGeometry = new THREE.SphereGeometry(eclipticRadius * 0.003, 8, 8);
     const dotMaterial = new THREE.MeshBasicMaterial({
       color: 0xaaaaaa,
       transparent: true,
-      opacity: 0.6
+      opacity: 0.6,
+      depthTest: true,
+      depthWrite: false
     });
 
     for (let i = 0; i < 360; i++) {
@@ -203,6 +210,9 @@ export default class PlanetaryReferences {
         eclipticRadius * Math.sin(angle),
         0
       );
+      // Store degree information for hover tooltip
+      dot.userData.eclipticDegree = i;
+      this.eclipticDots.push(dot);
       this.sunReferencesGroup.add(dot);
     }
 

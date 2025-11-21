@@ -34,6 +34,21 @@ export default class InteractionManager {
   }
 
   /**
+   * Convert ecliptic degree to zodiac string (e.g., "15° ♈ Aries")
+   */
+  degreeToZodiacString(degree) {
+    const signs = ['♈\uFE0E Aries', '♉\uFE0E Taurus', '♊\uFE0E Gemini', '♋\uFE0E Cancer',
+                   '♌\uFE0E Leo', '♍\uFE0E Virgo', '♎\uFE0E Libra', '♏\uFE0E Scorpio',
+                   '♐\uFE0E Sagittarius', '♑\uFE0E Capricorn', '♒\uFE0E Aquarius', '♓\uFE0E Pisces'];
+    let lon = degree % 360;
+    if (lon < 0) lon += 360;
+    const signIndex = Math.floor(lon / 30);
+    const deg = Math.floor(lon % 30);
+    const minutes = Math.round((lon % 1) * 60);
+    return `${deg}° ${signs[signIndex]}`;
+  }
+
+  /**
    * Set content for both tooltips
    */
   setTooltipContent(starName, constellationName) {
@@ -174,6 +189,13 @@ export default class InteractionManager {
         if (obj) allTargets.push({ obj, type: 'pole', meta: obj });
       });
 
+      // Ecliptic dots
+      if (this.sceneRef.eclipticDots) {
+        this.sceneRef.eclipticDots.forEach(dot => {
+          allTargets.push({ obj: dot, type: 'ecliptic-dot', meta: dot });
+        });
+      }
+
       // Perform single raycast against all objects
       const allIntersects = raycaster.intersectObjects(allTargets.map(t => t.obj), false);
 
@@ -201,7 +223,8 @@ export default class InteractionManager {
         'angle': 0.5,          // Even smaller
         'circle': 0,           // Lines
         'pole': 0.5,           // Small
-        'star': 0.1            // Very small
+        'star': 0.1,           // Very small
+        'ecliptic-dot': 0.1    // Very small dots
       };
 
       // Process all intersections and build candidates
@@ -231,7 +254,7 @@ export default class InteractionManager {
           candidate.name = meta;
         } else if (type === 'star') {
           candidate.starData = meta.userData;
-        } else if (type === 'angle' || type === 'circle' || type === 'pole') {
+        } else if (type === 'angle' || type === 'circle' || type === 'pole' || type === 'ecliptic-dot') {
           candidate.objectData = meta;
         }
 
@@ -327,6 +350,13 @@ export default class InteractionManager {
         }
         else if (closest.type === 'star') {
           this.setTooltipContent(closest.starData.name, closest.starData.constellation);
+          this.positionTooltip(this.starInfoElement, event);
+          this.renderer.domElement.style.cursor = 'pointer';
+        }
+        else if (closest.type === 'ecliptic-dot') {
+          const degree = closest.objectData.userData.eclipticDegree;
+          const zodiacPosition = this.degreeToZodiacString(degree);
+          this.setTooltipContent(`${zodiacPosition}`, 'Heliocentric Zodiac Longitude');
           this.positionTooltip(this.starInfoElement, event);
           this.renderer.domElement.style.cursor = 'pointer';
         }
