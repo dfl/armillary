@@ -36,7 +36,7 @@ input[type="text"] {
 .angle-label {
   font-weight: bold;
 }
-#starInfo {
+#starInfo, #starInfo2 {
   position: fixed;
   color: white;
   font-family: sans-serif;
@@ -51,15 +51,15 @@ input[type="text"] {
   transition: opacity 0.15s ease-in-out;
   box-shadow: 0 4px 12px rgba(0,0,0,0.5);
 }
-#starInfo.visible {
+#starInfo.visible, #starInfo2.visible {
   opacity: 1;
 }
-#starInfo .star-name {
+#starInfo .star-name, #starInfo2 .star-name {
   font-weight: bold;
   font-size: 18px;
   margin-bottom: 4px;
 }
-#starInfo .constellation-name {
+#starInfo .constellation-name, #starInfo2 .constellation-name {
   font-size: 14px;
   color: #aaaaff;
   white-space: pre-line;

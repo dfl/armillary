@@ -19,10 +19,36 @@ export default class InteractionManager {
     this.renderer = renderer;
     this.sceneRef = sceneRef;
 
+    // Tooltip elements
+    this.starInfoElement = document.getElementById('starInfo');
+    this.starNameElement = document.getElementById('starName');
+    this.constellationNameElement = document.getElementById('constellationName');
+    this.starInfoElement2 = document.getElementById('starInfo2');
+    this.starNameElement2 = document.getElementById('starName2');
+    this.constellationNameElement2 = document.getElementById('constellationName2');
+
     // Setup all interactions
     this.setupStarHover();
     this.setupPlanetDoubleClick();
     this.setupContextMenu();
+  }
+
+  /**
+   * Set content for both tooltips
+   */
+  setTooltipContent(starName, constellationName) {
+    this.starNameElement.textContent = starName;
+    this.constellationNameElement.textContent = constellationName;
+    this.starNameElement2.textContent = starName;
+    this.constellationNameElement2.textContent = constellationName;
+  }
+
+  /**
+   * Hide both tooltips
+   */
+  hideTooltips() {
+    this.starInfoElement.classList.remove('visible');
+    this.starInfoElement2.classList.remove('visible');
   }
 
   setupStarHover() {
@@ -157,9 +183,7 @@ export default class InteractionManager {
         objToTarget.set(target.obj, target);
       });
 
-      const starInfoElement = document.getElementById('starInfo');
-
-      if (!starInfoElement) {
+      if (!this.starInfoElement) {
         console.error('starInfo element not found!');
         return;
       }
@@ -241,39 +265,34 @@ export default class InteractionManager {
         };
 
         if (closest.type === 'sun') {
-          document.getElementById('starName').textContent = `☉ Sun ${this.sceneRef.sunZodiacPosition}`;
-          document.getElementById('constellationName').textContent = `Star`;
-          this.positionTooltip(starInfoElement, event);
+          this.setTooltipContent(`☉ Sun ${this.sceneRef.sunZodiacPosition}`, `Star`);
+          this.positionTooltip(this.starInfoElement, event);
           this.renderer.domElement.style.cursor = 'pointer';
         }
         else if (closest.type === 'moon') {
-          document.getElementById('starName').textContent = `☽ Moon ${this.sceneRef.moonZodiacPosition}`;
-          document.getElementById('constellationName').textContent = `${this.sceneRef.lunarPhase.phase} (${this.sceneRef.lunarPhase.illumination}% lit)`;
-          this.positionTooltip(starInfoElement, event);
+          this.setTooltipContent(`☽ Moon ${this.sceneRef.moonZodiacPosition}`, `${this.sceneRef.lunarPhase.phase} (${this.sceneRef.lunarPhase.illumination}% lit)`);
+          this.positionTooltip(this.starInfoElement, event);
           this.renderer.domElement.style.cursor = 'pointer';
         }
         else if (closest.type === 'earth') {
-          document.getElementById('starName').textContent = `⊕ Earth`;
-          document.getElementById('constellationName').textContent = `Planet`;
-          this.positionTooltip(starInfoElement, event);
+          this.setTooltipContent(`⊕ Earth`, `Planet`);
+          this.positionTooltip(this.starInfoElement, event);
           this.renderer.domElement.style.cursor = 'pointer';
         }
         else if (closest.type === 'ecliptic-planet') {
           const symbol = planetSymbols[closest.name] || closest.name;
           const fullName = planetFullNames[closest.name] || closest.name;
           const position = this.sceneRef.planetZodiacPositions[closest.name] || '';
-          document.getElementById('starName').textContent = `${symbol} ${fullName} ${position}`;
-          document.getElementById('constellationName').textContent = `Planet`;
-          this.positionTooltip(starInfoElement, event);
+          this.setTooltipContent(`${symbol} ${fullName} ${position}`, `Planet`);
+          this.positionTooltip(this.starInfoElement, event);
           this.renderer.domElement.style.cursor = 'pointer';
         }
         else if (closest.type === 'heliocentric-planet') {
           const symbol = planetSymbols[closest.name] || closest.name;
           const fullName = planetFullNames[closest.name] || closest.name;
           const position = this.sceneRef.planetZodiacPositions[closest.name] || '';
-          document.getElementById('starName').textContent = `${symbol} ${fullName} ${position}`;
-          document.getElementById('constellationName').textContent = `Planet`;
-          this.positionTooltip(starInfoElement, event);
+          this.setTooltipContent(`${symbol} ${fullName} ${position}`, `Planet`);
+          this.positionTooltip(this.starInfoElement, event);
           this.renderer.domElement.style.cursor = 'pointer';
         }
         else if (closest.type === 'angle') {
@@ -282,9 +301,8 @@ export default class InteractionManager {
             MC: "Midheaven", IC: "Imum Coeli", ASC: "Ascendant",
             DSC: "Descendant", VTX: "Vertex", AVX: "Antivertex"
           };
-          document.getElementById('starName').textContent = `${angleName} ${this.sceneRef.anglePositions[angleName]}`;
-          document.getElementById('constellationName').textContent = fullNames[angleName];
-          this.positionTooltip(starInfoElement, event);
+          this.setTooltipContent(`${angleName} ${this.sceneRef.anglePositions[angleName]}`, fullNames[angleName]);
+          this.positionTooltip(this.starInfoElement, event);
           this.renderer.domElement.style.cursor = 'pointer';
         }
         else if (closest.type === 'circle') {
@@ -296,27 +314,24 @@ export default class InteractionManager {
             "Celestial Equator": "Projection of Earth's equator onto celestial sphere",
             "Ecliptic": "Path of the Sun through the zodiac constellations"
           };
-          document.getElementById('starName').textContent = circleName;
-          document.getElementById('constellationName').textContent = descriptions[circleName];
-          this.positionTooltip(starInfoElement, event);
+          this.setTooltipContent(circleName, descriptions[circleName]);
+          this.positionTooltip(this.starInfoElement, event);
           this.renderer.domElement.style.cursor = 'pointer';
         }
         else if (closest.type === 'pole') {
           const poleName = closest.objectData.userData.poleName;
           const descriptions = { "NP": "North Celestial Pole", "SP": "South Celestial Pole" };
-          document.getElementById('starName').textContent = poleName;
-          document.getElementById('constellationName').textContent = descriptions[poleName];
-          this.positionTooltip(starInfoElement, event);
+          this.setTooltipContent(poleName, descriptions[poleName]);
+          this.positionTooltip(this.starInfoElement, event);
           this.renderer.domElement.style.cursor = 'pointer';
         }
         else if (closest.type === 'star') {
-          document.getElementById('starName').textContent = closest.starData.name;
-          document.getElementById('constellationName').textContent = closest.starData.constellation;
-          this.positionTooltip(starInfoElement, event);
+          this.setTooltipContent(closest.starData.name, closest.starData.constellation);
+          this.positionTooltip(this.starInfoElement, event);
           this.renderer.domElement.style.cursor = 'pointer';
         }
       } else {
-        starInfoElement.classList.remove('visible');
+        this.hideTooltips();
         this.renderer.domElement.style.cursor = 'default';
       }
     };
@@ -581,40 +596,108 @@ export default class InteractionManager {
   }
 
   positionTooltip(tooltipElement, event) {
-    // Position tooltip near mouse with boundary checking
     const offset = 15; // Distance from cursor
     const padding = 10; // Padding from screen edges
+    const stereoEnabled = this.sceneRef.cameraController && this.sceneRef.cameraController.stereoEnabled;
 
-    // Get tooltip dimensions (need to make it visible first to measure)
-    tooltipElement.style.visibility = 'hidden';
-    tooltipElement.classList.add('visible');
-    const rect = tooltipElement.getBoundingClientRect();
-    tooltipElement.style.visibility = '';
+    if (stereoEnabled) {
+      // In stereo mode, show tooltips in both viewports
+      const halfWidth = window.innerWidth / 2;
 
-    let left = event.clientX + offset;
-    let top = event.clientY + offset;
+      // Make both tooltips visible for measurement
+      this.starInfoElement.style.visibility = 'hidden';
+      this.starInfoElement.classList.add('visible');
+      this.starInfoElement2.style.visibility = 'hidden';
+      this.starInfoElement2.classList.add('visible');
 
-    // Check right boundary
-    if (left + rect.width > window.innerWidth - padding) {
-      left = event.clientX - rect.width - offset;
+      const rect1 = this.starInfoElement.getBoundingClientRect();
+      const rect2 = this.starInfoElement2.getBoundingClientRect();
+
+      this.starInfoElement.style.visibility = '';
+      this.starInfoElement2.style.visibility = '';
+
+      // Use the smallest viewport dimension for consistent wrapping
+      const viewportWidth = halfWidth;
+
+      // Determine which viewport the mouse is in
+      const isInLeftViewport = event.clientX < halfWidth;
+
+      // Position left viewport tooltip
+      let leftX, leftY;
+      if (isInLeftViewport) {
+        // Mouse is in left viewport - position relative to mouse
+        leftX = event.clientX + offset;
+        leftY = event.clientY + offset;
+      } else {
+        // Mouse is in right viewport - mirror position to left viewport
+        const rightRelativeX = event.clientX - halfWidth;
+        leftX = rightRelativeX + offset;
+        leftY = event.clientY + offset;
+      }
+
+      // Check right boundary for left viewport
+      if (leftX + rect1.width > halfWidth - padding) {
+        const mouseX = isInLeftViewport ? event.clientX : (event.clientX - halfWidth);
+        leftX = mouseX - rect1.width - offset;
+      }
+
+      // Check bottom boundary
+      if (leftY + rect1.height > window.innerHeight - padding) {
+        leftY = event.clientY - rect1.height - offset;
+      }
+
+      // Check left boundary
+      if (leftX < padding) {
+        leftX = padding;
+      }
+
+      // Check top boundary
+      if (leftY < padding) {
+        leftY = padding;
+      }
+
+      this.starInfoElement.style.left = leftX + 'px';
+      this.starInfoElement.style.top = leftY + 'px';
+
+      // Position right viewport tooltip (mirror of left)
+      let rightX = leftX + halfWidth;
+      let rightY = leftY;
+
+      this.starInfoElement2.style.left = rightX + 'px';
+      this.starInfoElement2.style.top = rightY + 'px';
+
+    } else {
+      // Normal mode - single tooltip
+      tooltipElement.style.visibility = 'hidden';
+      tooltipElement.classList.add('visible');
+      const rect = tooltipElement.getBoundingClientRect();
+      tooltipElement.style.visibility = '';
+
+      let left = event.clientX + offset;
+      let top = event.clientY + offset;
+
+      // Check right boundary
+      if (left + rect.width > window.innerWidth - padding) {
+        left = event.clientX - rect.width - offset;
+      }
+
+      // Check bottom boundary
+      if (top + rect.height > window.innerHeight - padding) {
+        top = event.clientY - rect.height - offset;
+      }
+
+      // Check left boundary
+      if (left < padding) {
+        left = padding;
+      }
+
+      // Check top boundary
+      if (top < padding) {
+        top = padding;
+      }
+
+      tooltipElement.style.left = left + 'px';
+      tooltipElement.style.top = top + 'px';
     }
-
-    // Check bottom boundary
-    if (top + rect.height > window.innerHeight - padding) {
-      top = event.clientY - rect.height - offset;
-    }
-
-    // Check left boundary
-    if (left < padding) {
-      left = padding;
-    }
-
-    // Check top boundary
-    if (top < padding) {
-      top = padding;
-    }
-
-    tooltipElement.style.left = left + 'px';
-    tooltipElement.style.top = top + 'px';
   }
 }
