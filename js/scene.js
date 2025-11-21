@@ -11,6 +11,7 @@ import CelestialObjects from './scene/celestialObjects.js';
 import AngleMarkers from './scene/angles.js';
 import InteractionManager from './scene/interactions.js';
 import CameraController from './scene/camera.js';
+import PlanetaryReferences from './scene/planetaryReferences.js';
 
 export class ArmillaryScene {
   constructor() {
@@ -85,6 +86,7 @@ export class ArmillaryScene {
     this.angleMarkers = null;
     this.interactions = null;
     this.cameraController = null;
+    this.planetaryReferences = null;
 
     // ===================================================================
     // Properties for backward compatibility (mapped from modules)
@@ -286,6 +288,8 @@ export class ArmillaryScene {
     this.eclipticPlanetGroups = this.celestialObjects.eclipticPlanetGroups;
     this.earthGroup = this.celestialObjects.earthGroup;
     this.earthMesh = this.celestialObjects.earthMesh;
+    this.earthMaterial = this.celestialObjects.earthMaterial;
+    this.earthDepthMaterial = this.celestialObjects.earthDepthMaterial;
     debugLog.log('After celestialObjects init, planetGroups:', Object.keys(this.planetGroups));
 
     // 4. Angle Markers (MC, IC, ASC, DSC, VTX, AVX)
@@ -297,7 +301,17 @@ export class ArmillaryScene {
     this.spheres = this.angleMarkers.spheres;
     this.angleLabels = this.angleMarkers.angleLabels;
 
-    // 5. Camera Controller (zoom, stereo, starfield toggle)
+    // 5. Planetary References (Earth equator/poles, Sun ecliptic plane)
+    this.planetaryReferences = new PlanetaryReferences(
+      this.scene,
+      this.earthGroup,
+      this.earthMesh,
+      this.realisticSunGroup,
+      this.EARTH_RADIUS,
+      this.PLANET_DISTANCE_SCALE
+    );
+
+    // 6. Camera Controller (zoom, stereo, starfield toggle)
     this.cameraController = new CameraController(
       this.camera,
       this.leftCamera,
@@ -307,7 +321,7 @@ export class ArmillaryScene {
       this // Pass reference to main scene for accessing properties
     );
 
-    // 6. Interaction Manager (hover, double-click, context menu)
+    // 7. Interaction Manager (hover, double-click, context menu)
     this.interactions = new InteractionManager(
       this.camera,
       this.leftCamera,
@@ -562,7 +576,23 @@ export class ArmillaryScene {
     // Check distance from camera to Earth center to determine view mode
     // Threshold: 50 units (Earth radius is 100, Horizon view is ~12)
     const distToObserver = this.camera.position.distanceTo(this.armillaryRoot.position);
-    const distToEarth = this.camera.position.distanceTo(this.earthGroup.position);
+    const isEarthView = (distToObserver >= 50.0);
+
+    // Only show Earth references (equator/poles) in Earth view
+    // In horizon view, they're not visible/relevant anyway
+    if (this.planetaryReferences && this.planetaryReferences.earthReferencesGroup) {
+      const shouldShowEarthRefs = isEarthView &&
+        document.getElementById('earthReferencesToggle') &&
+        document.getElementById('earthReferencesToggle').checked;
+      this.planetaryReferences.earthReferencesGroup.visible = shouldShowEarthRefs;
+
+      // Only enable Earth depthWrite when Earth references are actually visible
+      // This allows equator to clip in Earth view without affecting horizon view
+      if (this.earthMaterial && this.earthMaterial.depthWrite !== shouldShowEarthRefs) {
+        this.earthMaterial.depthWrite = shouldShowEarthRefs;
+        this.earthMaterial.needsUpdate = true;
+      }
+    }
 
     // Adjust controls target and camera motion based on view distance
     if (distToObserver < 50.0) {
@@ -836,6 +866,25 @@ export class ArmillaryScene {
     this.celestialObjects.realisticSunGroup.visible = visible;
     this.celestialObjects.realisticMoonGroup.visible = visible;
 
+  }
+
+  toggleEarthReferences(visible) {
+    this.planetaryReferences.toggleEarthReferences(visible);
+
+    // Update Earth depthWrite to match reference visibility
+    // Only enable in Earth view (not horizon view)
+    const distToObserver = this.camera.position.distanceTo(this.armillaryRoot.position);
+    const isEarthView = (distToObserver >= 50.0);
+    const shouldEnableDepth = visible && isEarthView;
+
+    if (this.earthMaterial && this.earthMaterial.depthWrite !== shouldEnableDepth) {
+      this.earthMaterial.depthWrite = shouldEnableDepth;
+      this.earthMaterial.needsUpdate = true;
+    }
+  }
+
+  toggleSunReferences(visible) {
+    this.planetaryReferences.toggleSunReferences(visible);
   }
 
   // ===================================================================

@@ -468,8 +468,24 @@ export default class CelestialObjects {
       new THREE.SphereGeometry(this.EARTH_RADIUS, 32, 32),
       earthMaterial
     );
+    this.earthMaterial = earthMaterial; // Store reference for dynamic depthWrite toggling
+
+    // Create invisible depth-only sphere to occlude equator backside
+    // This sphere writes depth but not color, using DoubleSide to occlude backside
+    const depthOnlyMaterial = new THREE.MeshBasicMaterial({
+      colorWrite: false, // Don't write color
+      depthWrite: false, // Will be toggled same as Earth material
+      side: THREE.DoubleSide // Render both sides to write depth on backside
+    });
+    this.earthDepthMesh = new THREE.Mesh(
+      new THREE.SphereGeometry(this.EARTH_RADIUS, 32, 32),
+      depthOnlyMaterial
+    );
+    this.earthDepthMaterial = depthOnlyMaterial;
+
     this.earthGroup = new THREE.Group();
     this.earthGroup.add(this.earthMesh);
+    this.earthGroup.add(this.earthDepthMesh);
     this.scene.add(this.earthGroup);
 
     // Hide initially until first updateSphere() call

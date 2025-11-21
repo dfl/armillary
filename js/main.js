@@ -101,6 +101,18 @@ planetsToggle.addEventListener('change', () => {
   scene.togglePlanets(planetsToggle.checked);
 });
 
+// Earth references toggle
+const earthReferencesToggle = document.getElementById('earthReferencesToggle');
+earthReferencesToggle.addEventListener('change', () => {
+  scene.toggleEarthReferences(earthReferencesToggle.checked);
+});
+
+// Sun references toggle
+const sunReferencesToggle = document.getElementById('sunReferencesToggle');
+sunReferencesToggle.addEventListener('change', () => {
+  scene.toggleSunReferences(sunReferencesToggle.checked);
+});
+
 // Stereo view toggle
 const stereoToggle = document.getElementById('stereoToggle');
 stereoToggle.addEventListener('change', () => {
