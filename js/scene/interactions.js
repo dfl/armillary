@@ -152,6 +152,15 @@ export default class InteractionManager {
         });
       });
 
+      // Heliocentric lunar nodes
+      if (this.sceneRef.heliocentricNodeGroups) {
+        Object.entries(this.sceneRef.heliocentricNodeGroups).forEach(([name, nodeGroup]) => {
+          nodeGroup.children.forEach(child => {
+            allTargets.push({ obj: child, type: 'heliocentric-node', meta: { name, group: nodeGroup } });
+          });
+        });
+      }
+
       // Angles
       [
         this.sceneRef.spheres?.MC,
@@ -230,9 +239,11 @@ export default class InteractionManager {
         'sun': 3,              // Largest: 0.12 * CE_RADIUS
         'earth': 2,            // Similar to moon
         'heliocentric-planet': 1, // Same as ecliptic planets
+        'heliocentric-node': 0.8, // Smaller than planets
         'angle': 0.5,          // Even smaller
         'circle': 0,           // Lines
         'pole': 0.5,           // Small
+        'node': 0.5,           // Small (zodiac nodes)
         'star': 0.1,           // Very small
         'ecliptic-dot': 0.1    // Very small dots
       };
@@ -262,6 +273,9 @@ export default class InteractionManager {
         // Add type-specific metadata
         if (type === 'ecliptic-planet' || type === 'heliocentric-planet') {
           candidate.name = meta;
+        } else if (type === 'heliocentric-node') {
+          candidate.nodeName = meta.name;
+          candidate.nodeGroup = meta.group;
         } else if (type === 'star') {
           candidate.starData = meta.userData;
         } else if (type === 'angle' || type === 'circle' || type === 'pole' || type === 'node' || type === 'ecliptic-dot') {
@@ -360,6 +374,21 @@ export default class InteractionManager {
         }
         else if (closest.type === 'node') {
           const nodeName = closest.objectData.userData.nodeName;
+          const fullNames = {
+            "NORTH_NODE": "North Node (Ascending)",
+            "SOUTH_NODE": "South Node (Descending)"
+          };
+          const symbols = {
+            "NORTH_NODE": "☊",
+            "SOUTH_NODE": "☋"
+          };
+          const position = this.sceneRef.nodePositions && this.sceneRef.nodePositions[nodeName] ? this.sceneRef.nodePositions[nodeName] : '';
+          this.setTooltipContent(`${symbols[nodeName]} ${position}`, fullNames[nodeName]);
+          this.positionTooltip(this.starInfoElement, event);
+          this.renderer.domElement.style.cursor = 'pointer';
+        }
+        else if (closest.type === 'heliocentric-node') {
+          const nodeName = closest.nodeName;
           const fullNames = {
             "NORTH_NODE": "North Node (Ascending)",
             "SOUTH_NODE": "South Node (Descending)"

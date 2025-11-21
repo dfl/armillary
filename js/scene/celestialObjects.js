@@ -50,6 +50,7 @@ export default class CelestialObjects {
     this.realisticMoonMesh = null;
     this.moonGlowMeshes = [];
     this.realisticMoonGlowMeshes = [];
+    this.heliocentricNodeGroups = {}; // Lunar nodes in heliocentric view
     this.planetGroups = {};
     this.eclipticPlanetGroups = {}; // Planets on the ecliptic zodiac wheel
     this.earthGroup = null;
@@ -59,6 +60,7 @@ export default class CelestialObjects {
     this.createStarField();
     this.createSun();
     this.createMoon();
+    this.createHeliocentricNodes();
     this.createPlanets();
     this.createEclipticPlanets();
   }
@@ -380,6 +382,54 @@ export default class CelestialObjects {
 
     // Hide initially until first updateSphere() call
     this.realisticMoonGroup.visible = false;
+  }
+
+  createHeliocentricNodes() {
+    // Create visual markers for lunar nodes in the heliocentric view
+    // These show where the moon's orbital plane intersects the ecliptic plane
+    // Using sprite glyphs (☊ and ☋) that always face the camera
+
+    const createNodeMarker = (name, symbol) => {
+      const group = new THREE.Group();
+
+      // Create canvas with node symbol
+      const canvas = document.createElement('canvas');
+      canvas.width = 128;
+      canvas.height = 128;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = 'white';
+      ctx.font = 'bold 80px Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(symbol, 64, 64);
+
+      // Create sprite from canvas
+      const texture = new THREE.CanvasTexture(canvas);
+      const material = new THREE.SpriteMaterial({
+        map: texture,
+        depthTest: true,
+        transparent: true,
+        opacity: 0.9
+      });
+      const sprite = new THREE.Sprite(material);
+
+      // Scale the sprite (similar to moon size)
+      const scale = this.MOON_RADIUS * 3.0;
+      sprite.scale.set(scale, scale, 1);
+      sprite.userData.nodeName = name;
+
+      group.add(sprite);
+      group.userData.nodeName = name;
+
+      // Add to scene
+      this.scene.add(group);
+      group.visible = false; // Hidden by default, shown when ecliptic plane is visible
+
+      return group;
+    };
+
+    this.heliocentricNodeGroups.NORTH_NODE = createNodeMarker('NORTH_NODE', '☊');
+    this.heliocentricNodeGroups.SOUTH_NODE = createNodeMarker('SOUTH_NODE', '☋');
   }
 
   createPlanets() {

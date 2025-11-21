@@ -268,21 +268,25 @@ export class AstronomyCalculator {
       // ephemeris.getAllPlanets(date, lat, lon) -> results vary by package version.
       const result = ephemeris.getAllPlanets(date, 0, 0);
 
-      // Try to read Moon's longitude and latitude
+      // Try to read Moon's longitude
       const moonObj = result && result.observed && result.observed.moon ? result.observed.moon : (result && result.moon ? result.moon : null);
 
       if (moonObj) {
         const maybeLon = moonObj.apparentLongitudeDd ?? moonObj.longitude ?? moonObj.lon ?? moonObj.lambda;
-        const maybeLat = moonObj.apparentLatitudeDd ?? moonObj.latitude ?? moonObj.lat ?? moonObj.beta;
 
         if (typeof maybeLon === 'number' && !Number.isNaN(maybeLon)) {
           let lonDeg = maybeLon;
           lonDeg = this._deg(lonDeg);
 
-          let latRad = 0;
-          if (typeof maybeLat === 'number' && !Number.isNaN(maybeLat)) {
-            latRad = this._degToRad(maybeLat);
-          }
+          // Calculate ecliptic latitude using orbital mechanics
+          // The moon's orbit is inclined ~5.14° to the ecliptic
+          // β ≈ i × sin(λ_moon - Ω) where i is inclination and Ω is ascending node
+          const nodes = this.calculateLunarNodes(currentDay, currentYear, month, day, hours, minutes);
+          const ascendingNodeDeg = nodes.ascending;
+
+          const MOON_INCLINATION = 5.145; // degrees, mean inclination to ecliptic
+          const latDeg = MOON_INCLINATION * Math.sin(this._degToRad(lonDeg - ascendingNodeDeg));
+          const latRad = this._degToRad(latDeg);
 
           return {
             longitude: this._degToRad(lonDeg),

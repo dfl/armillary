@@ -286,6 +286,7 @@ export class ArmillaryScene {
     this.realisticMoonMesh = this.celestialObjects.realisticMoonMesh;
     this.moonGlowMeshes = this.celestialObjects.moonGlowMeshes;
     this.realisticMoonGlowMeshes = this.celestialObjects.realisticMoonGlowMeshes;
+    this.heliocentricNodeGroups = this.celestialObjects.heliocentricNodeGroups;
     this.planetGroups = this.celestialObjects.planetGroups;
     this.eclipticPlanetGroups = this.celestialObjects.eclipticPlanetGroups;
     this.earthGroup = this.celestialObjects.earthGroup;
@@ -708,6 +709,28 @@ export class ArmillaryScene {
     // Calculate lunar phase
     this.lunarPhase = astroCalc.calculateLunarPhase(sunLonRad, moonLonRad);
 
+    // 2.5. Position Heliocentric Lunar Nodes (relative to Earth on ecliptic plane)
+    // These nodes show where the moon's orbital plane intersects the ecliptic
+    // Position them on the ecliptic plane (Z=0) at the node longitudes
+    const northNodeRad = THREE.MathUtils.degToRad(northNodeDeg);
+    const southNodeRad = THREE.MathUtils.degToRad(southNodeDeg);
+
+    // North Node position (relative to Earth)
+    const northNodeX = earthX + this.MOON_DISTANCE * Math.cos(northNodeRad);
+    const northNodeY = earthY + this.MOON_DISTANCE * Math.sin(northNodeRad);
+    this.heliocentricNodeGroups.NORTH_NODE.position.set(northNodeX, northNodeY, 0);
+
+    // South Node position (relative to Earth)
+    const southNodeX = earthX + this.MOON_DISTANCE * Math.cos(southNodeRad);
+    const southNodeY = earthY + this.MOON_DISTANCE * Math.sin(southNodeRad);
+    this.heliocentricNodeGroups.SOUTH_NODE.position.set(southNodeX, southNodeY, 0);
+
+    // Only show heliocentric nodes when ecliptic plane is visible
+    const sunEclipticVisible = document.getElementById('sunReferencesToggle') &&
+      document.getElementById('sunReferencesToggle').checked;
+    this.heliocentricNodeGroups.NORTH_NODE.visible = sunEclipticVisible;
+    this.heliocentricNodeGroups.SOUTH_NODE.visible = sunEclipticVisible;
+
     // 3. Position Planets (Heliocentric)
     const planetNames = ['mercury', 'venus', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune', 'pluto'];
 
@@ -974,6 +997,13 @@ export class ArmillaryScene {
 
   toggleSunReferences(visible) {
     this.planetaryReferences.toggleSunReferences(visible);
+
+    // Toggle heliocentric lunar nodes visibility with ecliptic plane
+    if (this.heliocentricNodeGroups) {
+      Object.values(this.heliocentricNodeGroups).forEach(nodeGroup => {
+        nodeGroup.visible = visible;
+      });
+    }
 
     // Update Earth depthWrite when ecliptic plane is toggled
     // Check if Earth references are also visible
