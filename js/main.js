@@ -107,30 +107,40 @@ initializeLocationAutocomplete(uiManager, updateVisualization);
 const starfieldToggle = document.getElementById('starfieldToggle');
 starfieldToggle.addEventListener('change', () => {
   scene.toggleStarfield(starfieldToggle.checked);
+  uiManager.setToggleState('starfield', starfieldToggle.checked);
+  uiManager.saveStateToURL();
 });
 
 // Planets toggle
 const planetsToggle = document.getElementById('planetsToggle');
 planetsToggle.addEventListener('change', () => {
   scene.togglePlanets(planetsToggle.checked);
+  uiManager.setToggleState('planets', planetsToggle.checked);
+  uiManager.saveStateToURL();
 });
 
 // Earth references toggle
 const earthReferencesToggle = document.getElementById('earthReferencesToggle');
 earthReferencesToggle.addEventListener('change', () => {
   scene.toggleEarthReferences(earthReferencesToggle.checked);
+  uiManager.setToggleState('earthReferences', earthReferencesToggle.checked);
+  uiManager.saveStateToURL();
 });
 
 // Sun references toggle
 const sunReferencesToggle = document.getElementById('sunReferencesToggle');
 sunReferencesToggle.addEventListener('change', () => {
   scene.toggleSunReferences(sunReferencesToggle.checked);
+  uiManager.setToggleState('sunReferences', sunReferencesToggle.checked);
+  uiManager.saveStateToURL();
 });
 
 // Stereo view toggle
 const stereoToggle = document.getElementById('stereoToggle');
 stereoToggle.addEventListener('change', () => {
   scene.toggleStereo(stereoToggle.checked);
+  uiManager.setToggleState('stereo', stereoToggle.checked);
+  uiManager.saveStateToURL();
 });
 
 // Eye separation slider
@@ -140,6 +150,8 @@ eyeSeparationSlider.addEventListener('input', () => {
   const separation = parseFloat(eyeSeparationSlider.value);
   scene.setEyeSeparation(separation);
   eyeSeparationValue.textContent = separation.toFixed(2);
+  uiManager.setEyeSeparation(separation);
+  uiManager.saveStateToURL();
 });
 
 // Keyboard shortcuts
@@ -227,6 +239,30 @@ window.addEventListener('keydown', (e) => {
 
 // Load state from URL first
 const hasURLState = uiManager.loadStateFromURL(parser);
+
+// Apply toggle states from URL
+const toggleStates = uiManager.getToggleStates();
+starfieldToggle.checked = toggleStates.starfield;
+planetsToggle.checked = toggleStates.planets;
+earthReferencesToggle.checked = toggleStates.earthReferences;
+sunReferencesToggle.checked = toggleStates.sunReferences;
+stereoToggle.checked = toggleStates.stereo;
+if (uiManager.elements.siderealCheckbox) {
+  uiManager.elements.siderealCheckbox.checked = toggleStates.sidereal;
+}
+
+// Apply eye separation from URL
+const eyeSeparation = uiManager.getEyeSeparation();
+eyeSeparationSlider.value = eyeSeparation;
+eyeSeparationValue.textContent = eyeSeparation.toFixed(2);
+
+// Apply toggle states to scene
+scene.toggleStarfield(toggleStates.starfield);
+scene.togglePlanets(toggleStates.planets);
+scene.toggleEarthReferences(toggleStates.earthReferences);
+scene.toggleSunReferences(toggleStates.sunReferences);
+scene.toggleStereo(toggleStates.stereo);
+scene.setEyeSeparation(eyeSeparation);
 
 // Initialize UI values only if no URL state was loaded
 // (this sets defaults but shouldn't trigger rendering yet)

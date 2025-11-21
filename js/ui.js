@@ -182,6 +182,15 @@ export class UIManager {
     this.currentYear = 2000;
     this.currentTimezone = null; // IANA timezone name (e.g., 'America/Anchorage')
     this.cameraState = null; // Store camera position, target, and up vector
+    this.toggleStates = {
+      starfield: true,
+      planets: true,
+      earthReferences: false,
+      sunReferences: false,
+      stereo: false,
+      sidereal: false
+    };
+    this.eyeSeparation = 0.3;
 
     this.elements = {};
     this.initializeElements();
@@ -238,7 +247,9 @@ export class UIManager {
     // Sidereal checkbox
     if (this.elements.siderealCheckbox) {
       this.elements.siderealCheckbox.addEventListener('change', () => {
+        this.setToggleState('sidereal', this.elements.siderealCheckbox.checked);
         this.updateCallback();
+        this.saveStateToURL();
       });
     }
 
@@ -493,6 +504,31 @@ export class UIManager {
       params.set('cam_up', upStr);
     }
 
+    // Save toggle states (only save if different from defaults)
+    if (this.toggleStates.starfield !== true) {
+      params.set('starfield', this.toggleStates.starfield ? '1' : '0');
+    }
+    if (this.toggleStates.planets !== true) {
+      params.set('planets', this.toggleStates.planets ? '1' : '0');
+    }
+    if (this.toggleStates.earthReferences !== false) {
+      params.set('earthRefs', this.toggleStates.earthReferences ? '1' : '0');
+    }
+    if (this.toggleStates.sunReferences !== false) {
+      params.set('sunRefs', this.toggleStates.sunReferences ? '1' : '0');
+    }
+    if (this.toggleStates.stereo !== false) {
+      params.set('stereo', this.toggleStates.stereo ? '1' : '0');
+    }
+    if (this.toggleStates.sidereal !== false) {
+      params.set('sidereal', this.toggleStates.sidereal ? '1' : '0');
+    }
+
+    // Save eye separation if not default
+    if (this.eyeSeparation !== 0.3) {
+      params.set('eyeSep', this.eyeSeparation.toFixed(2));
+    }
+
     window.history.replaceState({}, '', `#${params.toString()}`);
   }
 
@@ -644,6 +680,24 @@ export class UIManager {
     return this.cameraState;
   }
 
+  setToggleState(toggleName, value) {
+    if (this.toggleStates.hasOwnProperty(toggleName)) {
+      this.toggleStates[toggleName] = value;
+    }
+  }
+
+  getToggleStates() {
+    return this.toggleStates;
+  }
+
+  setEyeSeparation(value) {
+    this.eyeSeparation = value;
+  }
+
+  getEyeSeparation() {
+    return this.eyeSeparation;
+  }
+
   loadStateFromURL(parser) {
     // First check for Rails calc_params in query string
     const queryParams = new URLSearchParams(window.location.search);
@@ -676,6 +730,38 @@ export class UIManager {
       debugLog.log('Loading camera state from URL:', this.cameraState);
       hasState = true;
     }
+
+    // Load toggle states if present
+    if (params.has('starfield')) {
+      this.toggleStates.starfield = params.get('starfield') === '1';
+      hasState = true;
+    }
+    if (params.has('planets')) {
+      this.toggleStates.planets = params.get('planets') === '1';
+      hasState = true;
+    }
+    if (params.has('earthRefs')) {
+      this.toggleStates.earthReferences = params.get('earthRefs') === '1';
+      hasState = true;
+    }
+    if (params.has('sunRefs')) {
+      this.toggleStates.sunReferences = params.get('sunRefs') === '1';
+      hasState = true;
+    }
+    if (params.has('stereo')) {
+      this.toggleStates.stereo = params.get('stereo') === '1';
+      hasState = true;
+    }
+    if (params.has('sidereal')) {
+      this.toggleStates.sidereal = params.get('sidereal') === '1';
+      hasState = true;
+    }
+    if (params.has('eyeSep')) {
+      this.eyeSeparation = parseFloat(params.get('eyeSep'));
+      hasState = true;
+    }
+
+    debugLog.log('Loaded toggle states from URL:', this.toggleStates);
 
     if (params.has('dt')) {
       datetimeString = params.get('dt');
