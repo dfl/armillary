@@ -25,10 +25,12 @@ export default class PlanetaryReferences {
     // Groups to hold reference elements
     this.earthReferencesGroup = null;
     this.sunReferencesGroup = null;
+    this.geocentricEclipticGroup = null;
 
     // Individual elements
     this.earthEquatorOutline = null;
     this.earthPoleLabels = {};
+    this.geocentricEclipticOutline = null;
     this.sunEclipticPlane = null;
     this.sunEclipticOutline = null;
     this.moonOrbitOutline = null; // Moon's orbital path around Earth
@@ -123,8 +125,61 @@ export default class PlanetaryReferences {
     // Add to earthMesh so references follow Earth's rotation
     this.earthMesh.add(this.earthReferencesGroup);
 
+    // Geocentric ecliptic plane (zodiac ring) - in XY plane (Sun's ecliptic), centered at Earth
+    // This is added to earthGroup (not earthMesh) so it follows Earth's position but stays in ecliptic plane
+    this.geocentricEclipticGroup = new THREE.Group();
+    // No rotation - stays in XY plane to match Sun's ecliptic
+
+    // Ecliptic plane - gray circular plane extending beyond Earth
+    const eclipticRadius = this.EARTH_RADIUS * 1.5;
+    const planeGeometry = new THREE.CircleGeometry(eclipticRadius, 128);
+    const planeMaterial = new THREE.MeshBasicMaterial({
+      color: 0x888888,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.15,
+      depthWrite: false
+    });
+    this.geocentricEclipticOutline = new THREE.Mesh(planeGeometry, planeMaterial);
+    this.geocentricEclipticOutline.userData.circleName = "Geocentric Ecliptic";
+    this.geocentricEclipticGroup.add(this.geocentricEclipticOutline);
+
+    // Zodiac glyphs inside the ecliptic plane
+    const zodiacGlyphRadius = eclipticRadius * 0.85;
+    const zodiacGlyphs = Array.from({ length: 12 }, (_, i) => String.fromCodePoint(0x2648 + i) + '\uFE0E');
+    const glyphScale = this.EARTH_RADIUS * 0.4;
+
+    zodiacGlyphs.forEach((glyph, i) => {
+      const angle = THREE.MathUtils.degToRad(i * 30 + 15); // Center of each sign
+      const canvas = document.createElement('canvas');
+      canvas.width = 128;
+      canvas.height = 128;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = 'white';
+      ctx.font = 'bold 84px Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(glyph, 64, 64);
+
+      const texture = new THREE.CanvasTexture(canvas);
+      const mat = new THREE.SpriteMaterial({ map: texture, depthTest: false });
+      const sprite = new THREE.Sprite(mat);
+      sprite.scale.set(glyphScale, glyphScale, 1);
+      sprite.position.set(
+        zodiacGlyphRadius * Math.cos(angle),
+        zodiacGlyphRadius * Math.sin(angle),
+        0
+      );
+      sprite.userData.zodiacSign = glyph;
+      this.geocentricEclipticGroup.add(sprite);
+    });
+
+    // Add to earthGroup (not earthReferencesGroup) so it follows Earth's position but stays in ecliptic plane
+    this.earthGroup.add(this.geocentricEclipticGroup);
+
     // Hide by default
     this.earthReferencesGroup.visible = false;
+    this.geocentricEclipticGroup.visible = false;
   }
 
   createSunReferences() {
@@ -254,6 +309,9 @@ export default class PlanetaryReferences {
   toggleEarthReferences(visible) {
     if (this.earthReferencesGroup) {
       this.earthReferencesGroup.visible = visible;
+    }
+    if (this.geocentricEclipticGroup) {
+      this.geocentricEclipticGroup.visible = visible;
     }
   }
 
