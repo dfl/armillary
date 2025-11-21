@@ -189,6 +189,16 @@ export default class InteractionManager {
         if (obj) allTargets.push({ obj, type: 'pole', meta: obj });
       });
 
+      // Lunar Nodes
+      [
+        this.sceneRef.nodeSpheres?.NORTH_NODE,
+        this.sceneRef.nodeSpheres?.SOUTH_NODE,
+        this.sceneRef.nodeLabels?.NORTH_NODE,
+        this.sceneRef.nodeLabels?.SOUTH_NODE
+      ].forEach(obj => {
+        if (obj) allTargets.push({ obj, type: 'node', meta: obj });
+      });
+
       // Ecliptic dots
       if (this.sceneRef.eclipticDots) {
         this.sceneRef.eclipticDots.forEach(dot => {
@@ -254,7 +264,7 @@ export default class InteractionManager {
           candidate.name = meta;
         } else if (type === 'star') {
           candidate.starData = meta.userData;
-        } else if (type === 'angle' || type === 'circle' || type === 'pole' || type === 'ecliptic-dot') {
+        } else if (type === 'angle' || type === 'circle' || type === 'pole' || type === 'node' || type === 'ecliptic-dot') {
           candidate.objectData = meta;
         }
 
@@ -345,6 +355,21 @@ export default class InteractionManager {
           const poleName = closest.objectData.userData.poleName;
           const descriptions = { "NP": "North Celestial Pole", "SP": "South Celestial Pole" };
           this.setTooltipContent(poleName, descriptions[poleName]);
+          this.positionTooltip(this.starInfoElement, event);
+          this.renderer.domElement.style.cursor = 'pointer';
+        }
+        else if (closest.type === 'node') {
+          const nodeName = closest.objectData.userData.nodeName;
+          const fullNames = {
+            "NORTH_NODE": "North Node (Ascending)",
+            "SOUTH_NODE": "South Node (Descending)"
+          };
+          const symbols = {
+            "NORTH_NODE": "☊",
+            "SOUTH_NODE": "☋"
+          };
+          const position = this.sceneRef.nodePositions && this.sceneRef.nodePositions[nodeName] ? this.sceneRef.nodePositions[nodeName] : '';
+          this.setTooltipContent(`${symbols[nodeName]} ${position}`, fullNames[nodeName]);
           this.positionTooltip(this.starInfoElement, event);
           this.renderer.domElement.style.cursor = 'pointer';
         }

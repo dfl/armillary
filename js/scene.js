@@ -9,6 +9,7 @@ import ReferenceGeometry from './scene/references.js';
 import ZodiacWheel from './scene/zodiac.js';
 import CelestialObjects from './scene/celestialObjects.js';
 import AngleMarkers from './scene/angles.js';
+import LunarNodes from './scene/lunarNodes.js';
 import InteractionManager from './scene/interactions.js';
 import CameraController from './scene/camera.js';
 import PlanetaryReferences from './scene/planetaryReferences.js';
@@ -302,6 +303,14 @@ export class ArmillaryScene {
     this.spheres = this.angleMarkers.spheres;
     this.angleLabels = this.angleMarkers.angleLabels;
 
+    // 4.5. Lunar Nodes (☊ ascending and ☋ descending)
+    this.lunarNodes = new LunarNodes(
+      this.zodiacGroup,
+      this.CE_RADIUS
+    );
+    this.nodeSpheres = this.lunarNodes.spheres;
+    this.nodeLabels = this.lunarNodes.nodeLabels;
+
     // 5. Planetary References (Earth equator/poles, Sun ecliptic plane)
     this.planetaryReferences = new PlanetaryReferences(
       this.scene,
@@ -365,6 +374,18 @@ export class ArmillaryScene {
       Object.values(this.planetGroups).forEach(planetData => {
         planetData.group.visible = planetsVisible;
       });
+
+      // Set lunar nodes visibility based on toggle state
+      if (this.nodeSpheres) {
+        Object.values(this.nodeSpheres).forEach(sphere => {
+          sphere.visible = planetsVisible;
+        });
+      }
+      if (this.nodeLabels) {
+        Object.values(this.nodeLabels).forEach(label => {
+          label.visible = planetsVisible;
+        });
+      }
     }
 
     // -----------------------------------------------------------
@@ -477,12 +498,36 @@ export class ArmillaryScene {
     this.angleLabels.AVX.position.copy(placeLabel(AVXdeg));
 
     // -----------------------------------------------------------
-    // 6. Sun Position
+    // 5.5. Lunar Nodes (☊ and ☋)
     // -----------------------------------------------------------
     const isLeapYear = (currentYear % 4 === 0 && currentYear % 100 !== 0) || (currentYear % 400 === 0);
     const { month, day } = astroCalc.dayOfYearToMonthDay(currentDay, isLeapYear);
     const hours = Math.floor(currentTime / 60);
     const minutes = currentTime % 60;
+
+    const lunarNodes = astroCalc.calculateLunarNodes(currentDay, currentYear, month, day, hours, minutes);
+    const northNodeDeg = lunarNodes.ascending;
+    const southNodeDeg = lunarNodes.descending;
+
+    // Position node spheres
+    this.nodeSpheres.NORTH_NODE.position.copy(placeOnZodiac(northNodeDeg));
+    this.nodeSpheres.SOUTH_NODE.position.copy(placeOnZodiac(southNodeDeg));
+
+    // Position node labels
+    this.nodeLabels.NORTH_NODE.position.copy(placeLabel(northNodeDeg));
+    this.nodeLabels.SOUTH_NODE.position.copy(placeLabel(southNodeDeg));
+
+    // Store node positions for tooltips (if not already initialized)
+    if (!this.nodePositions) {
+      this.nodePositions = {};
+    }
+    this.nodePositions.NORTH_NODE = astroCalc.toZodiacString(northNodeDeg - ayanamshaDeg);
+    this.nodePositions.SOUTH_NODE = astroCalc.toZodiacString(southNodeDeg - ayanamshaDeg);
+
+    // -----------------------------------------------------------
+    // 6. Sun Position
+    // -----------------------------------------------------------
+    // (using month, day, hours, minutes from lunar nodes section above)
 
     const sunLonRad = astroCalc.calculateSunPosition(
         currentDay, currentYear, month, day, hours, minutes
@@ -892,6 +937,17 @@ export class ArmillaryScene {
     this.celestialObjects.realisticSunGroup.visible = visible;
     this.celestialObjects.realisticMoonGroup.visible = visible;
 
+    // Toggle lunar nodes
+    if (this.nodeSpheres) {
+      Object.values(this.nodeSpheres).forEach(sphere => {
+        sphere.visible = visible;
+      });
+    }
+    if (this.nodeLabels) {
+      Object.values(this.nodeLabels).forEach(label => {
+        label.visible = visible;
+      });
+    }
   }
 
   toggleEarthReferences(visible) {

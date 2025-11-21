@@ -304,6 +304,48 @@ export class AstronomyCalculator {
   }
 
   /**
+   * Calculate lunar nodes (ascending ☊ and descending ☋)
+   * The ascending node is where the Moon crosses the ecliptic going north
+   * The descending node is 180° opposite
+   * Returns { ascending: degrees (0..360), descending: degrees (0..360) }
+   */
+  calculateLunarNodes(currentDay, currentYear, month, day, hours, minutes) {
+    try {
+      // Try to get from ephemeris library first
+      const date = new Date(Date.UTC(currentYear, month, day, hours, minutes, 0));
+      const result = ephemeris.getAllPlanets(date, 0, 0);
+      const moonObj = result && result.observed && result.observed.moon ? result.observed.moon : (result && result.moon ? result.moon : null);
+
+      if (moonObj && moonObj.node) {
+        // Some ephemeris libraries provide the node longitude directly
+        let nodeDeg = typeof moonObj.node === 'number' ? moonObj.node : moonObj.node.longitude;
+        if (typeof nodeDeg === 'number' && !Number.isNaN(nodeDeg)) {
+          nodeDeg = this._deg(nodeDeg);
+          return {
+            ascending: nodeDeg,
+            descending: this._deg(nodeDeg + 180)
+          };
+        }
+      }
+    } catch (e) {
+      // Fall through to calculation
+    }
+
+    // Calculate using standard formula
+    // Mean ascending node: Ω = 125.04452° - 1934.136261° * T + 0.0020708° * T² + T³/450000
+    const julianDate = new Date(Date.UTC(currentYear, month, day, hours, minutes, 0)).getTime() / 86400000 + 2440587.5;
+    const T = (julianDate - this.J2000_EPOCH) / 36525.0; // Julian centuries since J2000
+
+    let ascending = 125.04452 - 1934.136261 * T + 0.0020708 * T * T + (T * T * T) / 450000;
+    ascending = this._deg(ascending);
+
+    return {
+      ascending: ascending,
+      descending: this._deg(ascending + 180)
+    };
+  }
+
+  /**
    * Get Earth's heliocentric position derived from Sun's geocentric position
    * Returns { longitude: radians, distance: AU }
    */
