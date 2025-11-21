@@ -9,17 +9,17 @@ import * as THREE from 'three';
  * This includes:
  * - Earth equator outline
  * - Earth pole markers and labels (North/South)
- * - Sun ecliptic plane with zodiac markers
- * - Ecliptic pole markers
+ * - Sun ecliptic plane (extending to star field)
  */
 export default class PlanetaryReferences {
-  constructor(scene, earthGroup, earthMesh, sunGroup, EARTH_RADIUS, PLANET_DISTANCE_SCALE) {
+  constructor(scene, earthGroup, earthMesh, sunGroup, EARTH_RADIUS, PLANET_DISTANCE_SCALE, STAR_FIELD_RADIUS) {
     this.scene = scene;
     this.earthGroup = earthGroup;
     this.earthMesh = earthMesh;
     this.sunGroup = sunGroup;
     this.EARTH_RADIUS = EARTH_RADIUS;
     this.PLANET_DISTANCE_SCALE = PLANET_DISTANCE_SCALE;
+    this.STAR_FIELD_RADIUS = STAR_FIELD_RADIUS;
 
     // Groups to hold reference elements
     this.earthReferencesGroup = null;
@@ -30,7 +30,6 @@ export default class PlanetaryReferences {
     this.earthPoleLabels = {};
     this.sunEclipticPlane = null;
     this.sunEclipticOutline = null;
-    this.sunZodiacMarkers = null;
 
     // Create all reference geometry
     this.createEarthReferences();
@@ -131,13 +130,14 @@ export default class PlanetaryReferences {
     this.scene.add(this.sunReferencesGroup);
 
     // Sun ecliptic plane (in XY plane where Earth orbits)
-    const eclipticRadius = this.PLANET_DISTANCE_SCALE * 3; // Large enough to encompass inner planets
+    // Extends all the way to the star field for wide visualization
+    const eclipticRadius = this.STAR_FIELD_RADIUS;
     const planeGeometry = new THREE.CircleGeometry(eclipticRadius, 128);
     const planeMaterial = new THREE.MeshBasicMaterial({
       color: 0x888888,
       side: THREE.DoubleSide,
       transparent: true,
-      opacity: 0.1,
+      opacity: 0.05,
       depthWrite: false
     });
     this.sunEclipticPlane = new THREE.Mesh(planeGeometry, planeMaterial);
@@ -156,64 +156,19 @@ export default class PlanetaryReferences {
     }
     this.sunEclipticOutline = new THREE.Line(
       new THREE.BufferGeometry().setFromPoints(eclipticPoints),
-      new THREE.LineBasicMaterial({
+      new THREE.LineDashedMaterial({
         color: 0x888888,
-        opacity: 0.5,
-        transparent: true
+        opacity: 0.3,
+        transparent: true,
+        dashSize: 100.0,
+        gapSize: 100.0
       })
     );
+    this.sunEclipticOutline.computeLineDistances();
     this.sunEclipticOutline.userData.circleName = "Ecliptic Plane";
     this.sunReferencesGroup.add(this.sunEclipticOutline);
 
-    // Zodiac markers at 30-degree intervals (12 signs)
-    this.createZodiacMarkers(eclipticRadius);
-
-    // Hide by default
-    this.sunReferencesGroup.visible = false;
-  }
-
-  createZodiacMarkers(radius) {
-    // Generate zodiac glyphs using Unicode code points with text-style rendering (not emoji)
-    const zodiacGlyphs = Array.from({ length: 12 }, (_, i) => String.fromCodePoint(0x2648 + i) + '\uFE0E');
-
-    const zodiacRadius = radius * 0.85; // Place markers inside the ecliptic circle
-    const scale = this.PLANET_DISTANCE_SCALE * 0.35; // Increased from 0.2 for bigger glyphs
-
-    zodiacGlyphs.forEach((glyph, i) => {
-      // Center glyph at 15° into each 30° segment (same as ZodiacWheel)
-      const angle = THREE.MathUtils.degToRad(i * 30 + 15);
-
-      const canvas = document.createElement('canvas');
-      canvas.width = 128;
-      canvas.height = 128;
-      const ctx = canvas.getContext('2d');
-
-      // Render text normally (matching ZodiacWheel)
-      ctx.fillStyle = 'white';
-      ctx.font = 'bold 84px Arial';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(glyph, 64, 64);
-
-      const texture = new THREE.CanvasTexture(canvas);
-      const mat = new THREE.MeshBasicMaterial({
-        map: texture,
-        transparent: true,
-        opacity: 0.5,
-        side: THREE.DoubleSide,
-        depthTest: false
-      });
-
-      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1.2 * scale, 1.2 * scale), mat);
-      mesh.position.set(zodiacRadius * Math.cos(angle), zodiacRadius * Math.sin(angle), 0);
-
-      // Rotation fix: angle - PI/2 ensures the local "Up" aligns with outward vector
-      mesh.rotation.z = angle - Math.PI / 2;
-
-      this.sunReferencesGroup.add(mesh);
-    });
-
-    // Radial lines dividing the zodiac into 12 signs
+    // Radial lines dividing the zodiac into 12 signs (without glyphs)
     const radialLineMaterial = new THREE.LineBasicMaterial({
       color: 0x888888,
       opacity: 0.3,
@@ -225,12 +180,15 @@ export default class PlanetaryReferences {
       const radialLine = new THREE.Line(
         new THREE.BufferGeometry().setFromPoints([
           new THREE.Vector3(0, 0, 0),
-          new THREE.Vector3(radius * Math.cos(angle), radius * Math.sin(angle), 0)
+          new THREE.Vector3(eclipticRadius * Math.cos(angle), eclipticRadius * Math.sin(angle), 0)
         ]),
         radialLineMaterial
       );
       this.sunReferencesGroup.add(radialLine);
     }
+
+    // Hide by default
+    this.sunReferencesGroup.visible = false;
   }
 
   toggleEarthReferences(visible) {

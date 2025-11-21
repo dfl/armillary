@@ -308,7 +308,8 @@ export class ArmillaryScene {
       this.earthMesh,
       this.realisticSunGroup,
       this.EARTH_RADIUS,
-      this.PLANET_DISTANCE_SCALE
+      this.PLANET_DISTANCE_SCALE,
+      this.STAR_FIELD_RADIUS
     );
 
     // 6. Camera Controller (zoom, stereo, starfield toggle)
