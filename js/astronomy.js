@@ -255,8 +255,8 @@ export class AstronomyCalculator {
   }
 
   /**
-   * Calculate Moon's ecliptic longitude (radians) using ephemeris npm package
-   * The function returns longitude in RADIANS (0..2π)
+   * Calculate Moon's ecliptic position (longitude and latitude in radians) using ephemeris npm package
+   * Returns { longitude: radians (0..2π), latitude: radians }
    *
    * NOTE: hours and minutes are already UTC time (provided by UI)
    */
@@ -268,15 +268,26 @@ export class AstronomyCalculator {
       // ephemeris.getAllPlanets(date, lat, lon) -> results vary by package version.
       const result = ephemeris.getAllPlanets(date, 0, 0);
 
-      // Try to read Moon's longitude
+      // Try to read Moon's longitude and latitude
       const moonObj = result && result.observed && result.observed.moon ? result.observed.moon : (result && result.moon ? result.moon : null);
 
       if (moonObj) {
         const maybeLon = moonObj.apparentLongitudeDd ?? moonObj.longitude ?? moonObj.lon ?? moonObj.lambda;
+        const maybeLat = moonObj.apparentLatitudeDd ?? moonObj.latitude ?? moonObj.lat ?? moonObj.beta;
+
         if (typeof maybeLon === 'number' && !Number.isNaN(maybeLon)) {
           let lonDeg = maybeLon;
           lonDeg = this._deg(lonDeg);
-          return this._degToRad(lonDeg);
+
+          let latRad = 0;
+          if (typeof maybeLat === 'number' && !Number.isNaN(maybeLat)) {
+            latRad = this._degToRad(maybeLat);
+          }
+
+          return {
+            longitude: this._degToRad(lonDeg),
+            latitude: latRad
+          };
         }
       }
     } catch (e) {
@@ -286,7 +297,10 @@ export class AstronomyCalculator {
     // Fallback: simple approximation - Moon moves ~13.176° per day
     const approxLon = (currentDay * 13.176) % 360;
     debugLog.warn('Using approximate Moon position (deg):', approxLon);
-    return this._degToRad(approxLon);
+    return {
+      longitude: this._degToRad(approxLon),
+      latitude: 0
+    };
   }
 
   /**

@@ -634,17 +634,22 @@ export class ArmillaryScene {
     }
 
     // 2. Position Moon (Relative to Earth)
-    const moonLonRad = astroCalc.calculateMoonPosition(
+    const moonPos = astroCalc.calculateMoonPosition(
       currentDay, currentYear, month, day, hours, minutes, currentLongitude
     );
+    const moonLonRad = moonPos.longitude;
+    const moonLatRad = moonPos.latitude;
     const moonDeg = THREE.MathUtils.radToDeg(moonLonRad);
     this.eclipticMoonGroup.position.copy(placeOnZodiac(moonDeg));
 
-    // Realistic moon orbits Earth
-    const mRad = THREE.MathUtils.degToRad(moonDeg);
-    const moonX = earthX + Math.cos(mRad) * this.MOON_DISTANCE;
-    const moonY = earthY + Math.sin(mRad) * this.MOON_DISTANCE;
-    this.realisticMoonGroup.position.set(moonX, moonY, 0);
+    // Realistic moon orbits Earth with proper latitude off the ecliptic
+    // Use spherical coordinates: x = r*cos(lat)*cos(lon), y = r*cos(lat)*sin(lon), z = r*sin(lat)
+    const mRad = moonLonRad;
+    const mLat = moonLatRad;
+    const moonX = earthX + this.MOON_DISTANCE * Math.cos(mLat) * Math.cos(mRad);
+    const moonY = earthY + this.MOON_DISTANCE * Math.cos(mLat) * Math.sin(mRad);
+    const moonZ = this.MOON_DISTANCE * Math.sin(mLat);
+    this.realisticMoonGroup.position.set(moonX, moonY, moonZ);
 
     // Tidal locking: Rotate moon to face Earth
     // With rotation.x = PI/2, rotation.y becomes the spin around the Z-axis (poles)
@@ -727,10 +732,10 @@ export class ArmillaryScene {
     });
 
     // Add moon
-    const moonPos = this.eclipticMoonGroup.position.clone();
+    const eclipticMoonPos = this.eclipticMoonGroup.position.clone();
     eclipticObjects.push({
       name: 'moon',
-      position: moonPos,
+      position: eclipticMoonPos,
       mesh: this.eclipticMoonMesh,
       glowMeshes: this.moonGlowMeshes,
       baseOpacity: 1.0
