@@ -619,6 +619,18 @@ export class ArmillaryScene {
       // Earth View: orbit around Earth's center (polar axis rotation)
       // Don't move camera with surface - let it stay fixed relative to Earth's center
       this.controls.target.copy(this.earthGroup.position);
+
+      // Align camera up vector with Earth's polar axis
+      // Earth's polar axis is the Y-axis in earthMesh's local space
+      if (this.earthMesh) {
+        const earthPolarAxis = new THREE.Vector3(0, 1, 0);
+        const earthWorldQuat = new THREE.Quaternion();
+        this.earthMesh.getWorldQuaternion(earthWorldQuat);
+        earthPolarAxis.applyQuaternion(earthWorldQuat).normalize();
+
+        // Update camera to use Earth's polar axis as "up"
+        this.camera.up.copy(earthPolarAxis);
+      }
     }
 
     // 2. Position Moon (Relative to Earth)
