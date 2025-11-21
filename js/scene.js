@@ -320,7 +320,8 @@ export class ArmillaryScene {
       this.realisticSunGroup,
       this.EARTH_RADIUS,
       this.PLANET_DISTANCE_SCALE,
-      this.STAR_FIELD_RADIUS
+      this.STAR_FIELD_RADIUS,
+      this.MOON_DISTANCE
     );
     // Map ecliptic dots for hover detection
     this.eclipticDots = this.planetaryReferences.eclipticDots;
@@ -759,6 +760,32 @@ export class ArmillaryScene {
       document.getElementById('sunReferencesToggle').checked;
     this.heliocentricNodeGroups.NORTH_NODE.visible = sunEclipticVisible;
     this.heliocentricNodeGroups.SOUTH_NODE.visible = sunEclipticVisible;
+
+    // 2.6. Position and orient moon orbit outline around Earth
+    // The moon's orbital plane is inclined 5.145° to the ecliptic
+    if (this.planetaryReferences.moonOrbitOutline) {
+      this.planetaryReferences.moonOrbitOutline.position.set(earthX, earthY, 0);
+
+      // Rotate the orbit to match the moon's orbital inclination
+      // The orbit is tilted 5.145° from the ecliptic, with the line of nodes
+      // aligned to the ascending node position
+      const MOON_INCLINATION = 5.145; // degrees
+      const inclinationRad = THREE.MathUtils.degToRad(MOON_INCLINATION);
+
+      // Rotation order: first tilt around X-axis, then rotate around Z-axis to align with nodes
+      // The ascending node angle determines where the orbital plane crosses the ecliptic
+      const nodeRotation = new THREE.Quaternion().setFromAxisAngle(
+        new THREE.Vector3(0, 0, 1),
+        northNodeRad
+      );
+      const inclinationRotation = new THREE.Quaternion().setFromAxisAngle(
+        new THREE.Vector3(1, 0, 0),
+        inclinationRad
+      );
+
+      // Apply rotations: inclination first, then node alignment
+      this.planetaryReferences.moonOrbitOutline.quaternion.copy(nodeRotation).multiply(inclinationRotation);
+    }
 
     // 3. Position Planets (Heliocentric)
     const planetNames = ['mercury', 'venus', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune', 'pluto'];

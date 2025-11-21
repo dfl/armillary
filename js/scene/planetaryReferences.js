@@ -12,7 +12,7 @@ import * as THREE from 'three';
  * - Sun ecliptic plane (extending to star field)
  */
 export default class PlanetaryReferences {
-  constructor(scene, earthGroup, earthMesh, sunGroup, EARTH_RADIUS, PLANET_DISTANCE_SCALE, STAR_FIELD_RADIUS) {
+  constructor(scene, earthGroup, earthMesh, sunGroup, EARTH_RADIUS, PLANET_DISTANCE_SCALE, STAR_FIELD_RADIUS, MOON_DISTANCE) {
     this.scene = scene;
     this.earthGroup = earthGroup;
     this.earthMesh = earthMesh;
@@ -20,6 +20,7 @@ export default class PlanetaryReferences {
     this.EARTH_RADIUS = EARTH_RADIUS;
     this.PLANET_DISTANCE_SCALE = PLANET_DISTANCE_SCALE;
     this.STAR_FIELD_RADIUS = STAR_FIELD_RADIUS;
+    this.MOON_DISTANCE = MOON_DISTANCE;
 
     // Groups to hold reference elements
     this.earthReferencesGroup = null;
@@ -30,6 +31,7 @@ export default class PlanetaryReferences {
     this.earthPoleLabels = {};
     this.sunEclipticPlane = null;
     this.sunEclipticOutline = null;
+    this.moonOrbitOutline = null; // Moon's orbital path around Earth
     this.eclipticDots = []; // Store ecliptic rim dots for hover detection
 
     // Create all reference geometry
@@ -216,6 +218,35 @@ export default class PlanetaryReferences {
       this.sunReferencesGroup.add(dot);
     }
 
+    // Moon orbital path around Earth (dotted circle)
+    // This will be positioned relative to Earth in updateSphere
+    const moonOrbitPoints = [];
+    const moonOrbitSegments = 128;
+    for (let i = 0; i <= moonOrbitSegments; i++) {
+      const angle = (i / moonOrbitSegments) * Math.PI * 2;
+      moonOrbitPoints.push(new THREE.Vector3(
+        this.MOON_DISTANCE * Math.cos(angle),
+        this.MOON_DISTANCE * Math.sin(angle),
+        0
+      ));
+    }
+    this.moonOrbitOutline = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints(moonOrbitPoints),
+      new THREE.LineDashedMaterial({
+        color: 0xaaaaff,
+        opacity: 0.5,
+        transparent: true,
+        dashSize: 4.0,
+        gapSize: 8.0,
+        depthTest: true,
+        depthWrite: false
+      })
+    );
+    this.moonOrbitOutline.computeLineDistances();
+    this.moonOrbitOutline.userData.circleName = "Moon Orbit";
+    this.moonOrbitOutline.visible = false; // Hide by default, shown with ecliptic plane
+    this.scene.add(this.moonOrbitOutline); // Add to scene (not sunReferencesGroup) so we can position it independently
+
     // Hide by default
     this.sunReferencesGroup.visible = false;
   }
@@ -229,6 +260,9 @@ export default class PlanetaryReferences {
   toggleSunReferences(visible) {
     if (this.sunReferencesGroup) {
       this.sunReferencesGroup.visible = visible;
+    }
+    if (this.moonOrbitOutline) {
+      this.moonOrbitOutline.visible = visible;
     }
   }
 }
