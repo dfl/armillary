@@ -309,6 +309,7 @@ export class AstronomyCalculator {
 
   /**
    * Calculate lunar nodes (ascending ☊ and descending ☋)
+   * Uses TRUE node (instantaneous position with perturbations)
    * The ascending node is where the Moon crosses the ecliptic going north
    * The descending node is 180° opposite
    * Returns { ascending: degrees (0..360), descending: degrees (0..360) }
@@ -335,17 +336,44 @@ export class AstronomyCalculator {
       // Fall through to calculation
     }
 
-    // Calculate using standard formula
-    // Mean ascending node: Ω = 125.04452° - 1934.136261° * T + 0.0020708° * T² + T³/450000
+    // Calculate TRUE node (with perturbations)
     const julianDate = new Date(Date.UTC(currentYear, month, day, hours, minutes, 0)).getTime() / 86400000 + 2440587.5;
     const T = (julianDate - this.J2000_EPOCH) / 36525.0; // Julian centuries since J2000
+    const D = (julianDate - this.J2000_EPOCH); // Days since J2000
 
-    let ascending = 125.04452 - 1934.136261 * T + 0.0020708 * T * T + (T * T * T) / 450000;
-    ascending = this._deg(ascending);
+    // Mean ascending node: Ω_mean
+    let meanNode = 125.04452 - 1934.136261 * T + 0.0020708 * T * T + (T * T * T) / 450000;
+
+    // Calculate perturbation terms for TRUE node
+    // These account for the Sun's gravitational influence on the Moon's orbit
+
+    // Mean anomaly of the Sun
+    const M_sun = 357.5291092 + 0.98560028 * D;
+
+    // Mean anomaly of the Moon
+    const M_moon = 134.9633964 + 13.06499295 * D;
+
+    // Mean argument of latitude of the Moon (F = L - Ω)
+    const F = 93.2720950 + 13.22935024 * D;
+
+    // Mean longitude of Moon
+    const L = 218.3164477 + 13.17639648 * D;
+
+    // Calculate perturbations (main terms)
+    // True node = Mean node + perturbations
+    const perturbation =
+      - 1.4979 * Math.sin(this._degToRad(2 * (L - F)))
+      - 0.1500 * Math.sin(this._degToRad(M_sun))
+      - 0.1226 * Math.sin(this._degToRad(2 * L))
+      + 0.1176 * Math.sin(this._degToRad(2 * F))
+      - 0.0801 * Math.sin(this._degToRad(2 * (F + M_moon)));
+
+    let trueNode = meanNode + perturbation;
+    trueNode = this._deg(trueNode);
 
     return {
-      ascending: ascending,
-      descending: this._deg(ascending + 180)
+      ascending: trueNode,
+      descending: this._deg(trueNode + 180)
     };
   }
 

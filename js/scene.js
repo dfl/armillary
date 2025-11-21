@@ -703,6 +703,35 @@ export class ArmillaryScene {
       this.realisticMoonMesh.rotation.y = mRad + Math.PI;
     }
 
+    // Adjust moon transparency when crossing nodes (latitude near 0)
+    // Opacity fades as moon approaches the ecliptic plane
+    const MOON_MAX_INCLINATION = 5.145; // degrees
+    const latDeg = Math.abs(THREE.MathUtils.radToDeg(mLat));
+
+    // Calculate opacity: 0.3 at nodes (lat=0°), 1.0 at maximum inclination
+    // Using cosine for smooth transition
+    const latNormalized = latDeg / MOON_MAX_INCLINATION; // 0 at nodes, 1 at max
+    const minOpacity = 0.3;
+    const maxOpacity = 1.0;
+    const moonOpacity = minOpacity + (maxOpacity - minOpacity) * latNormalized;
+
+    // Apply opacity to realistic moon mesh
+    if (this.realisticMoonMesh && this.realisticMoonMesh.material) {
+      this.realisticMoonMesh.material.opacity = moonOpacity;
+      this.realisticMoonMesh.material.transparent = true;
+    }
+
+    // Apply opacity to glow meshes
+    if (this.realisticMoonGlowMeshes) {
+      this.realisticMoonGlowMeshes.forEach((glowMesh, index) => {
+        if (glowMesh.material) {
+          // Glow fades even more dramatically near nodes
+          const baseGlowOpacity = index === 0 ? 0.3 : (index === 1 ? 0.15 : 0.08);
+          glowMesh.material.opacity = baseGlowOpacity * moonOpacity;
+        }
+      });
+    }
+
     // Store moon zodiac position for tooltip
     this.moonZodiacPosition = astroCalc.toZodiacString(moonDeg - ayanamshaDeg);
 
