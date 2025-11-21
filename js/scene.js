@@ -559,18 +559,27 @@ export class ArmillaryScene {
     const deltaQuat = new THREE.Quaternion().copy(this.armillaryRoot.quaternion).multiply(this.prevArmillaryQuat.clone().invert());
     this.prevArmillaryQuat.copy(this.armillaryRoot.quaternion);
 
-    // Move camera to follow the geographic location (Earth rotation + orbital motion)
-    this.camera.position.add(armillaryDelta);
-    this.controls.target.add(armillaryDelta);
-
-    // Rotate camera to follow the horizon orientation (keep compass fixed) ONLY in Horizon View
+    // Check distance from camera to Earth center to determine view mode
     // Threshold: 50 units (Earth radius is 100, Horizon view is ~12)
     const distToObserver = this.camera.position.distanceTo(this.armillaryRoot.position);
+    const distToEarth = this.camera.position.distanceTo(this.earthGroup.position);
+
+    // Adjust controls target and camera motion based on view distance
     if (distToObserver < 50.0) {
-        const offset = new THREE.Vector3().subVectors(this.camera.position, this.controls.target);
-        offset.applyQuaternion(deltaQuat);
-        this.camera.position.addVectors(this.controls.target, offset);
-        this.camera.up.applyQuaternion(deltaQuat);
+      // Horizon View: orbit around observer location on surface
+      // Move camera to follow the geographic location (Earth rotation + orbital motion)
+      this.camera.position.add(armillaryDelta);
+      this.controls.target.add(armillaryDelta);
+
+      // Rotate camera to follow the horizon orientation (keep compass fixed)
+      const offset = new THREE.Vector3().subVectors(this.camera.position, this.controls.target);
+      offset.applyQuaternion(deltaQuat);
+      this.camera.position.addVectors(this.controls.target, offset);
+      this.camera.up.applyQuaternion(deltaQuat);
+    } else {
+      // Earth View: orbit around Earth's center (polar axis rotation)
+      // Don't move camera with surface - let it stay fixed relative to Earth's center
+      this.controls.target.copy(this.earthGroup.position);
     }
 
     // 2. Position Moon (Relative to Earth)
