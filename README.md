@@ -4,7 +4,7 @@ An interactive 3D visualization of the celestial sphere showing astrological ang
 
 ## Overview
 
-This project provides a real-time 3D visualization of the armillary sphere - an ancient astronomical instrument used to model the celestial sphere. It calculates and displays key astrological angles (MC/Midheaven and AC/Ascendant) along with sunrise and sunset times for any location, date, and time.
+This project provides a real-time 3D visualization of the armillary sphere - an ancient astronomical instrument used to model the celestial sphere. It calculates and displays key astrological angles (MC/Midheaven and AC/Ascendant) for any location, date, and time.
 
 ## Features
 
@@ -96,71 +96,8 @@ This project provides a real-time 3D visualization of the armillary sphere - an 
 ### Technologies Used
 
 - **Three.js** (v0.158.0) - 3D graphics library
-- **OrbitControls** - Camera control system
 - **chrono-node** - Natural language date/time parsing
 - **Moshier Ephemeris** - High-precision astronomical calculations
-
-### Calculations
-
-The visualization uses traditional astrological formulas:
-
-- **MC Formula**: tan(MC) = tan(LST) / cos(ε)
-  - Where ε is the obliquity of the ecliptic (23.44°)
-
-- **AC Formula**: tan(AC) = -cos(LST) / (sin(LST)×cos(ε) + tan(lat)×sin(ε))
-
-- **LST Calculation**: Based on J2000 epoch with longitude adjustments
-
-- **Sunrise/Sunset**: Calculated using sun's equatorial coordinates with atmospheric refraction and angular diameter corrections
-
-### Coordinate Systems
-
-The visualization uses multiple coordinate systems:
-
-1. **Ecliptic Coordinates**: Zodiac-based, with sun moving along the ecliptic
-2. **Equatorial Coordinates**: Based on celestial equator and poles
-3. **Horizon Coordinates**: Observer-centric (altitude/azimuth)
-
-## File Structure
-
-```
-armillary/
-├── index.html              # Main application file
-├── package.json           # Node.js dependencies
-├── ephemeris-1.2.1.bundle.js  # Moshier ephemeris library
-└── node_modules/          # Installed dependencies
-    └── chrono-node/       # Date parsing library
-```
-
-## Browser Compatibility
-
-Requires a modern browser with support for:
-- ES6 modules
-- Import maps
-- WebGL
-- Canvas API
-
-Tested on:
-- Chrome/Edge (latest)
-- Firefox (latest)
-- Safari (latest)
-
-## Limitations
-
-- Latitude range limited to ±66° to avoid polar singularities
-- Year fixed to 2000 for simplified calculations (leap year)
-- Does not account for precession of equinoxes
-- Local time assumes simplified solar time (not timezone-aware)
-
-## Future Enhancements
-
-Potential improvements:
-- Support for any year with full calendar
-- Additional celestial bodies (Moon, planets)
-- House system calculations
-- Export/save chart functionality
-- Mobile-responsive design
-- Timezone support
 
 ## License
 
@@ -168,7 +105,4 @@ This project is provided as-is for educational and astronomical purposes.
 
 ## Acknowledgments
 
-- Three.js community
-- Moshier Ephemeris library
-- chrono-node for natural language date parsing
 - Texture Maps: https://planetpixelemporium.com/
