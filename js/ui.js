@@ -181,6 +181,7 @@ export class UIManager {
     this.currentDay = 1;
     this.currentYear = 2000;
     this.currentTimezone = null; // IANA timezone name (e.g., 'America/Anchorage')
+    this.cameraState = null; // Store camera position, target, and up vector
 
     this.elements = {};
     this.initializeElements();
@@ -480,6 +481,18 @@ export class UIManager {
       params.set('loc', locationValue);
     }
 
+    // Save camera state if available
+    if (this.cameraState) {
+      // Format: "x,y,z" for position, target, and up
+      const posStr = `${this.cameraState.position.x.toFixed(2)},${this.cameraState.position.y.toFixed(2)},${this.cameraState.position.z.toFixed(2)}`;
+      const targetStr = `${this.cameraState.target.x.toFixed(2)},${this.cameraState.target.y.toFixed(2)},${this.cameraState.target.z.toFixed(2)}`;
+      const upStr = `${this.cameraState.up.x.toFixed(3)},${this.cameraState.up.y.toFixed(3)},${this.cameraState.up.z.toFixed(3)}`;
+
+      params.set('cam_pos', posStr);
+      params.set('cam_target', targetStr);
+      params.set('cam_up', upStr);
+    }
+
     window.history.replaceState({}, '', `#${params.toString()}`);
   }
 
@@ -618,6 +631,19 @@ export class UIManager {
     }
   }
 
+  setCameraState(camera, controls) {
+    // Store camera position, target, and up vector for URL persistence
+    this.cameraState = {
+      position: { x: camera.position.x, y: camera.position.y, z: camera.position.z },
+      target: { x: controls.target.x, y: controls.target.y, z: controls.target.z },
+      up: { x: camera.up.x, y: camera.up.y, z: camera.up.z }
+    };
+  }
+
+  getCameraState() {
+    return this.cameraState;
+  }
+
   loadStateFromURL(parser) {
     // First check for Rails calc_params in query string
     const queryParams = new URLSearchParams(window.location.search);
@@ -635,6 +661,21 @@ export class UIManager {
     const params = new URLSearchParams(hash);
     let hasState = false;
     let datetimeString = null;
+
+    // Load camera state if present
+    if (params.has('cam_pos') && params.has('cam_target') && params.has('cam_up')) {
+      const posStr = params.get('cam_pos').split(',').map(parseFloat);
+      const targetStr = params.get('cam_target').split(',').map(parseFloat);
+      const upStr = params.get('cam_up').split(',').map(parseFloat);
+
+      this.cameraState = {
+        position: { x: posStr[0], y: posStr[1], z: posStr[2] },
+        target: { x: targetStr[0], y: targetStr[1], z: targetStr[2] },
+        up: { x: upStr[0], y: upStr[1], z: upStr[2] }
+      };
+      debugLog.log('Loading camera state from URL:', this.cameraState);
+      hasState = true;
+    }
 
     if (params.has('dt')) {
       datetimeString = params.get('dt');

@@ -69,6 +69,20 @@ const updateVisualization = () => {
 // Initialize UI
 const uiManager = new UIManager(updateVisualization);
 
+// Setup camera state tracking and URL updates
+// Debounce URL updates to avoid excessive history API calls
+let cameraUpdateTimeout = null;
+const saveCameraStateToURL = () => {
+  if (cameraUpdateTimeout) clearTimeout(cameraUpdateTimeout);
+  cameraUpdateTimeout = setTimeout(() => {
+    uiManager.setCameraState(scene.camera, scene.controls);
+    uiManager.saveStateToURL();
+  }, 500); // Wait 500ms after camera movement stops
+};
+
+// Listen for camera/controls changes
+scene.controls.addEventListener('change', saveCameraStateToURL);
+
 // Initialize datetime parser with timezone callback
 const datetimeInput = document.getElementById('datetimeInput');
 const parser = new DateTimeParser(
@@ -221,10 +235,32 @@ if (!hasURLState) {
   parser.setNow();
 }
 
-// Set default camera zoom to horizon (slightly zoomed out)
-// Use setTimeout to ensure armillaryRoot is positioned after updateSphere
+// Restore camera state from URL or set default camera position
 setTimeout(() => {
-  scene.zoomToTarget('horizon');
+  const cameraState = uiManager.getCameraState();
+  if (cameraState) {
+    // Restore camera position from URL
+    scene.camera.position.set(
+      cameraState.position.x,
+      cameraState.position.y,
+      cameraState.position.z
+    );
+    scene.controls.target.set(
+      cameraState.target.x,
+      cameraState.target.y,
+      cameraState.target.z
+    );
+    scene.camera.up.set(
+      cameraState.up.x,
+      cameraState.up.y,
+      cameraState.up.z
+    );
+    scene.controls.update();
+    debugLog.log('Restored camera state from URL');
+  } else {
+    // Set default camera zoom to horizon (slightly zoomed out)
+    scene.zoomToTarget('horizon');
+  }
 }, 1000);
 
 // Start animation loop
