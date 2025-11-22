@@ -71,6 +71,8 @@ export default class ZodiacWheel {
 
       // RENDER TEXT NORMALLY
       // Removed ctx.scale(-1, 1) which was causing the "backwards" mirror effect.
+      // Clear canvas to transparent background
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.fillStyle = 'white';
       ctx.font = 'bold 84px Arial';
       ctx.textAlign = 'center';
@@ -78,7 +80,14 @@ export default class ZodiacWheel {
       ctx.fillText(glyph, 64, 64);
 
       const texture = new THREE.CanvasTexture(canvas);
-      const mat = new THREE.MeshBasicMaterial({ map: texture, transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthTest: false });
+      const mat = new THREE.MeshBasicMaterial({
+        map: texture,
+        transparent: true,
+        opacity: 0.5,
+        side: THREE.DoubleSide,
+        depthTest: true,
+        depthWrite: false
+      });
       const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1.2 * scale, 1.2 * scale), mat);
       mesh.position.set(zodiacRadius * Math.cos(angle), zodiacRadius * Math.sin(angle), 0);
 

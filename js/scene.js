@@ -359,6 +359,10 @@ export class ArmillaryScene {
     debugLog.log('=== updateSphere called ===');
     debugLog.log('Planet groups available:', Object.keys(this.planetGroups));
 
+    // Check if Sun ecliptic plane is visible (used throughout this function)
+    const sunEclipticVisible = document.getElementById('sunReferencesToggle') &&
+      document.getElementById('sunReferencesToggle').checked;
+
     // Make celestial objects visible on first update
     if (!this.celestial.visible) {
       this.celestial.visible = true;
@@ -637,10 +641,6 @@ export class ArmillaryScene {
         document.getElementById('earthReferencesToggle').checked;
       this.planetaryReferences.earthReferencesGroup.visible = shouldShowEarthRefs;
 
-      // Check if Sun ecliptic plane is visible
-      const sunEclipticVisible = document.getElementById('sunReferencesToggle') &&
-        document.getElementById('sunReferencesToggle').checked;
-
       // Enable Earth depthWrite when Earth references OR Sun ecliptic plane are visible
       // This allows them to properly clip against Earth
       const shouldEnableEarthDepth = shouldShowEarthRefs || sunEclipticVisible;
@@ -706,15 +706,18 @@ export class ArmillaryScene {
 
     // Adjust moon transparency when crossing nodes (latitude near 0)
     // Opacity fades as moon approaches the ecliptic plane
-    const MOON_MAX_INCLINATION = 5.145; // degrees
+    const NODE_ORBED_ZONE = 0.1; // degrees - very brief transition zone near nodes
     const latDeg = Math.abs(THREE.MathUtils.radToDeg(mLat));
 
-    // Calculate opacity: 0.3 at nodes (lat=0°), 1.0 at maximum inclination
-    // Using cosine for smooth transition
-    const latNormalized = latDeg / MOON_MAX_INCLINATION; // 0 at nodes, 1 at max
-    const minOpacity = 0.3;
-    const maxOpacity = 1.0;
-    const moonOpacity = minOpacity + (maxOpacity - minOpacity) * latNormalized;
+    let moonOpacity = 1.0;
+    if (sunEclipticVisible && latDeg < NODE_ORBED_ZONE) {
+      // Calculate opacity: 0.3 at nodes (lat=0°), 1.0 at orb edge
+      // Brief transition only within NODE_ORBED_ZONE
+      const latNormalized = latDeg / NODE_ORBED_ZONE; // 0 at nodes, 1 at orb edge
+      const minOpacity = 0.3;
+      const maxOpacity = 1.0;
+      moonOpacity = minOpacity + (maxOpacity - minOpacity) * latNormalized;
+    }
 
     // Apply opacity to realistic moon mesh
     if (this.realisticMoonMesh && this.realisticMoonMesh.material) {
@@ -756,8 +759,6 @@ export class ArmillaryScene {
     this.heliocentricNodeGroups.SOUTH_NODE.position.set(southNodeX, southNodeY, 0);
 
     // Only show heliocentric nodes when ecliptic plane is visible
-    const sunEclipticVisible = document.getElementById('sunReferencesToggle') &&
-      document.getElementById('sunReferencesToggle').checked;
     this.heliocentricNodeGroups.NORTH_NODE.visible = sunEclipticVisible;
     this.heliocentricNodeGroups.SOUTH_NODE.visible = sunEclipticVisible;
 
