@@ -20,8 +20,6 @@ export class ArmillaryScene {
     // Constants and Configuration
     // ===================================================================
     this.obliquity = 23.44 * Math.PI / 180;
-    this.CE_RADIUS = 2.0; // Celestial sphere radius (local horizon visualization scale)
-    this.EARTH_RADIUS = 100.0; // Earth's radius in scene units (much larger than horizon)
 
     // Proportional scaling constants
     // Real radii: Earth 6371km, Moon 1737km, Sun 696000km
@@ -32,8 +30,15 @@ export class ArmillaryScene {
     this.MOON_DISTANCE_KM = 384400;
 
     this.PLANET_RADIUS_SCALE = 0.05; // Scale factor to make all bodies visible but not overwhelming
+    this.EARTH_RADIUS = 100.0 * this.PLANET_RADIUS_SCALE; // Earth's radius scaled consistently with other planets
+    this.CE_RADIUS = this.EARTH_RADIUS * 0.02; // Celestial sphere radius (local horizon visualization scale, 2% of Earth radius)
     this.PLANET_DISTANCE_SCALE = 2000; // Scale factor for planet orbital distances (1 AU = 2000 units)
     this.STAR_FIELD_RADIUS = this.PLANET_DISTANCE_SCALE * 200; // Star field radius (encompassing solar system)
+
+    // View mode threshold: distance at which we switch from Horizon View to Earth View
+    // Set just beyond starting camera position so Earth becomes opaque very quickly
+    // Camera starts at ~3.4 × CE_RADIUS, set threshold slightly higher
+    this.VIEW_MODE_THRESHOLD = this.CE_RADIUS * 4.0;
 
     // Calculate proportional radii (scaled down for visibility)
     this.SUN_RADIUS = this.EARTH_RADIUS * (this.SUN_RADIUS_KM / this.EARTH_RADIUS_KM) * 0.05; // ~109x Earth, scaled
@@ -167,8 +172,9 @@ export class ArmillaryScene {
 
     // Create main camera for normal (non-stereo) view and controls
     // Horizon view positions camera to face south (East/ASC on left, West/DSC on right)
+    // Position camera at a comfortable viewing distance relative to the horizon (CE_RADIUS)
     this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 500000);
-    this.camera.position.set(0, 3.2, 6);
+    this.camera.position.set(0, this.CE_RADIUS * 1.6, this.CE_RADIUS * 3.0);
     this.camera.lookAt(0, 0, 0);
 
     // Create stereo cameras (left and right eye)
@@ -629,9 +635,8 @@ export class ArmillaryScene {
     this.prevArmillaryQuat.copy(this.armillaryRoot.quaternion);
 
     // Check distance from camera to Earth center to determine view mode
-    // Threshold: 50 units (Earth radius is 100, Horizon view is ~12)
     const distToObserver = this.camera.position.distanceTo(this.armillaryRoot.position);
-    const isEarthView = (distToObserver >= 50.0);
+    const isEarthView = (distToObserver >= this.VIEW_MODE_THRESHOLD);
 
     // Only show Earth references (equator/poles) in Earth view
     // In horizon view, they're not visible/relevant anyway
@@ -651,7 +656,7 @@ export class ArmillaryScene {
     }
 
     // Adjust controls target and camera motion based on view distance
-    if (distToObserver < 50.0) {
+    if (distToObserver < this.VIEW_MODE_THRESHOLD) {
       // Horizon View: orbit around observer location on surface
       // Move camera to follow the geographic location (Earth rotation + orbital motion)
       this.camera.position.add(armillaryDelta);
@@ -792,7 +797,7 @@ export class ArmillaryScene {
     const planetNames = ['mercury', 'venus', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune', 'pluto'];
 
     // Scale planets down in horizon view to make them look less overwhelming
-    const planetScale = distToObserver < 50.0 ? 0.005 : 1.0;
+    const planetScale = distToObserver < this.VIEW_MODE_THRESHOLD ? 0.005 : 1.0;
 
     planetNames.forEach(planetName => {
       if (this.planetGroups[planetName]) {
@@ -1036,7 +1041,7 @@ export class ArmillaryScene {
     // Update Earth depthWrite to match reference visibility
     // Only enable in Earth view (not horizon view)
     const distToObserver = this.camera.position.distanceTo(this.armillaryRoot.position);
-    const isEarthView = (distToObserver >= 50.0);
+    const isEarthView = (distToObserver >= this.VIEW_MODE_THRESHOLD);
     const shouldShowEarthRefs = visible && isEarthView;
 
     // Check if Sun ecliptic plane is visible
@@ -1065,7 +1070,7 @@ export class ArmillaryScene {
     // Update Earth depthWrite when ecliptic plane is toggled
     // Check if Earth references are also visible
     const distToObserver = this.camera.position.distanceTo(this.armillaryRoot.position);
-    const isEarthView = (distToObserver >= 50.0);
+    const isEarthView = (distToObserver >= this.VIEW_MODE_THRESHOLD);
     const shouldShowEarthRefs = isEarthView &&
       document.getElementById('earthReferencesToggle') &&
       document.getElementById('earthReferencesToggle').checked;

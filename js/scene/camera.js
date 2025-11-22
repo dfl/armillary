@@ -190,8 +190,10 @@ export default class CameraController {
     // Far (space view): Opaque
     const minVal = 0.0;
     const maxVal = 1.0;
-    const minRange = 10.0;
-    const maxRange = 100.0;
+    // Transition based on distance from Earth's surface
+    // Start transition at 10% of Earth radius, complete at 2x Earth radius
+    const minRange = this.sceneRef.EARTH_RADIUS * 0.1;
+    const maxRange = this.sceneRef.EARTH_RADIUS * 2.0;
 
     let opacity = 1.0;
     if (surfaceDist < minRange) {
