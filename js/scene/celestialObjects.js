@@ -611,10 +611,12 @@ export default class CelestialObjects {
       }
 
       // Store the group and main mesh for later positioning
+      // Also store radius ratio for size equalization at zoom
       this.planetGroups[planet.name] = {
         group: planetGroup,
         mesh: planetMesh,
-        distance: distance
+        distance: distance,
+        radiusRatio: planet.radiusKm / EARTH_RADIUS_KM
       };
 
       this.scene.add(planetGroup);

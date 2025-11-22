@@ -39,18 +39,27 @@ export default class CameraController {
       targetRadius = this.sceneRef.CE_RADIUS;
     } else if (targetName === 'earth') {
       this.sceneRef.earthGroup.getWorldPosition(targetWorldPos);
-      targetRadius = this.sceneRef.EARTH_RADIUS;
+      // Account for Earth's current scale from planet zoom
+      const currentScale = this.sceneRef.earthGroup.scale.x;
+      targetRadius = this.sceneRef.EARTH_RADIUS * currentScale;
     } else if (targetName === 'sun') {
       this.sceneRef.realisticSunGroup.getWorldPosition(targetWorldPos);
-      targetRadius = this.sceneRef.realisticSunMesh.geometry.parameters.radius;
+      // Account for Sun's current scale from planet zoom
+      const currentScale = this.sceneRef.realisticSunGroup.scale.x;
+      targetRadius = this.sceneRef.realisticSunMesh.geometry.parameters.radius * currentScale;
     } else if (targetName === 'moon') {
       this.sceneRef.realisticMoonGroup.getWorldPosition(targetWorldPos);
-      targetRadius = this.sceneRef.realisticMoonMesh.geometry.parameters.radius;
+      // Account for Moon's current scale from planet zoom
+      const currentScale = this.sceneRef.realisticMoonGroup.scale.x;
+      targetRadius = this.sceneRef.realisticMoonMesh.geometry.parameters.radius * currentScale;
     } else if (targetName === 'ecliptic-north') {
       // Special case: view from ecliptic north pole, looking down at solar system
       // Position camera high above the ecliptic plane to see all planets including Pluto
       this.sceneRef.realisticSunGroup.getWorldPosition(targetWorldPos);
-      targetRadius = 39.48 * this.sceneRef.PLANET_DISTANCE_SCALE * 1.3; // Pluto's orbit * 1.3 for margin
+      // Account for distance compression: Pluto at 39.48 AU gets compressed
+      const distanceExponent = 1.0 - this.sceneRef.planetZoomFactor * 0.4;
+      const compressedPlutoDistAU = Math.pow(39.48, distanceExponent);
+      targetRadius = compressedPlutoDistAU * this.sceneRef.PLANET_DISTANCE_SCALE * 1.3; // Pluto's orbit * 1.3 for margin
     } else if (this.sceneRef.planetGroups[targetName]) {
       this.sceneRef.planetGroups[targetName].group.getWorldPosition(targetWorldPos);
       // Get the actual visual radius (accounting for planet scale)

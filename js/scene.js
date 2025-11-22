@@ -568,7 +568,10 @@ export class ArmillaryScene {
     // 1. Position Earth
     const earthData = astroCalc.getEarthHeliocentricPosition(currentDay, currentYear, month, day, hours, minutes);
     const earthRad = earthData.longitude;
-    const earthDist = earthData.distance * this.PLANET_DISTANCE_SCALE * zoomScale;
+    // Apply distance compression (Earth is at 1 AU)
+    const distanceExponent = 1.0 - this.planetZoomFactor * 0.4; // 1.0 at no zoom, 0.6 at max zoom
+    const compressedEarthDistAU = Math.pow(earthData.distance, distanceExponent);
+    const earthDist = compressedEarthDistAU * this.PLANET_DISTANCE_SCALE * zoomScale;
 
     const earthX = Math.cos(earthRad) * earthDist;
     const earthY = Math.sin(earthRad) * earthDist;
@@ -843,8 +846,14 @@ export class ArmillaryScene {
           distance = this.planetGroups[planetName].distance;
         }
 
-        // Apply zoom scale calculated at start of updateSphere
-        const adjustedDistance = distance * zoomScale;
+        // Apply zoom scale and distance compression
+        // Use power function to compress orbital distance ratios (same approach as size)
+        // At max zoom, use exponent 0.6 to bring planets closer together
+        const distanceInAU = planetData.heliocentricDistance || (distance / this.PLANET_DISTANCE_SCALE);
+        const distanceExponent = 1.0 - this.planetZoomFactor * 0.4; // 1.0 at no zoom, 0.6 at max zoom
+        const compressedDistanceAU = Math.pow(distanceInAU, distanceExponent);
+        const compressedDistance = compressedDistanceAU * this.PLANET_DISTANCE_SCALE;
+        const adjustedDistance = compressedDistance * zoomScale;
 
         const pRad = planetLonRad;
         // Exaggerate ecliptic latitude by the same factor as planet sizes for visibility
@@ -861,7 +870,14 @@ export class ArmillaryScene {
         this.planetGroups[planetName].group.position.set(x, y, z);
 
         // Apply both horizon view scale and planet zoom size multiplier
-        const finalScale = planetScale * sizeMultiplier;
+        // Add proportional size equalization at higher zoom levels to make small planets more visible
+        // Use power function: at max zoom, compress size ratios using exponent 0.25 (fourth root)
+        // This makes Jupiter (11x Earth) only ~1.82x larger, and Mercury (0.38x) ~0.78x of Earth
+        const radiusRatio = this.planetGroups[planetName].radiusRatio || 1.0;
+        const exponent = 1.0 - this.planetZoomFactor * 0.75; // 1.0 at no zoom, 0.25 at max zoom
+        const equalizedRatio = Math.pow(radiusRatio, exponent);
+        const equalizationFactor = equalizedRatio / radiusRatio; // How much to adjust from original ratio
+        const finalScale = planetScale * sizeMultiplier * equalizationFactor;
         this.planetGroups[planetName].group.scale.set(finalScale, finalScale, finalScale);
 
         // Store planet zodiac position for tooltip (using geocentric longitude)
