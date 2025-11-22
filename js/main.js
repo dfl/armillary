@@ -8,6 +8,7 @@ window.debugLog = {
   error: (...args) => { if (DEBUG) console.error(...args); }
 };
 
+import * as THREE from 'three';
 import { AstronomyCalculator } from './astronomy.js';
 import { DateTimeParser, UIManager, initializeLocationAutocomplete } from './ui.js';
 import { ArmillaryScene } from './scene.js';
@@ -80,8 +81,7 @@ const saveCameraStateToURL = () => {
   }, 500); // Wait 500ms after camera movement stops
 };
 
-// Listen for camera/controls changes
-scene.controls.addEventListener('change', saveCameraStateToURL);
+// Don't listen for camera changes yet - will be set up after initial camera position is set
 
 // Initialize datetime parser with timezone callback
 const datetimeInput = document.getElementById('datetimeInput');
@@ -275,27 +275,59 @@ if (!hasURLState) {
 setTimeout(() => {
   const cameraState = uiManager.getCameraState();
   if (cameraState) {
-    // Restore camera position from URL
-    scene.camera.position.set(
-      cameraState.position.x,
-      cameraState.position.y,
-      cameraState.position.z
-    );
-    scene.controls.target.set(
-      cameraState.target.x,
-      cameraState.target.y,
-      cameraState.target.z
-    );
-    scene.camera.up.set(
-      cameraState.up.x,
-      cameraState.up.y,
-      cameraState.up.z
-    );
-    scene.controls.update();
-    debugLog.log('Restored camera state from URL');
+    // Smoothly animate to saved camera position from URL
+    const startPos = scene.camera.position.clone();
+    const startTarget = scene.controls.target.clone();
+    const startUp = scene.camera.up.clone();
+
+    const targetPos = new THREE.Vector3(cameraState.position.x, cameraState.position.y, cameraState.position.z);
+    const targetTarget = new THREE.Vector3(cameraState.target.x, cameraState.target.y, cameraState.target.z);
+    const targetUp = new THREE.Vector3(cameraState.up.x, cameraState.up.y, cameraState.up.z);
+
+    const duration = 1000; // 1 second
+    const startTime = performance.now();
+
+    // Disable controls during animation
+    scene.controls.enabled = false;
+
+    const animateCamera = () => {
+      const elapsed = performance.now() - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+
+      // Ease-in-out function
+      const eased = progress < 0.5
+        ? 2 * progress * progress
+        : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+
+      // Interpolate position, target, and up vector
+      scene.camera.position.lerpVectors(startPos, targetPos, eased);
+      scene.controls.target.lerpVectors(startTarget, targetTarget, eased);
+      scene.camera.up.lerpVectors(startUp, targetUp, eased).normalize();
+
+      // Ensure camera looks at target
+      scene.camera.lookAt(scene.controls.target);
+
+      if (progress < 1) {
+        requestAnimationFrame(animateCamera);
+      } else {
+        // Animation complete
+        scene.controls.enabled = true;
+        scene.controls.update();
+        // Now that camera animation is done, start listening for camera changes
+        scene.controls.addEventListener('change', saveCameraStateToURL);
+      }
+    };
+
+    animateCamera();
+    debugLog.log('Animating to saved camera state from URL');
   } else {
     // Set default camera zoom to horizon (slightly zoomed out)
     scene.zoomToTarget('horizon');
+
+    // Wait for zoom animation to complete, then start listening for camera changes
+    setTimeout(() => {
+      scene.controls.addEventListener('change', saveCameraStateToURL);
+    }, 1000); // Match zoom animation duration
   }
 }, 1000);
 
