@@ -827,18 +827,19 @@ export class ArmillaryScene {
         // Use geocentric longitude for tooltip display
         const geocentricDeg = THREE.MathUtils.radToDeg(planetData.geocentricLongitude);
 
+        // Ecliptic latitude is the same for both heliocentric and geocentric
+        const planetLatRad = planetData.geocentricLatitude || 0;
+
         // Use heliocentric coordinates for 3D positioning relative to Sun
-        let planetLonRad, planetLatRad, distance;
+        let planetLonRad, distance;
 
         if (planetData.heliocentricLongitude !== null && planetData.heliocentricDistance !== null) {
           // Use actual heliocentric position
           planetLonRad = planetData.heliocentricLongitude;
-          planetLatRad = planetData.heliocentricLatitude || 0;
           distance = planetData.heliocentricDistance * this.PLANET_DISTANCE_SCALE;
         } else {
           // Fallback to average orbital distance
           planetLonRad = planetData.geocentricLongitude;
-          planetLatRad = 0;
           distance = this.planetGroups[planetName].distance;
         }
 

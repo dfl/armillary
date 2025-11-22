@@ -428,6 +428,7 @@ export class AstronomyCalculator {
 
       if (geocentricObj) {
         const geocentricLon = geocentricObj.apparentLongitudeDd ?? geocentricObj.longitude ?? geocentricObj.lon ?? geocentricObj.lambda;
+        const geocentricLat = geocentricObj.apparentLatitudeDd ?? geocentricObj.latitude ?? geocentricObj.lat ?? geocentricObj.beta;
 
         // Try to get heliocentric position
         const heliocentricLon = heliocentricObj ? (heliocentricObj.longitude ?? heliocentricObj.lon ?? heliocentricObj.lambda) : null;
@@ -435,6 +436,7 @@ export class AstronomyCalculator {
         const heliocentricDist = heliocentricObj ? (heliocentricObj.distance ?? heliocentricObj.dist ?? heliocentricObj.r) : null;
 
         debugLog.log(`  Geocentric longitude value:`, geocentricLon);
+        debugLog.log(`  Geocentric latitude value:`, geocentricLat);
         debugLog.log(`  Heliocentric longitude value:`, heliocentricLon);
         debugLog.log(`  Heliocentric latitude value:`, heliocentricLat);
         debugLog.log(`  Heliocentric distance value:`, heliocentricDist);
@@ -445,6 +447,9 @@ export class AstronomyCalculator {
 
           return {
             geocentricLongitude: this._degToRad(geocentricLonDeg),
+            geocentricLatitude: (typeof geocentricLat === 'number' && !Number.isNaN(geocentricLat))
+              ? this._degToRad(geocentricLat)
+              : 0,
             heliocentricLongitude: (typeof heliocentricLon === 'number' && !Number.isNaN(heliocentricLon))
               ? this._degToRad(this._deg(heliocentricLon))
               : null,
@@ -463,7 +468,7 @@ export class AstronomyCalculator {
 
     // Fallback
     debugLog.warn(`Using fallback position for ${planetName}`);
-    return { geocentricLongitude: 0, heliocentricLongitude: null, heliocentricLatitude: 0, heliocentricDistance: null };
+    return { geocentricLongitude: 0, geocentricLatitude: 0, heliocentricLongitude: null, heliocentricLatitude: 0, heliocentricDistance: null };
   }
 
   /**
