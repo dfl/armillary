@@ -112,6 +112,9 @@ Preview the production build locally before deployment.
 | Zoom to planet | Double-click on a planet |
 | Planet context menu | Right-click on a planet |
 | Toggle stereoscopic mode | Press **S** key |
+| Start/stop time animation | Press **Spacebar** |
+| Adjust animation speed | Press **[** to decrease or **]** to increase (when animating) |
+| Jump time forward/backward | Press **]** or **[** (when not animating, hold for acceleration) |
 
 **Interacting with Celestial Bodies:**
 - **Double-click** any planet, the sun, or moon to smoothly zoom the camera to that object
@@ -127,6 +130,31 @@ When stereoscopic mode is enabled, the view splits into two side-by-side images.
 
 ![Stereoscopic Mode](images/screenshots/stereoscopic.png)
 
+### Time Animation
+
+The armillary sphere includes a powerful time animation system that lets you watch celestial movements in real-time:
+
+**Starting/Stopping Animation:**
+- Press **Spacebar** to start or pause time animation
+- When animating, time progresses automatically at a configurable speed
+- Animation state is displayed in the upper-right corner
+
+**Speed Control:**
+- Press **]** (right bracket) to double the animation speed
+- Press **[** (left bracket) to halve the animation speed
+- Speed ranges from 30 minutes/second to 1 year/second
+- Speed indicator shows current rate (e.g., "1.0 hours/sec", "2.5 days/sec")
+
+**Manual Time Control:**
+- When animation is paused, press **]** to jump forward 48 minutes
+- Press **[** to jump backward 48 minutes
+- Hold the key for accelerating jumps (2x, 4x, 8x, 16x, up to 32x speed)
+
+This feature is ideal for:
+- Observing planetary motion over days or months
+- Watching the sun's path through the zodiac
+- Tracking the progression of astrological angles
+- Educational demonstrations of celestial mechanics
 
 ### Setting Date and Time
 
