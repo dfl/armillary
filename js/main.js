@@ -70,6 +70,73 @@ const updateVisualization = () => {
 // Initialize UI
 const uiManager = new UIManager(updateVisualization);
 
+// Animation state
+let isAnimating = false;
+let animationSpeed = 60; // Speed in minutes per second (60 = 1 hour per second)
+let lastAnimationTime = 0;
+let animationStartTime = 0;
+let animationStartValue = 0;
+
+// Key repeat acceleration for manual time control
+let keyRepeatCount = 0;
+let lastKeyPressed = null;
+let keyRepeatMultiplier = 1;
+
+// Animation loop for time progression
+const animateTime = (timestamp) => {
+  if (!isAnimating) return;
+
+  // Calculate time delta (limit to reasonable values)
+  const deltaTime = lastAnimationTime ? Math.min(timestamp - lastAnimationTime, 100) : 16;
+  lastAnimationTime = timestamp;
+
+  // Increment time based on speed
+  // animationSpeed is in minutes per second (real time)
+  // deltaTime is in milliseconds
+  const timeIncrement = (deltaTime / 1000) * animationSpeed;
+
+  // Debugging: Log actual speed every 3 seconds
+  if (timestamp - animationStartTime > 3000 && animationStartTime > 0) {
+    const timeSlider = document.getElementById('timeSlider');
+    const daySlider = document.getElementById('daySlider');
+    const currentValue = parseFloat(daySlider.value) * 1440 + parseFloat(timeSlider.value);
+    const elapsedRealSeconds = (timestamp - animationStartTime) / 1000;
+    const elapsedSimMinutes = currentValue - animationStartValue;
+    const actualSpeed = elapsedSimMinutes / elapsedRealSeconds;
+    console.log(`Actual speed: ${actualSpeed.toFixed(1)} min/sec (target: ${animationSpeed} min/sec)`);
+    animationStartTime = timestamp;
+    animationStartValue = currentValue;
+  }
+
+  const timeSlider = document.getElementById('timeSlider');
+  const daySlider = document.getElementById('daySlider');
+  let newTime = parseFloat(timeSlider.value) + timeIncrement;
+  let currentDay = parseFloat(daySlider.value);
+
+  // Handle day wraparound
+  while (newTime >= 1440) {
+    newTime -= 1440;
+    currentDay += 1;
+    if (currentDay > 365) currentDay = 1;
+  }
+  while (newTime < 0) {
+    newTime += 1440;
+    currentDay -= 1;
+    if (currentDay < 1) currentDay = 365;
+  }
+
+  // Update sliders
+  timeSlider.value = newTime;
+  daySlider.value = currentDay;
+
+  // Trigger update events
+  timeSlider.dispatchEvent(new Event('input'));
+  daySlider.dispatchEvent(new Event('input'));
+
+  // Continue animation loop
+  requestAnimationFrame(animateTime);
+};
+
 // Setup camera state tracking and URL updates
 // Debounce URL updates to avoid excessive history API calls
 let cameraUpdateTimeout = null;
@@ -154,11 +221,82 @@ eyeSeparationSlider.addEventListener('input', () => {
   uiManager.saveStateToURL();
 });
 
+// Speed indicator display
+let speedIndicatorTimeout = null;
+const speedIndicator = document.createElement('div');
+speedIndicator.style.position = 'fixed';
+speedIndicator.style.top = '20px';
+speedIndicator.style.right = '20px';
+speedIndicator.style.fontSize = '48px';
+speedIndicator.style.fontWeight = 'bold';
+speedIndicator.style.color = '#888';
+speedIndicator.style.fontFamily = 'monospace';
+speedIndicator.style.opacity = '0';
+speedIndicator.style.transition = 'opacity 0.3s';
+speedIndicator.style.pointerEvents = 'none';
+speedIndicator.style.zIndex = '10000';
+speedIndicator.style.textShadow = '2px 2px 4px rgba(0,0,0,0.5)';
+document.body.appendChild(speedIndicator);
+
+// Helper function to format speed label
+const getSpeedLabel = (speed) => {
+  if (speed >= 525600) {
+    const years = speed / 525600;
+    return `${years.toFixed(1)} years/sec`;
+  } else if (speed >= 1440) {
+    const days = speed / 1440;
+    if (days >= 7) {
+      const weeks = days / 7;
+      return `${weeks.toFixed(1)} weeks/sec`;
+    }
+    return `${days.toFixed(1)} days/sec`;
+  } else if (speed >= 60) {
+    return `${(speed / 60).toFixed(1)} hours/sec`;
+  } else {
+    return `${speed.toFixed(1)} min/sec`;
+  }
+};
+
+// Show speed indicator in upper right corner
+const showSpeedIndicator = (label) => {
+  speedIndicator.textContent = label;
+  speedIndicator.style.opacity = '1';
+
+  // Clear existing timeout
+  if (speedIndicatorTimeout) {
+    clearTimeout(speedIndicatorTimeout);
+  }
+
+  // Hide after 2 seconds
+  speedIndicatorTimeout = setTimeout(() => {
+    speedIndicator.style.opacity = '0';
+  }, 2000);
+};
+
 // Keyboard shortcuts
 window.addEventListener('keydown', (e) => {
   // Only process if not typing in an input field
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
     return;
+  }
+
+  // Space bar to toggle animation
+  if (e.key === ' ') {
+    e.preventDefault(); // Prevent page scroll
+    isAnimating = !isAnimating;
+    if (isAnimating) {
+      lastAnimationTime = 0; // Reset for smooth start
+      animationStartTime = 0; // Reset speed tracking
+      const timeSlider = document.getElementById('timeSlider');
+      const daySlider = document.getElementById('daySlider');
+      animationStartValue = parseFloat(daySlider.value) * 1440 + parseFloat(timeSlider.value);
+      requestAnimationFrame(animateTime);
+      const speedLabel = getSpeedLabel(animationSpeed);
+      console.log('Animation started at speed:', speedLabel);
+      showSpeedIndicator(speedLabel);
+    } else {
+      console.log('Animation paused');
+    }
   }
 
   // 's' to toggle stereo view and Controls widget
@@ -171,42 +309,99 @@ window.addEventListener('keydown', (e) => {
     controlsWidget.open = !stereoToggle.checked;
   }
 
-  // '[' to move time back 1 hour
+  // '[' to decrease speed (when animating) or move time back (when not)
   if (e.key === '[') {
-    const timeSlider = document.getElementById('timeSlider');
-    const daySlider = document.getElementById('daySlider');
-    let newTime = parseInt(timeSlider.value) - 48;
-    let currentDay = parseInt(daySlider.value);
+    if (isAnimating) {
+      // Decrease animation speed (halve it, with minimum of 30 min/sec)
+      animationSpeed = Math.max(30, animationSpeed / 2);
+      const speedLabel = getSpeedLabel(animationSpeed);
+      console.log('Animation speed:', speedLabel);
+      showSpeedIndicator(speedLabel);
+      // Reset speed tracking for accurate measurement
+      animationStartTime = 0;
+    } else {
+      // Move time back with acceleration on key repeat
+      if (lastKeyPressed === '[' && !e.repeat) {
+        // First press after release
+        keyRepeatCount = 0;
+        keyRepeatMultiplier = 1;
+      } else if (lastKeyPressed === '[') {
+        // Key is being held/repeated
+        keyRepeatCount++;
+        // Exponential acceleration: 1x, 2x, 4x, 8x, 16x, max 32x
+        keyRepeatMultiplier = Math.min(32, Math.pow(2, Math.floor(keyRepeatCount / 3)));
+      }
+      lastKeyPressed = '[';
 
-    if (newTime < 0) {
-      newTime += 1440; // Move to previous day
-      currentDay -= 1;
-      if (currentDay < 1) currentDay = 365; // Wrap to end of year
+      const timeSlider = document.getElementById('timeSlider');
+      const daySlider = document.getElementById('daySlider');
+      const jumpAmount = 48 * keyRepeatMultiplier; // Base 48 minutes, accelerated
+      let newTime = parseInt(timeSlider.value) - jumpAmount;
+      let currentDay = parseInt(daySlider.value);
+
+      while (newTime < 0) {
+        newTime += 1440; // Move to previous day
+        currentDay -= 1;
+        if (currentDay < 1) currentDay = 365; // Wrap to end of year
+      }
+
       daySlider.value = currentDay;
+      timeSlider.value = newTime;
       daySlider.dispatchEvent(new Event('input'));
+      timeSlider.dispatchEvent(new Event('input'));
     }
-
-    timeSlider.value = newTime;
-    timeSlider.dispatchEvent(new Event('input'));
   }
 
-  // ']' to move time forward 1 hour
+  // ']' to increase speed (when animating) or move time forward (when not)
   if (e.key === ']') {
-    const timeSlider = document.getElementById('timeSlider');
-    const daySlider = document.getElementById('daySlider');
-    let newTime = parseInt(timeSlider.value) + 48;
-    let currentDay = parseInt(daySlider.value);
+    if (isAnimating) {
+      // Increase animation speed (double it, with maximum of 525600 min/sec = 1 year/sec)
+      animationSpeed = Math.min(525600, animationSpeed * 2);
+      const speedLabel = getSpeedLabel(animationSpeed);
+      console.log('Animation speed:', speedLabel);
+      showSpeedIndicator(speedLabel);
+      // Reset speed tracking for accurate measurement
+      animationStartTime = 0;
+    } else {
+      // Move time forward with acceleration on key repeat
+      if (lastKeyPressed === ']' && !e.repeat) {
+        // First press after release
+        keyRepeatCount = 0;
+        keyRepeatMultiplier = 1;
+      } else if (lastKeyPressed === ']') {
+        // Key is being held/repeated
+        keyRepeatCount++;
+        // Exponential acceleration: 1x, 2x, 4x, 8x, 16x, max 32x
+        keyRepeatMultiplier = Math.min(32, Math.pow(2, Math.floor(keyRepeatCount / 3)));
+      }
+      lastKeyPressed = ']';
 
-    if (newTime >= 1440) {
-      newTime -= 1440; // Move to next day
-      currentDay += 1;
-      if (currentDay > 365) currentDay = 1; // Wrap to start of year
+      const timeSlider = document.getElementById('timeSlider');
+      const daySlider = document.getElementById('daySlider');
+      const jumpAmount = 48 * keyRepeatMultiplier; // Base 48 minutes, accelerated
+      let newTime = parseInt(timeSlider.value) + jumpAmount;
+      let currentDay = parseInt(daySlider.value);
+
+      while (newTime >= 1440) {
+        newTime -= 1440; // Move to next day
+        currentDay += 1;
+        if (currentDay > 365) currentDay = 1; // Wrap to start of year
+      }
+
       daySlider.value = currentDay;
+      timeSlider.value = newTime;
       daySlider.dispatchEvent(new Event('input'));
+      timeSlider.dispatchEvent(new Event('input'));
     }
+  }
+});
 
-    timeSlider.value = newTime;
-    timeSlider.dispatchEvent(new Event('input'));
+// Reset key repeat acceleration on key release
+window.addEventListener('keyup', (e) => {
+  if (e.key === '[' || e.key === ']') {
+    keyRepeatCount = 0;
+    keyRepeatMultiplier = 1;
+    lastKeyPressed = null;
   }
 });
 
