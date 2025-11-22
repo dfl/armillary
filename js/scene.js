@@ -847,12 +847,13 @@ export class ArmillaryScene {
         const adjustedDistance = distance * zoomScale;
 
         const pRad = planetLonRad;
-        const pLat = planetLatRad;
+        // Exaggerate ecliptic latitude by the same factor as planet sizes for visibility
+        const pLat = planetLatRad * sizeMultiplier;
 
         // Position planet relative to Sun at origin (heliocentric)
         // x = r * cos(lat) * cos(lon)
         // y = r * cos(lat) * sin(lon)
-        // z = r * sin(lat)
+        // z = r * sin(lat) - exaggerated for visibility
         const x = adjustedDistance * Math.cos(pLat) * Math.cos(pRad);
         const y = adjustedDistance * Math.cos(pLat) * Math.sin(pRad);
         const z = adjustedDistance * Math.sin(pLat);
