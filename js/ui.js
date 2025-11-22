@@ -191,6 +191,7 @@ export class UIManager {
       sidereal: false
     };
     this.eyeSeparation = 0.3;
+    this.planetZoom = 1.0; // Default to max zoom
 
     this.elements = {};
     this.initializeElements();
@@ -529,6 +530,11 @@ export class UIManager {
       params.set('eyeSep', this.eyeSeparation.toFixed(2));
     }
 
+    // Save planet zoom if not default (default is 1.0)
+    if (this.planetZoom !== 1.0) {
+      params.set('planetZoom', this.planetZoom.toFixed(2));
+    }
+
     window.history.replaceState({}, '', `#${params.toString()}`);
   }
 
@@ -698,6 +704,14 @@ export class UIManager {
     return this.eyeSeparation;
   }
 
+  setPlanetZoom(value) {
+    this.planetZoom = value;
+  }
+
+  getPlanetZoom() {
+    return this.planetZoom;
+  }
+
   loadStateFromURL(parser) {
     // First check for Rails calc_params in query string
     const queryParams = new URLSearchParams(window.location.search);
@@ -758,6 +772,10 @@ export class UIManager {
     }
     if (params.has('eyeSep')) {
       this.eyeSeparation = parseFloat(params.get('eyeSep'));
+      hasState = true;
+    }
+    if (params.has('planetZoom')) {
+      this.planetZoom = parseFloat(params.get('planetZoom'));
       hasState = true;
     }
 

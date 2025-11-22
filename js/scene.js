@@ -20,6 +20,7 @@ export class ArmillaryScene {
     // Constants and Configuration
     // ===================================================================
     this.obliquity = 23.44 * Math.PI / 180;
+    this.planetZoomFactor = 1.0; // 0 = accurate, 1.0 = max zoom (default)
 
     // Proportional scaling constants
     // Real radii: Earth 6371km, Moon 1737km, Sun 696000km
@@ -551,21 +552,32 @@ export class ArmillaryScene {
 
     this.eclipticSunGroup.position.copy(placeOnZodiac(sunDeg));
 
+    // --- HELIOCENTRIC POSITIONING ---
+
+    // Calculate zoom scale for uniform solar system scaling
+    // planetZoomFactor ranges from 0 (accurate) to 1.0 (max zoom)
+    // At zoom=1.0, we want the effect of old 0.75, which was: 1.0 - 0.75 * 0.9333 = 0.30
+    // So: zoomScale = 1.0 - planetZoomFactor * 0.75 * 0.9333 = 1.0 - planetZoomFactor * 0.7
+    const zoomScale = 1.0 - this.planetZoomFactor * 0.7; // At zoom=1.0, scale to 30% of original
+    const sizeMultiplier = 1.0 / zoomScale; // Inverse: if distances shrink, sizes grow to compensate
+
     // Realistic sun at ORIGIN (0,0,0) for heliocentric system
     this.realisticSunGroup.position.set(0, 0, 0);
-
-    // --- HELIOCENTRIC POSITIONING ---
+    this.realisticSunGroup.scale.set(sizeMultiplier, sizeMultiplier, sizeMultiplier);
 
     // 1. Position Earth
     const earthData = astroCalc.getEarthHeliocentricPosition(currentDay, currentYear, month, day, hours, minutes);
     const earthRad = earthData.longitude;
-    const earthDist = earthData.distance * this.PLANET_DISTANCE_SCALE;
+    const earthDist = earthData.distance * this.PLANET_DISTANCE_SCALE * zoomScale;
 
     const earthX = Math.cos(earthRad) * earthDist;
     const earthY = Math.sin(earthRad) * earthDist;
 
     const newEarthPos = new THREE.Vector3(earthX, earthY, 0);
     this.earthGroup.position.copy(newEarthPos);
+
+    // Scale Earth size with zoom
+    this.earthGroup.scale.set(sizeMultiplier, sizeMultiplier, sizeMultiplier);
 
     // Update Earth Rotation (Spin + Tilt)
     // Calculate GST (Greenwich Sidereal Time) for Earth spin
@@ -696,12 +708,17 @@ export class ArmillaryScene {
 
     // Realistic moon orbits Earth with proper latitude off the ecliptic
     // Use spherical coordinates: x = r*cos(lat)*cos(lon), y = r*cos(lat)*sin(lon), z = r*sin(lat)
+    // Apply zoom scale to moon distance
     const mRad = moonLonRad;
     const mLat = moonLatRad;
-    const moonX = earthX + this.MOON_DISTANCE * Math.cos(mLat) * Math.cos(mRad);
-    const moonY = earthY + this.MOON_DISTANCE * Math.cos(mLat) * Math.sin(mRad);
-    const moonZ = this.MOON_DISTANCE * Math.sin(mLat);
+    const scaledMoonDistance = this.MOON_DISTANCE * zoomScale;
+    const moonX = earthX + scaledMoonDistance * Math.cos(mLat) * Math.cos(mRad);
+    const moonY = earthY + scaledMoonDistance * Math.cos(mLat) * Math.sin(mRad);
+    const moonZ = scaledMoonDistance * Math.sin(mLat);
     this.realisticMoonGroup.position.set(moonX, moonY, moonZ);
+
+    // Scale Moon size with zoom
+    this.realisticMoonGroup.scale.set(sizeMultiplier, sizeMultiplier, sizeMultiplier);
 
     // Tidal locking: Rotate moon to face Earth
     // With rotation.x = PI/2, rotation.y becomes the spin around the Z-axis (poles)
@@ -754,13 +771,13 @@ export class ArmillaryScene {
     const southNodeRad = THREE.MathUtils.degToRad(southNodeDeg);
 
     // North Node position (relative to Earth)
-    const northNodeX = earthX + this.MOON_DISTANCE * Math.cos(northNodeRad);
-    const northNodeY = earthY + this.MOON_DISTANCE * Math.sin(northNodeRad);
+    const northNodeX = earthX + scaledMoonDistance * Math.cos(northNodeRad);
+    const northNodeY = earthY + scaledMoonDistance * Math.sin(northNodeRad);
     this.heliocentricNodeGroups.NORTH_NODE.position.set(northNodeX, northNodeY, 0);
 
     // South Node position (relative to Earth)
-    const southNodeX = earthX + this.MOON_DISTANCE * Math.cos(southNodeRad);
-    const southNodeY = earthY + this.MOON_DISTANCE * Math.sin(southNodeRad);
+    const southNodeX = earthX + scaledMoonDistance * Math.cos(southNodeRad);
+    const southNodeY = earthY + scaledMoonDistance * Math.sin(southNodeRad);
     this.heliocentricNodeGroups.SOUTH_NODE.position.set(southNodeX, southNodeY, 0);
 
     // Only show heliocentric nodes when ecliptic plane is visible
@@ -771,6 +788,8 @@ export class ArmillaryScene {
     // The moon's orbital plane is inclined 5.145° to the ecliptic
     if (this.planetaryReferences.moonOrbitOutline) {
       this.planetaryReferences.moonOrbitOutline.position.set(earthX, earthY, 0);
+      // Scale moon orbit outline with zoom (scales with distance, not inverse)
+      this.planetaryReferences.moonOrbitOutline.scale.set(zoomScale, zoomScale, zoomScale);
 
       // Rotate the orbit to match the moon's orbital inclination
       // The orbit is tilted 5.145° from the ecliptic, with the line of nodes
@@ -823,6 +842,9 @@ export class ArmillaryScene {
           distance = this.planetGroups[planetName].distance;
         }
 
+        // Apply zoom scale calculated at start of updateSphere
+        const adjustedDistance = distance * zoomScale;
+
         const pRad = planetLonRad;
         const pLat = planetLatRad;
 
@@ -830,12 +852,15 @@ export class ArmillaryScene {
         // x = r * cos(lat) * cos(lon)
         // y = r * cos(lat) * sin(lon)
         // z = r * sin(lat)
-        const x = distance * Math.cos(pLat) * Math.cos(pRad);
-        const y = distance * Math.cos(pLat) * Math.sin(pRad);
-        const z = distance * Math.sin(pLat);
+        const x = adjustedDistance * Math.cos(pLat) * Math.cos(pRad);
+        const y = adjustedDistance * Math.cos(pLat) * Math.sin(pRad);
+        const z = adjustedDistance * Math.sin(pLat);
 
         this.planetGroups[planetName].group.position.set(x, y, z);
-        this.planetGroups[planetName].group.scale.set(planetScale, planetScale, planetScale);
+
+        // Apply both horizon view scale and planet zoom size multiplier
+        const finalScale = planetScale * sizeMultiplier;
+        this.planetGroups[planetName].group.scale.set(finalScale, finalScale, finalScale);
 
         // Store planet zodiac position for tooltip (using geocentric longitude)
         this.planetZodiacPositions[planetName] = astroCalc.toZodiacString(geocentricDeg - ayanamshaDeg);
@@ -1002,6 +1027,12 @@ export class ArmillaryScene {
 
   setEyeSeparation(separation) {
     this.cameraController.setEyeSeparation(separation);
+  }
+
+  setPlanetZoom(zoom) {
+    // Store zoom factor (0 = accurate, 1.0 = max zoom)
+    // This will be used in updateSphere to adjust planet positions and sizes
+    this.planetZoomFactor = zoom;
   }
 
   toggleStarfield(visible) {

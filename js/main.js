@@ -221,6 +221,19 @@ eyeSeparationSlider.addEventListener('input', () => {
   uiManager.saveStateToURL();
 });
 
+// Planet zoom slider
+const planetZoomSlider = document.getElementById('planetZoomSlider');
+const planetZoomValue = document.getElementById('planetZoomValue');
+planetZoomSlider.addEventListener('input', () => {
+  const zoom = parseFloat(planetZoomSlider.value);
+  scene.setPlanetZoom(zoom);
+  const label = zoom === 0 ? '0 (Accurate)' : zoom === 1 ? '1.0 (Max)' : zoom.toFixed(2);
+  planetZoomValue.textContent = label;
+  uiManager.setPlanetZoom(zoom);
+  uiManager.saveStateToURL();
+  updateVisualization();
+});
+
 // Speed indicator display
 let speedIndicatorTimeout = null;
 const speedIndicator = document.createElement('div');
@@ -450,6 +463,13 @@ if (uiManager.elements.siderealCheckbox) {
 const eyeSeparation = uiManager.getEyeSeparation();
 eyeSeparationSlider.value = eyeSeparation;
 eyeSeparationValue.textContent = eyeSeparation.toFixed(2);
+
+// Apply planet zoom from URL
+const planetZoom = uiManager.getPlanetZoom();
+planetZoomSlider.value = planetZoom;
+const zoomLabel = planetZoom === 0 ? '0 (Accurate)' : planetZoom === 1 ? '1.0 (Max)' : planetZoom.toFixed(2);
+planetZoomValue.textContent = zoomLabel;
+scene.setPlanetZoom(planetZoom);
 
 // Apply toggle states to scene
 scene.toggleStarfield(toggleStates.starfield);
