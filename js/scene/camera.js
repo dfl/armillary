@@ -57,7 +57,7 @@ export default class CameraController {
       // Position camera high above the ecliptic plane to see all planets including Pluto
       this.sceneRef.realisticSunGroup.getWorldPosition(targetWorldPos);
       // Account for distance compression: Pluto at 39.48 AU gets compressed
-      const distanceExponent = 1.0 - this.sceneRef.planetZoomFactor * 0.4;
+      const distanceExponent = 1.0 - this.sceneRef.planetZoomFactor * 0.65;
       const compressedPlutoDistAU = Math.pow(39.48, distanceExponent);
       targetRadius = compressedPlutoDistAU * this.sceneRef.PLANET_DISTANCE_SCALE * 1.3; // Pluto's orbit * 1.3 for margin
     } else if (this.sceneRef.planetGroups[targetName]) {

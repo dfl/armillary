@@ -569,7 +569,7 @@ export class ArmillaryScene {
     const earthData = astroCalc.getEarthHeliocentricPosition(currentDay, currentYear, month, day, hours, minutes);
     const earthRad = earthData.longitude;
     // Apply distance compression (Earth is at 1 AU)
-    const distanceExponent = 1.0 - this.planetZoomFactor * 0.4; // 1.0 at no zoom, 0.6 at max zoom
+    const distanceExponent = 1.0 - this.planetZoomFactor * 0.65; // 1.0 at no zoom, 0.35 at max zoom
     const compressedEarthDistAU = Math.pow(earthData.distance, distanceExponent);
     const earthDist = compressedEarthDistAU * this.PLANET_DISTANCE_SCALE * zoomScale;
 
@@ -815,6 +815,16 @@ export class ArmillaryScene {
       this.planetaryReferences.moonOrbitOutline.quaternion.copy(nodeRotation).multiply(inclinationRotation);
     }
 
+    // 2.7. Scale sun references group (ecliptic plane with 360 dots) with distance compression
+    // The ecliptic extends to STAR_FIELD_RADIUS, so scale it down with distance compression
+    // Use Pluto's compressed distance as reference (it's the outermost planet)
+    if (this.planetaryReferences.sunReferencesGroup) {
+      const compressedPlutoDistAU = Math.pow(39.48, distanceExponent);
+      const compressionScale = compressedPlutoDistAU / 39.48; // Ratio of compressed to original
+      const eclipticScale = compressionScale * zoomScale;
+      this.planetaryReferences.sunReferencesGroup.scale.set(eclipticScale, eclipticScale, eclipticScale);
+    }
+
     // 3. Position Planets (Heliocentric)
     const planetNames = ['mercury', 'venus', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune', 'pluto'];
 
@@ -848,9 +858,9 @@ export class ArmillaryScene {
 
         // Apply zoom scale and distance compression
         // Use power function to compress orbital distance ratios (same approach as size)
-        // At max zoom, use exponent 0.6 to bring planets closer together
+        // At max zoom, use exponent 0.35 to bring planets much closer together
         const distanceInAU = planetData.heliocentricDistance || (distance / this.PLANET_DISTANCE_SCALE);
-        const distanceExponent = 1.0 - this.planetZoomFactor * 0.4; // 1.0 at no zoom, 0.6 at max zoom
+        const distanceExponent = 1.0 - this.planetZoomFactor * 0.65; // 1.0 at no zoom, 0.35 at max zoom
         const compressedDistanceAU = Math.pow(distanceInAU, distanceExponent);
         const compressedDistance = compressedDistanceAU * this.PLANET_DISTANCE_SCALE;
         const adjustedDistance = compressedDistance * zoomScale;
@@ -870,12 +880,25 @@ export class ArmillaryScene {
         this.planetGroups[planetName].group.position.set(x, y, z);
 
         // Apply both horizon view scale and planet zoom size multiplier
-        // Add proportional size equalization at higher zoom levels to make small planets more visible
-        // Use power function: at max zoom, compress size ratios using exponent 0.25 (fourth root)
-        // This makes Jupiter (11x Earth) only ~1.82x larger, and Mercury (0.38x) ~0.78x of Earth
+        // Add proportional size equalization at higher zoom levels
+        // Use different strategies for small vs large planets:
+        // - Small planets (< Earth): aggressive compression to bring close to Earth size
+        // - Large planets (> Earth): minimal compression to keep them big
         const radiusRatio = this.planetGroups[planetName].radiusRatio || 1.0;
-        const exponent = 1.0 - this.planetZoomFactor * 0.75; // 1.0 at no zoom, 0.25 at max zoom
-        const equalizedRatio = Math.pow(radiusRatio, exponent);
+        let equalizedRatio;
+
+        if (radiusRatio < 1.0) {
+          // Small planets: use very aggressive compression (exponent 0.15 at max zoom)
+          // Mercury (0.38) -> 0.38^0.15 = 0.89x, Mars (0.53) -> 0.53^0.15 = 0.91x
+          const exponent = 1.0 - this.planetZoomFactor * 0.85; // 1.0 at no zoom, 0.15 at max zoom
+          equalizedRatio = Math.pow(radiusRatio, exponent);
+        } else {
+          // Large planets: minimal compression to keep them large
+          // Jupiter (11) -> 11^0.85 = 8.9x, Saturn (9.1) -> 9.1^0.85 = 7.5x
+          const exponent = 1.0 - this.planetZoomFactor * 0.15; // 1.0 at no zoom, 0.85 at max zoom
+          equalizedRatio = Math.pow(radiusRatio, exponent);
+        }
+
         const equalizationFactor = equalizedRatio / radiusRatio; // How much to adjust from original ratio
         const finalScale = planetScale * sizeMultiplier * equalizationFactor;
         this.planetGroups[planetName].group.scale.set(finalScale, finalScale, finalScale);
