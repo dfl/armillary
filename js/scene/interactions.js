@@ -71,7 +71,6 @@ export default class InteractionManager {
 
   setupStarHover() {
     const raycaster = new THREE.Raycaster();
-    raycaster.params.Line.threshold = 5; // Threshold for orbit line detection
     const mouse = new THREE.Vector2();
 
     const onStarHover = (event) => {
@@ -121,6 +120,14 @@ export default class InteractionManager {
       mouse.y = mouseY;
 
       raycaster.setFromCamera(mouse, camera);
+
+      // Calculate dynamic threshold based on camera distance to keep consistent screen-space picking
+      // Get distance from camera to the armillary center
+      const distanceToCenter = camera.position.distanceTo(this.sceneRef.armillaryRoot.position);
+      // Scale threshold proportionally: smaller when zoomed in, larger when zoomed out
+      // Base threshold of ~0.02 at standard viewing distance (CE_RADIUS * 10)
+      const standardDistance = this.sceneRef.CE_RADIUS * 10;
+      raycaster.params.Line.threshold = (distanceToCenter / standardDistance) * 0.02 * this.sceneRef.CE_RADIUS;
 
       // Build a list of all potential targets to raycast against
       // We'll collect ALL objects and then intersect them all at once to get proper depth sorting
