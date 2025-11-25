@@ -384,13 +384,15 @@ export class AstronomyCalculator {
   getEarthHeliocentricPosition(currentDay, currentYear, month, day, hours, minutes) {
     // Calculate Sun's geocentric position
     const sunLonRad = this.calculateSunPosition(currentDay, currentYear, month, day, hours, minutes);
-    
+
     // Earth is opposite to Sun
     const earthLonRad = (sunLonRad + Math.PI) % (2 * Math.PI);
-    
+
     // Distance is effectively 1 AU (simplified, or could use ephemeris distance if available)
+    // Earth's ecliptic latitude is 0 by definition (Earth defines the ecliptic plane)
     return {
       longitude: earthLonRad,
+      latitude: 0,
       distance: 1.0
     };
   }
@@ -470,6 +472,15 @@ export class AstronomyCalculator {
     debugLog.warn(`Using fallback position for ${planetName}`);
     return { geocentricLongitude: 0, geocentricLatitude: 0, heliocentricLongitude: null, heliocentricLatitude: 0, heliocentricDistance: null };
   }
+
+  /**
+   * NOTE: calculatePlanetOrbit was removed because the geocentric-to-heliocentric conversion
+   * approach doesn't work for generating orbit paths. Sampling at different times while adding
+   * Earth's moving position creates spirograph patterns instead of clean ellipses.
+   *
+   * Planet orbits are now generated using Keplerian orbital elements in planetaryReferences.js
+   * This produces mathematically correct elliptical orbits in heliocentric coordinates.
+   */
 
   /**
    * Calculate lunar phase from sun and moon ecliptic longitudes

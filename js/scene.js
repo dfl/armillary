@@ -366,6 +366,13 @@ export class ArmillaryScene {
     debugLog.log('=== updateSphere called ===');
     debugLog.log('Planet groups available:', Object.keys(this.planetGroups));
 
+    // Recalculate planet orbits if year changed or first time
+    // Note: createPlanetOrbits now uses Keplerian elements, doesn't need ephemeris
+    if (!this._lastOrbitYear || this._lastOrbitYear !== currentYear) {
+      this.planetaryReferences.createPlanetOrbits(astroCalc, currentYear);
+      this._lastOrbitYear = currentYear;
+    }
+
     // Check if Sun ecliptic plane is visible (used throughout this function)
     const sunEclipticVisible = document.getElementById('sunReferencesToggle') &&
       document.getElementById('sunReferencesToggle').checked;
@@ -825,6 +832,29 @@ export class ArmillaryScene {
       this.planetaryReferences.sunReferencesGroup.scale.set(eclipticScale, eclipticScale, eclipticScale);
     }
 
+    // 2.8. Scale planet orbital paths with distance compression
+    // Each orbit scales according to its own distance compression
+    if (this.planetaryReferences.planetOrbits) {
+      Object.keys(this.planetaryReferences.planetOrbits).forEach(planetName => {
+        const orbit = this.planetaryReferences.planetOrbits[planetName];
+        // Get the planet's orbital radius in AU from the original geometry
+        const planetAU = orbit.userData.planetName === 'mercury' ? 0.39 :
+                         orbit.userData.planetName === 'venus' ? 0.72 :
+                         orbit.userData.planetName === 'earth' ? 1.0 :
+                         orbit.userData.planetName === 'mars' ? 1.52 :
+                         orbit.userData.planetName === 'jupiter' ? 5.20 :
+                         orbit.userData.planetName === 'saturn' ? 9.54 :
+                         orbit.userData.planetName === 'uranus' ? 19.19 :
+                         orbit.userData.planetName === 'neptune' ? 30.07 :
+                         orbit.userData.planetName === 'pluto' ? 39.48 : 1.0;
+
+        const compressedPlanetDistAU = Math.pow(planetAU, distanceExponent);
+        const orbitCompressionScale = compressedPlanetDistAU / planetAU;
+        const orbitScale = orbitCompressionScale * zoomScale;
+        orbit.scale.set(orbitScale, orbitScale, orbitScale);
+      });
+    }
+
     // 3. Position Planets (Heliocentric)
     const planetNames = ['mercury', 'venus', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune', 'pluto'];
 
@@ -1154,6 +1184,10 @@ export class ArmillaryScene {
       this.earthMaterial.depthWrite = shouldEnableDepth;
       this.earthMaterial.needsUpdate = true;
     }
+  }
+
+  togglePlanetOrbits(visible) {
+    this.planetaryReferences.togglePlanetOrbits(visible);
   }
 
   // ===================================================================

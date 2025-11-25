@@ -302,8 +302,126 @@ export default class PlanetaryReferences {
     this.moonOrbitOutline.visible = false; // Hide by default, shown with ecliptic plane
     this.scene.add(this.moonOrbitOutline); // Add to scene (not sunReferencesGroup) so we can position it independently
 
+    // Planet orbital paths - will be created in updateSphere with ephemeris data
+    this.planetOrbits = {};
+
     // Hide by default
     this.sunReferencesGroup.visible = false;
+  }
+
+  createPlanetOrbits(astroCalc, currentYear) {
+    console.log(`Creating planet orbits using Keplerian elements...`);
+
+    // Clear existing orbits if any
+    if (this.planetOrbits) {
+      Object.values(this.planetOrbits).forEach(orbit => {
+        this.scene.remove(orbit);
+        orbit.geometry.dispose();
+        orbit.material.dispose();
+      });
+    }
+    this.planetOrbits = {};
+
+    // J2000.0 orbital elements (epoch Jan 1, 2000)
+    // Format: { a: semi-major axis (AU), e: eccentricity, i: inclination (deg),
+    //          Ω: longitude of ascending node (deg), ω: argument of perihelion (deg) }
+    const orbitalElements = {
+      mercury: { color: 0x8c7853, a: 0.38710, e: 0.20563, i: 7.005, Ω: 48.331, ω: 29.124 },
+      venus:   { color: 0xffc649, a: 0.72333, e: 0.00677, i: 3.395, Ω: 76.680, ω: 54.884 },
+      earth:   { color: 0x4488ff, a: 1.00000, e: 0.01671, i: 0.000, Ω: 0.000, ω: 102.937 },
+      mars:    { color: 0xcd5c5c, a: 1.52368, e: 0.09340, i: 1.850, Ω: 49.558, ω: 286.502 },
+      jupiter: { color: 0xc88b3a, a: 5.20260, e: 0.04849, i: 1.303, Ω: 100.464, ω: 273.867 },
+      saturn:  { color: 0xfad5a5, a: 9.53707, e: 0.05551, i: 2.485, Ω: 113.665, ω: 339.391 },
+      uranus:  { color: 0x4fd0e0, a: 19.1913, e: 0.04630, i: 0.773, Ω: 74.006, ω: 96.998 },
+      neptune: { color: 0x4166f5, a: 30.0690, e: 0.00899, i: 1.770, Ω: 131.784, ω: 276.336 },
+      pluto:   { color: 0xbca89f, a: 39.4817, e: 0.24883, i: 17.140, Ω: 110.299, ω: 113.834 }
+    };
+
+    Object.entries(orbitalElements).forEach(([planetName, elements]) => {
+      const { a, e, i, Ω, ω, color } = elements;
+
+      // Generate orbit points using Keplerian elements
+      const orbitPoints = [];
+      const numPoints = 360;
+
+      // Convert angles to radians
+      const iRad = i * Math.PI / 180;
+      const ΩRad = Ω * Math.PI / 180;
+      const ωRad = ω * Math.PI / 180;
+
+      // Generate points around the ellipse
+      for (let j = 0; j <= numPoints; j++) {
+        // True anomaly (angle from perihelion)
+        const ν = (j / numPoints) * 2 * Math.PI;
+
+        // Distance from Sun at this true anomaly
+        const r = a * (1 - e * e) / (1 + e * Math.cos(ν));
+
+        // Position in orbital plane (perihelion at x-axis)
+        const xOrb = r * Math.cos(ν);
+        const yOrb = r * Math.sin(ν);
+        const zOrb = 0;
+
+        // Rotate to ecliptic plane:
+        // 1. Rotate by argument of perihelion (ω) around z-axis
+        // 2. Rotate by inclination (i) around x-axis
+        // 3. Rotate by longitude of ascending node (Ω) around z-axis
+
+        // Step 1: Rotate by ω
+        const x1 = xOrb * Math.cos(ωRad) - yOrb * Math.sin(ωRad);
+        const y1 = xOrb * Math.sin(ωRad) + yOrb * Math.cos(ωRad);
+        const z1 = zOrb;
+
+        // Step 2: Rotate by i
+        const x2 = x1;
+        const y2 = y1 * Math.cos(iRad) - z1 * Math.sin(iRad);
+        const z2 = y1 * Math.sin(iRad) + z1 * Math.cos(iRad);
+
+        // Step 3: Rotate by Ω
+        const x3 = x2 * Math.cos(ΩRad) - y2 * Math.sin(ΩRad);
+        const y3 = x2 * Math.sin(ΩRad) + y2 * Math.cos(ΩRad);
+        const z3 = z2;
+
+        // Scale to visualization size
+        orbitPoints.push(new THREE.Vector3(
+          x3 * this.PLANET_DISTANCE_SCALE,
+          y3 * this.PLANET_DISTANCE_SCALE,
+          z3 * this.PLANET_DISTANCE_SCALE
+        ));
+      }
+
+      const orbitLine = new THREE.Line(
+        new THREE.BufferGeometry().setFromPoints(orbitPoints),
+        new THREE.LineDashedMaterial({
+          color: color,
+          opacity: 0.4,
+          transparent: true,
+          dashSize: 50.0,
+          gapSize: 50.0,
+          depthTest: true,
+          depthWrite: false
+        })
+      );
+
+      orbitLine.computeLineDistances();
+
+      orbitLine.userData.circleName = `${planetName.charAt(0).toUpperCase() + planetName.slice(1)} Orbit`;
+      orbitLine.userData.inclination = i;
+      orbitLine.userData.planetName = planetName;
+      orbitLine.userData.eccentricity = e;
+
+      orbitLine.visible = false;
+      this.scene.add(orbitLine);
+      this.planetOrbits[planetName] = orbitLine;
+    });
+
+    console.log(`Created ${Object.keys(this.planetOrbits).length} planet orbits`);
+
+    // Set visibility based on checkbox state
+    const toggle = document.getElementById('planetOrbitsToggle');
+    if (toggle && toggle.checked) {
+      this.togglePlanetOrbits(true);
+    }
   }
 
   toggleEarthReferences(visible) {
@@ -321,6 +439,15 @@ export default class PlanetaryReferences {
     }
     if (this.moonOrbitOutline) {
       this.moonOrbitOutline.visible = visible;
+    }
+  }
+
+  togglePlanetOrbits(visible) {
+    console.log(`togglePlanetOrbits called with visible=${visible}, orbits count=${this.planetOrbits ? Object.keys(this.planetOrbits).length : 0}`);
+    if (this.planetOrbits) {
+      Object.values(this.planetOrbits).forEach(orbit => {
+        orbit.visible = visible;
+      });
     }
   }
 }

@@ -202,6 +202,14 @@ sunReferencesToggle.addEventListener('change', () => {
   uiManager.saveStateToURL();
 });
 
+// Planet orbits toggle
+const planetOrbitsToggle = document.getElementById('planetOrbitsToggle');
+planetOrbitsToggle.addEventListener('change', () => {
+  scene.togglePlanetOrbits(planetOrbitsToggle.checked);
+  uiManager.setToggleState('planetOrbits', planetOrbitsToggle.checked);
+  uiManager.saveStateToURL();
+});
+
 // Stereo view toggle
 const stereoToggle = document.getElementById('stereoToggle');
 stereoToggle.addEventListener('change', () => {
@@ -454,6 +462,7 @@ starfieldToggle.checked = toggleStates.starfield;
 planetsToggle.checked = toggleStates.planets;
 earthReferencesToggle.checked = toggleStates.earthReferences;
 sunReferencesToggle.checked = toggleStates.sunReferences;
+planetOrbitsToggle.checked = toggleStates.planetOrbits !== undefined ? toggleStates.planetOrbits : true; // Default to true
 stereoToggle.checked = toggleStates.stereo;
 if (uiManager.elements.siderealCheckbox) {
   uiManager.elements.siderealCheckbox.checked = toggleStates.sidereal;
@@ -476,6 +485,7 @@ scene.toggleStarfield(toggleStates.starfield);
 scene.togglePlanets(toggleStates.planets);
 scene.toggleEarthReferences(toggleStates.earthReferences);
 scene.toggleSunReferences(toggleStates.sunReferences);
+scene.togglePlanetOrbits(toggleStates.planetOrbits !== undefined ? toggleStates.planetOrbits : true); // Default to true
 scene.toggleStereo(toggleStates.stereo);
 scene.setEyeSeparation(eyeSeparation);
 

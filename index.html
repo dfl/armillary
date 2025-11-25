@@ -1,135 +1,269 @@
 <!DOCTYPE html>
+
 <html lang="en">
-<head>
-<meta charset="UTF-8">
-<title>3D Armillary with planets</title>
-<link rel="stylesheet" href="/css/styles.css">
-</head>
-<body>
+  <head>
+    <meta charset="UTF-8">
+    <title>3D Armillary with planets</title>
+    <link rel="stylesheet" href="/css/styles.css">
+  </head>
 
-<details id="ui" open>
-  <summary style="cursor: pointer; user-select: none; font-weight: bold; margin-bottom: 8px;">Controls</summary>
-  DateTime: <input type="text" id="datetimeInput" placeholder="e.g., 'now', '2000-03-21 12:00', 'March 21 2000 noon'" style="width: 300px;">
-  <button id="nowButton">Now</button>
-  <br>
-  <br>
-  Location: <input type="text" id="locationInput" placeholder="Search for a city..." style="width: 300px;">
-  <br>
-  <br>
-  Latitude: <input type="text" id="latInput" placeholder="e.g., 40.7128, -33.8688" style="width: 80px;">
-  <input type="range" id="latSlider" min="-66" max="66" value="0" step="0.1">
-  <span id="latValue">0°</span>
-  <br>
-  Longitude: <input type="text" id="lonInput" placeholder="e.g., -74.0060, 151.2093" style="width: 80px;">
-  <input type="range" id="lonSlider" min="-180" max="180" value="0" step="0.1">
-  <span id="lonValue">0°</span>
-  <br>
-  Time: <input type="range" id="timeSlider" min="0" max="1439" value="720" step="1">
-  <span id="timeValue">12:00</span>
-  <br>
-  Day of Year: <input type="range" id="daySlider" min="1" max="365" value="1" step="1">
-  <span id="dayValue">Jan 1</span>
-  <br>
-  <label><input type="checkbox" id="starfieldToggle" checked> Show Starfield</label>
-  <br>
-  <label><input type="checkbox" id="planetsToggle" checked> Show Planets</label>
-  <br>
-  <label><input type="checkbox" id="earthReferencesToggle"> Show Earth Equator & Poles</label>
-  <br>
-  <label><input type="checkbox" id="sunReferencesToggle"> Show Ecliptic Plane</label>
-  <br>
-  <label><input type="checkbox" id="stereoToggle"> Stereoscopic View (Cross-eyed)</label>
-  <br>
-  Eye Separation: <input type="range" id="eyeSeparationSlider" min="0.05" max="1.0" value="0.3" step="0.05">
-  <span id="eyeSeparationValue">0.30</span>
-  <br>
-  Planet Zoom: <input type="range" id="planetZoomSlider" min="0" max="1" value="1" step="0.05">
-  <span id="planetZoomValue">1.0 (Max)</span>
-</details>
+  <body>
+    <details id="ui" open>
+      <summary
+        style="cursor: pointer; user-select: none; font-weight: bold; margin-bottom: 8px;"
+      >
+        Controls
+      </summary>
+      DateTime:
+      <input
+        autocomplete="off"
+        type="text"
+        id="datetimeInput"
+        placeholder="e.g., 'now', '2000-03-21 12:00', 'March 21 2000 noon'"
+        style="width: 300px;"
+      >
+      <button id="nowButton">Now</button>
+      <br>
+      <br>
+      Location:
+      <input
+        autocomplete="off"
+        type="text"
+        id="locationInput"
+        placeholder="Search for a city..."
+        style="width: 300px;"
+      >
+      <br>
+      <br>
+      Latitude:
+      <input
+        autocomplete="off"
+        type="text"
+        id="latInput"
+        placeholder="e.g., 40.7128, -33.8688"
+        style="width: 80px;"
+      >
+      <input
+        autocomplete="off"
+        type="range"
+        id="latSlider"
+        min="-66"
+        max="66"
+        value="0"
+        step="0.1"
+      >
+      <span id="latValue">0°</span>
+      <br>
+      Longitude:
+      <input
+        autocomplete="off"
+        type="text"
+        id="lonInput"
+        placeholder="e.g., -74.0060, 151.2093"
+        style="width: 80px;"
+      >
+      <input
+        autocomplete="off"
+        type="range"
+        id="lonSlider"
+        min="-180"
+        max="180"
+        value="0"
+        step="0.1"
+      >
+      <span id="lonValue">0°</span>
+      <br>
+      Time:
+      <input
+        autocomplete="off"
+        type="range"
+        id="timeSlider"
+        min="0"
+        max="1439"
+        value="720"
+        step="1"
+      >
+      <span id="timeValue">12:00</span>
+      <br>
+      Day of Year:
+      <input
+        autocomplete="off"
+        type="range"
+        id="daySlider"
+        min="1"
+        max="365"
+        value="1"
+        step="1"
+      >
+      <span id="dayValue">Jan 1</span>
+      <br>
+      <label>
+        <input type="checkbox" id="starfieldToggle" checked>
+        Show Starfield
+      </label>
+      <br>
+      <label>
+        <input type="checkbox" id="planetsToggle" checked>
+        Show Planets
+      </label>
+      <br>
+      <label>
+        <input type="checkbox" id="earthReferencesToggle">
+        Show Earth Equator & Poles
+      </label>
+      <br>
+      <label>
+        <input type="checkbox" id="sunReferencesToggle">
+        Show Ecliptic Plane
+      </label>
+      <br>
+      <label>
+        <input type="checkbox" id="planetOrbitsToggle" checked>
+        Show Planetary Orbital Rings
+      </label>
+      <br>
+      <label>
+        <input type="checkbox" id="stereoToggle">
+        Stereoscopic View (Cross-eyed)
+      </label>
+      <br>
+      Eye Separation:
+      <input
+        autocomplete="off"
+        type="range"
+        id="eyeSeparationSlider"
+        min="0.05"
+        max="1.0"
+        value="0.3"
+        step="0.05"
+      >
+      <span id="eyeSeparationValue">0.30</span>
+      <br>
+      Planet Zoom:
+      <input
+        autocomplete="off"
+        type="range"
+        id="planetZoomSlider"
+        min="0"
+        max="1"
+        value="1"
+        step="0.05"
+      >
+      <span id="planetZoomValue">1.0 (Max)</span>
+    </details>
 
-<details id="angles" open>
-  <summary style="cursor: pointer; user-select: none; font-weight: bold; margin-bottom: 8px;">Angles</summary>
-  <div><span class="angle-label">LST:</span> <span id="lstValue">--</span></div>
-  <div><span class="angle-label">MC:</span> <span id="mcValue">--</span></div>
-  <div><span class="angle-label">AC:</span> <span id="acValue">--</span></div>
-</details>
+    <details id="angles" open>
+      <summary
+        style="cursor: pointer; user-select: none; font-weight: bold; margin-bottom: 8px;"
+      >
+        Angles
+      </summary>
 
-<div id="starInfo">
-  <div class="star-name" id="starName">Star Name</div>
-  <div class="constellation-name" id="constellationName">Constellation</div>
-</div>
+      <div>
+        <span class="angle-label">LST:</span>
+        <span id="lstValue">--</span>
+      </div>
 
-<div id="starInfo2">
-  <div class="star-name" id="starName2">Star Name</div>
-  <div class="constellation-name" id="constellationName2">Constellation</div>
-</div>
+      <div>
+        <span class="angle-label">MC:</span>
+        <span id="mcValue">--</span>
+      </div>
 
-<div id="contextMenu" class="context-menu">
-  <div class="context-menu-title">Zoom to:</div>
-  <div class="context-menu-item" data-target="horizon">⊕ Horizon</div>
-  <div class="context-menu-item" data-target="earth">♁ Earth</div>
-  <div class="context-menu-item" data-target="moon">☽ Moon</div>
-  <div class="context-menu-item" data-target="sun">☉ Sun</div>
-  <div class="context-menu-item" data-target="mercury">☿ Mercury</div>
-  <div class="context-menu-item" data-target="venus">♀ Venus</div>
-  <div class="context-menu-item" data-target="mars">♂ Mars</div>
-  <div class="context-menu-item" data-target="jupiter">♃ Jupiter</div>
-  <div class="context-menu-item" data-target="saturn">♄ Saturn</div>
-  <div class="context-menu-item" data-target="uranus">♅ Uranus</div>
-  <div class="context-menu-item" data-target="neptune">♆ Neptune</div>
-  <div class="context-menu-item" data-target="pluto">♇ Pluto</div>
-  <div class="context-menu-item" data-target="ecliptic-north">⊙ Ecliptic North</div>
-</div>
+      <div>
+        <span class="angle-label">AC:</span>
+        <span id="acValue">--</span>
+      </div>
+    </details>
 
-<div id="helpButton" class="help-button">?</div>
-
-<div id="helpModal" class="help-modal">
-  <div class="help-modal-content">
-    <div class="help-modal-header">
-      <h3>Keyboard Shortcuts</h3>
-      <button id="closeHelp" class="help-close">&times;</button>
+    <div id="starInfo">
+      <div class="star-name" id="starName">Star Name</div>
+      <div class="constellation-name" id="constellationName">Constellation</div>
     </div>
-    <div class="help-modal-body">
-      <div class="help-shortcut">
-        <kbd>Mouse-over</kbd>
-        <span>Show info on angles, stars and planets</span>
-      </div>
-      <div class="help-shortcut">
-        <kbd>s</kbd>
-        <span>Toggle stereoscopic view</span>
-      </div>
-      <div class="help-shortcut">
-        <kbd>spacebar</kbd>
-        <span>Start/stop animation</span>
-      </div>
-      <div class="help-shortcut">
-        <kbd>[</kbd>
-        <span>Decrease animation speed / jump backwards</span>
-      </div>
-      <div class="help-shortcut">
-        <kbd>]</kbd>
-        <span>Increase animation speed / jump forward</span>
-      </div>
-      <div class="help-shortcut">
-        <kbd>Right-click</kbd>
-        <span>Open Planetary Zoom menu</span>
-      </div>
-      <div class="help-shortcut">
-        <kbd>Double-click</kbd>
-        <span>Zoom to a planet</span>
-      </div>
-      <div class="help-shortcut">
-        <kbd>Esc</kbd>
-        <span>Close menu</span>
+
+    <div id="starInfo2">
+      <div class="star-name" id="starName2">Star Name</div>
+
+      <div class="constellation-name" id="constellationName2">
+        Constellation
       </div>
     </div>
-  </div>
-</div>
-<!-- External dependencies -->
-<script src="https://cdn.jsdelivr.net/npm/@tarekraafat/autocomplete.js@10.2.9/dist/autoComplete.min.js"></script>
 
-<!-- Main module - Vite will handle the imports -->
-<script type="module" src="/js/main.js"></script>
+    <div id="contextMenu" class="context-menu">
+      <div class="context-menu-title">Zoom to:</div>
+      <div class="context-menu-item" data-target="horizon">⊕ Horizon</div>
+      <div class="context-menu-item" data-target="earth">♁ Earth</div>
+      <div class="context-menu-item" data-target="moon">☽ Moon</div>
+      <div class="context-menu-item" data-target="sun">☉ Sun</div>
+      <div class="context-menu-item" data-target="mercury">☿ Mercury</div>
+      <div class="context-menu-item" data-target="venus">♀ Venus</div>
+      <div class="context-menu-item" data-target="mars">♂ Mars</div>
+      <div class="context-menu-item" data-target="jupiter">♃ Jupiter</div>
+      <div class="context-menu-item" data-target="saturn">♄ Saturn</div>
+      <div class="context-menu-item" data-target="uranus">♅ Uranus</div>
+      <div class="context-menu-item" data-target="neptune">♆ Neptune</div>
+      <div class="context-menu-item" data-target="pluto">♇ Pluto</div>
 
-</body>
+      <div class="context-menu-item" data-target="ecliptic-north">
+        ⊙ Ecliptic North
+      </div>
+    </div>
+
+    <div id="helpButton" class="help-button">?</div>
+
+    <div id="helpModal" class="help-modal">
+      <div class="help-modal-content">
+        <div class="help-modal-header">
+          <h3>Keyboard Shortcuts</h3>
+          <button id="closeHelp" class="help-close">&times;</button>
+        </div>
+
+        <div class="help-modal-body">
+          <div class="help-shortcut">
+            <kbd>Mouse-over</kbd>
+            <span>Show info on angles, stars and planets</span>
+          </div>
+
+          <div class="help-shortcut">
+            <kbd>s</kbd>
+            <span>Toggle stereoscopic view</span>
+          </div>
+
+          <div class="help-shortcut">
+            <kbd>spacebar</kbd>
+            <span>Start/stop animation</span>
+          </div>
+
+          <div class="help-shortcut">
+            <kbd>[</kbd>
+            <span>Decrease animation speed / jump backwards</span>
+          </div>
+
+          <div class="help-shortcut">
+            <kbd>]</kbd>
+            <span>Increase animation speed / jump forward</span>
+          </div>
+
+          <div class="help-shortcut">
+            <kbd>Right-click</kbd>
+            <span>Open Planetary Zoom menu</span>
+          </div>
+
+          <div class="help-shortcut">
+            <kbd>Double-click</kbd>
+            <span>Zoom to a planet</span>
+          </div>
+
+          <div class="help-shortcut"><kbd>Esc</kbd><span>Close menu</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- External dependencies -->
+    <script
+      src="https://cdn.jsdelivr.net/npm/@tarekraafat/autocomplete.js@10.2.9/dist/autoComplete.min.js"
+    ></script>
+
+    <!-- Main module - Vite will handle the imports -->
+    <script type="module" src="/js/main.js"></script>
+  </body>
 </html>

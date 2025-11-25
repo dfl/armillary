@@ -68,7 +68,7 @@ export default class InteractionManager {
 
   setupStarHover() {
     const raycaster = new THREE.Raycaster();
-    raycaster.params.Line.threshold = 0.05; // Make line detection more precise
+    raycaster.params.Line.threshold = 10; // Larger threshold for orbit line detection
     const mouse = new THREE.Vector2();
 
     const onStarHover = (event) => {
@@ -215,6 +215,15 @@ export default class InteractionManager {
         });
       }
 
+      // Planet orbits
+      if (this.sceneRef.planetaryReferences && this.sceneRef.planetaryReferences.planetOrbits) {
+        Object.values(this.sceneRef.planetaryReferences.planetOrbits).forEach(orbit => {
+          if (orbit && orbit.visible) {
+            allTargets.push({ obj: orbit, type: 'planet-orbit', meta: orbit });
+          }
+        });
+      }
+
       // Perform single raycast against all objects
       const allIntersects = raycaster.intersectObjects(allTargets.map(t => t.obj), false);
 
@@ -245,7 +254,8 @@ export default class InteractionManager {
         'pole': 0.5,           // Small
         'node': 0.5,           // Small (zodiac nodes)
         'star': 0.1,           // Very small
-        'ecliptic-dot': 0.1    // Very small dots
+        'ecliptic-dot': 0.1,   // Very small dots
+        'planet-orbit': 0.05   // Lines - lower priority than most objects
       };
 
       // Process all intersections and build candidates
@@ -278,7 +288,7 @@ export default class InteractionManager {
           candidate.nodeGroup = meta.group;
         } else if (type === 'star') {
           candidate.starData = meta.userData;
-        } else if (type === 'angle' || type === 'circle' || type === 'pole' || type === 'node' || type === 'ecliptic-dot') {
+        } else if (type === 'angle' || type === 'circle' || type === 'pole' || type === 'node' || type === 'ecliptic-dot' || type === 'planet-orbit') {
           candidate.objectData = meta;
         }
 
@@ -411,6 +421,28 @@ export default class InteractionManager {
           const degree = closest.objectData.userData.eclipticDegree;
           const zodiacPosition = this.degreeToZodiacString(degree);
           this.setTooltipContent(`${zodiacPosition}`, 'Heliocentric Zodiac Longitude');
+          this.positionTooltip(this.starInfoElement, event);
+          this.renderer.domElement.style.cursor = 'pointer';
+        }
+        else if (closest.type === 'planet-orbit') {
+          const orbitData = closest.objectData.userData;
+          const planetName = orbitData.planetName;
+          const fullNames = {
+            mercury: 'Mercury', venus: 'Venus', earth: 'Earth', mars: 'Mars',
+            jupiter: 'Jupiter', saturn: 'Saturn', uranus: 'Uranus', neptune: 'Neptune', pluto: 'Pluto'
+          };
+          const fullName = fullNames[planetName] || planetName;
+          const eccentricity = orbitData.eccentricity;
+          const inclination = orbitData.inclination;
+
+          // Format eccentricity and inclination
+          const ecc = (eccentricity * 100).toFixed(2);
+          const inc = inclination.toFixed(2);
+
+          this.setTooltipContent(
+            `${fullName} Orbit`,
+            `Eccentricity: ${ecc}% | Inclination: ${inc}°`
+          );
           this.positionTooltip(this.starInfoElement, event);
           this.renderer.domElement.style.cursor = 'pointer';
         }
