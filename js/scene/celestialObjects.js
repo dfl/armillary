@@ -30,6 +30,21 @@ export default class CelestialObjects {
     this.PLANET_RADIUS_SCALE = constants.PLANET_RADIUS_SCALE;
     this.PLANET_DISTANCE_SCALE = constants.PLANET_DISTANCE_SCALE;
 
+    // Planetary pole orientations in ecliptic coordinates (J2000.0)
+    // Based on IAU Working Group on Cartographic Coordinates and Rotational Elements
+    // Converted from equatorial RA/Dec to ecliptic longitude/latitude
+    this.planetPoles = {
+      mercury: { lon: 277, lat: 61 },       // Small tilt ~0.03°
+      venus: { lon: 181, lat: -68 },        // Retrograde rotation (upside down)
+      mars: { lon: 329, lat: 63 },          // ~25° tilt
+      jupiter: { lon: 268, lat: 64 },       // Small tilt ~3°
+      saturn: { lon: 80, lat: 62 },         // ~27° tilt (matches rings)
+      uranus: { lon: 98, lat: -15 },        // Extreme ~98° tilt (retrograde, on its side)
+      neptune: { lon: 314, lat: 43 },       // ~28° tilt
+      sun: { lon: 0, lat: 90 },             // Sun's north pole at ecliptic north
+      moon: { lon: 0, lat: 90 }             // Moon's axis roughly perpendicular to ecliptic
+    };
+
     // Texture paths
     this.texturePaths = texturePaths;
 
@@ -64,6 +79,32 @@ export default class CelestialObjects {
     this.createHeliocentricNodes();
     this.createPlanets();
     this.createEclipticPlanets();
+  }
+
+  /**
+   * Calculate pole direction vector from ecliptic coordinates and apply rotation to mesh
+   * @param {THREE.Mesh} mesh - The mesh to rotate
+   * @param {string} planetName - Name of the planet to get pole coordinates
+   */
+  applyPoleOrientation(mesh, planetName) {
+    const pole = this.planetPoles[planetName];
+    if (!pole) return;
+
+    const poleEclipticLon = THREE.MathUtils.degToRad(pole.lon);
+    const poleEclipticLat = THREE.MathUtils.degToRad(pole.lat);
+
+    // Calculate pole direction vector in ecliptic coordinates
+    const poleDirection = new THREE.Vector3(
+      Math.cos(poleEclipticLat) * Math.cos(poleEclipticLon),
+      Math.cos(poleEclipticLat) * Math.sin(poleEclipticLon),
+      Math.sin(poleEclipticLat)
+    );
+
+    // Default sphere texture has north pole at +Y, which in our coordinate system is +Z
+    // So we rotate from +Z to the pole direction
+    const defaultNorth = new THREE.Vector3(0, 0, 1);
+    const quaternion = new THREE.Quaternion().setFromUnitVectors(defaultNorth, poleDirection);
+    mesh.quaternion.copy(quaternion);
   }
 
   createStarField() {
@@ -207,6 +248,9 @@ export default class CelestialObjects {
       })
     );
 
+    // Apply pole orientation
+    this.applyPoleOrientation(sun, 'sun');
+
     const eclipticSunGlowLayers = [
       { size: eclipticSunRadius * 1.15, opacity: 0.1, color: 0xffff99 },
       { size: eclipticSunRadius * 1.4, opacity: 0.1, color: 0xffcc66 }
@@ -250,6 +294,9 @@ export default class CelestialObjects {
         depthWrite: false
       })
     );
+
+    // Apply pole orientation
+    this.applyPoleOrientation(realisticSun, 'sun');
 
     const sunGlowLayers = [
       { size: realisticSunRadius * 1.2, opacity: 0.1, color: 0xffff99 },
@@ -308,6 +355,9 @@ export default class CelestialObjects {
       })
     );
 
+    // Apply pole orientation
+    this.applyPoleOrientation(eclipticMoon, 'moon');
+
     const eclipticMoonGlowLayers = [
       { size: eclipticMoonRadius * 1.2, opacity: 0.15, color: 0xdddddd },
       { size: eclipticMoonRadius * 1.5, opacity: 0.1, color: 0xcccccc }
@@ -350,8 +400,9 @@ export default class CelestialObjects {
         metalness: 0.0
       })
     );
-    // Align Moon's poles (Y-axis of texture) with the ecliptic normal (Z-axis)
-    realisticMoon.rotation.x = Math.PI / 2;
+
+    // Apply pole orientation
+    this.applyPoleOrientation(realisticMoon, 'moon');
 
     const realisticMoonGlowLayers = [
       { size: realisticMoonRadius * 1.2, opacity: 0.08, color: 0xffffff },
@@ -573,6 +624,9 @@ export default class CelestialObjects {
         material
       );
 
+      // Apply pole orientation to align texture with planet's actual axis
+      this.applyPoleOrientation(planetMesh, planet.name);
+
       const planetGroup = new THREE.Group();
       planetGroup.add(planetMesh);
 
@@ -605,26 +659,9 @@ export default class CelestialObjects {
 
         const ringMesh = new THREE.Mesh(ringGeometry, ringMaterial);
 
-        // Saturn's axial tilt and pole orientation (J2000.0)
-        // Saturn's north pole points toward ecliptic coordinates: λ ≈ 80°, β ≈ 62°
-        // Rings lie in Saturn's equatorial plane, so normal should point toward pole
-        const poleEclipticLon = THREE.MathUtils.degToRad(80);  // Ecliptic longitude
-        const poleEclipticLat = THREE.MathUtils.degToRad(62);  // Ecliptic latitude
-
-        // Calculate pole direction vector in ecliptic coordinates
-        const poleDirection = new THREE.Vector3(
-          Math.cos(poleEclipticLat) * Math.cos(poleEclipticLon),
-          Math.cos(poleEclipticLat) * Math.sin(poleEclipticLon),
-          Math.sin(poleEclipticLat)
-        );
-
-        // Ring starts in XY plane (normal = +Z), rotate to align normal with pole direction
-        const ringNormal = new THREE.Vector3(0, 0, 1);
-        const quaternion = new THREE.Quaternion().setFromUnitVectors(ringNormal, poleDirection);
-        ringMesh.quaternion.copy(quaternion);
-
-        // Apply same rotation to planet texture so poles align
-        planetMesh.quaternion.copy(quaternion);
+        // Saturn's rings lie in its equatorial plane, so orient them with the same pole
+        // The planet mesh orientation is already set by applyPoleOrientation above
+        this.applyPoleOrientation(ringMesh, 'saturn');
 
         planetGroup.add(ringMesh);
 
@@ -699,6 +736,9 @@ export default class CelestialObjects {
         })
       );
 
+      // Apply pole orientation to align texture with planet's actual axis
+      this.applyPoleOrientation(planetMesh, planet.name);
+
       const planetGroup = new THREE.Group();
       planetGroup.add(planetMesh);
 
@@ -731,26 +771,9 @@ export default class CelestialObjects {
 
         const ringMesh = new THREE.Mesh(ringGeometry, ringMaterial);
 
-        // Saturn's axial tilt and pole orientation (J2000.0)
-        // Saturn's north pole points toward ecliptic coordinates: λ ≈ 80°, β ≈ 62°
-        // Rings lie in Saturn's equatorial plane, so normal should point toward pole
-        const poleEclipticLon = THREE.MathUtils.degToRad(80);  // Ecliptic longitude
-        const poleEclipticLat = THREE.MathUtils.degToRad(62);  // Ecliptic latitude
-
-        // Calculate pole direction vector in ecliptic coordinates
-        const poleDirection = new THREE.Vector3(
-          Math.cos(poleEclipticLat) * Math.cos(poleEclipticLon),
-          Math.cos(poleEclipticLat) * Math.sin(poleEclipticLon),
-          Math.sin(poleEclipticLat)
-        );
-
-        // Ring starts in XY plane (normal = +Z), rotate to align normal with pole direction
-        const ringNormal = new THREE.Vector3(0, 0, 1);
-        const quaternion = new THREE.Quaternion().setFromUnitVectors(ringNormal, poleDirection);
-        ringMesh.quaternion.copy(quaternion);
-
-        // Apply same rotation to planet texture so poles align
-        planetMesh.quaternion.copy(quaternion);
+        // Saturn's rings lie in its equatorial plane, so orient them with the same pole
+        // The planet mesh orientation is already set by applyPoleOrientation above
+        this.applyPoleOrientation(ringMesh, 'saturn');
 
         ringMesh.name = 'saturnRing'; // Name it for collision detection
         planetGroup.add(ringMesh);
