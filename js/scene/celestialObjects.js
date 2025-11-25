@@ -616,13 +616,18 @@ export default class CelestialObjects {
 
       // Create material with texture
       const material = new THREE.MeshBasicMaterial({
-        map: planetTextures[planet.name]
+        map: planetTextures[planet.name],
+        depthWrite: true,
+        depthTest: true
       });
 
       const planetMesh = new THREE.Mesh(
         new THREE.SphereGeometry(radius, 32, 32),
         material
       );
+
+      // Set render order so planets render before orbital rings
+      planetMesh.renderOrder = 1;
 
       // Apply pole orientation to align texture with planet's actual axis
       this.applyPoleOrientation(planetMesh, planet.name);

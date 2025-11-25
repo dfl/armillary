@@ -371,12 +371,15 @@ export default class PlanetaryReferences {
           color: color,
           opacity: 0.4,
           transparent: true,
-          dashSize: 50.0,
-          gapSize: 50.0,
+          dashSize: 10.0,
+          gapSize: 10.0,
           depthTest: true,
           depthWrite: false
         })
       );
+
+      // Set render order so orbital rings render after planets
+      orbitLine.renderOrder = 2;
 
       orbitLine.userData.circleName = `${planetName.charAt(0).toUpperCase() + planetName.slice(1)} Orbit`;
       orbitLine.userData.inclination = i;
