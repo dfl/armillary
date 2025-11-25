@@ -604,7 +604,25 @@ export default class CelestialObjects {
         });
 
         const ringMesh = new THREE.Mesh(ringGeometry, ringMaterial);
-        ringMesh.rotation.x = Math.PI / 2; // Rotate to be horizontal
+
+        // Saturn's axial tilt and pole orientation (J2000.0)
+        // Saturn's north pole points toward ecliptic coordinates: λ ≈ 80°, β ≈ 62°
+        // Rings lie in Saturn's equatorial plane, so normal should point toward pole
+        const poleEclipticLon = THREE.MathUtils.degToRad(80);  // Ecliptic longitude
+        const poleEclipticLat = THREE.MathUtils.degToRad(62);  // Ecliptic latitude
+
+        // Calculate pole direction vector in ecliptic coordinates
+        const poleDirection = new THREE.Vector3(
+          Math.cos(poleEclipticLat) * Math.cos(poleEclipticLon),
+          Math.cos(poleEclipticLat) * Math.sin(poleEclipticLon),
+          Math.sin(poleEclipticLat)
+        );
+
+        // Ring starts in XY plane (normal = +Z), rotate to align normal with pole direction
+        const ringNormal = new THREE.Vector3(0, 0, 1);
+        const quaternion = new THREE.Quaternion().setFromUnitVectors(ringNormal, poleDirection);
+        ringMesh.quaternion.copy(quaternion);
+
         planetGroup.add(ringMesh);
 
         debugLog.log(`Saturn rings created: inner=${ringInnerRadius}, outer=${ringOuterRadius}`);
@@ -709,7 +727,25 @@ export default class CelestialObjects {
         });
 
         const ringMesh = new THREE.Mesh(ringGeometry, ringMaterial);
-        ringMesh.rotation.x = Math.PI / 2; // Rotate to be horizontal
+
+        // Saturn's axial tilt and pole orientation (J2000.0)
+        // Saturn's north pole points toward ecliptic coordinates: λ ≈ 80°, β ≈ 62°
+        // Rings lie in Saturn's equatorial plane, so normal should point toward pole
+        const poleEclipticLon = THREE.MathUtils.degToRad(80);  // Ecliptic longitude
+        const poleEclipticLat = THREE.MathUtils.degToRad(62);  // Ecliptic latitude
+
+        // Calculate pole direction vector in ecliptic coordinates
+        const poleDirection = new THREE.Vector3(
+          Math.cos(poleEclipticLat) * Math.cos(poleEclipticLon),
+          Math.cos(poleEclipticLat) * Math.sin(poleEclipticLon),
+          Math.sin(poleEclipticLat)
+        );
+
+        // Ring starts in XY plane (normal = +Z), rotate to align normal with pole direction
+        const ringNormal = new THREE.Vector3(0, 0, 1);
+        const quaternion = new THREE.Quaternion().setFromUnitVectors(ringNormal, poleDirection);
+        ringMesh.quaternion.copy(quaternion);
+
         ringMesh.name = 'saturnRing'; // Name it for collision detection
         planetGroup.add(ringMesh);
 
