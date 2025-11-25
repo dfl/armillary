@@ -188,8 +188,8 @@ export default class PlanetaryReferences {
     this.scene.add(this.sunReferencesGroup);
 
     // Sun ecliptic plane (in XY plane where Earth orbits)
-    // Extends all the way to the star field for wide visualization
-    const eclipticRadius = this.STAR_FIELD_RADIUS;
+    // Extends just beyond Pluto's orbit (39.48 AU) - set to 45 AU for a comfortable margin
+    const eclipticRadius = 45 * this.PLANET_DISTANCE_SCALE;
     const planeGeometry = new THREE.CircleGeometry(eclipticRadius, 128);
     const planeMaterial = new THREE.MeshBasicMaterial({
       color: 0x888888,
