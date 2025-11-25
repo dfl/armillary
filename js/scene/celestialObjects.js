@@ -623,6 +623,9 @@ export default class CelestialObjects {
         const quaternion = new THREE.Quaternion().setFromUnitVectors(ringNormal, poleDirection);
         ringMesh.quaternion.copy(quaternion);
 
+        // Apply same rotation to planet texture so poles align
+        planetMesh.quaternion.copy(quaternion);
+
         planetGroup.add(ringMesh);
 
         debugLog.log(`Saturn rings created: inner=${ringInnerRadius}, outer=${ringOuterRadius}`);
@@ -745,6 +748,9 @@ export default class CelestialObjects {
         const ringNormal = new THREE.Vector3(0, 0, 1);
         const quaternion = new THREE.Quaternion().setFromUnitVectors(ringNormal, poleDirection);
         ringMesh.quaternion.copy(quaternion);
+
+        // Apply same rotation to planet texture so poles align
+        planetMesh.quaternion.copy(quaternion);
 
         ringMesh.name = 'saturnRing'; // Name it for collision detection
         planetGroup.add(ringMesh);
