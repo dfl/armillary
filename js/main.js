@@ -117,12 +117,22 @@ const animateTime = (timestamp) => {
   while (newTime >= 1440) {
     newTime -= 1440;
     currentDay += 1;
-    if (currentDay > 365) currentDay = 1;
+    // Check if we need to wrap to next year
+    const isLeapYear = (uiManager.currentYear % 4 === 0 && uiManager.currentYear % 100 !== 0) || (uiManager.currentYear % 400 === 0);
+    const maxDay = isLeapYear ? 366 : 365;
+    if (currentDay > maxDay) {
+      currentDay = 1;
+      uiManager.currentYear += 1;
+    }
   }
   while (newTime < 0) {
     newTime += 1440;
     currentDay -= 1;
-    if (currentDay < 1) currentDay = 365;
+    if (currentDay < 1) {
+      uiManager.currentYear -= 1;
+      const isLeapYear = (uiManager.currentYear % 4 === 0 && uiManager.currentYear % 100 !== 0) || (uiManager.currentYear % 400 === 0);
+      currentDay = isLeapYear ? 366 : 365;
+    }
   }
 
   // Update sliders
@@ -363,7 +373,11 @@ window.addEventListener('keydown', (e) => {
       while (newTime < 0) {
         newTime += 1440; // Move to previous day
         currentDay -= 1;
-        if (currentDay < 1) currentDay = 365; // Wrap to end of year
+        if (currentDay < 1) {
+          uiManager.currentYear -= 1;
+          const isLeapYear = (uiManager.currentYear % 4 === 0 && uiManager.currentYear % 100 !== 0) || (uiManager.currentYear % 400 === 0);
+          currentDay = isLeapYear ? 366 : 365; // Wrap to end of previous year
+        }
       }
 
       daySlider.value = currentDay;
@@ -406,7 +420,12 @@ window.addEventListener('keydown', (e) => {
       while (newTime >= 1440) {
         newTime -= 1440; // Move to next day
         currentDay += 1;
-        if (currentDay > 365) currentDay = 1; // Wrap to start of year
+        const isLeapYear = (uiManager.currentYear % 4 === 0 && uiManager.currentYear % 100 !== 0) || (uiManager.currentYear % 400 === 0);
+        const maxDay = isLeapYear ? 366 : 365;
+        if (currentDay > maxDay) {
+          currentDay = 1;
+          uiManager.currentYear += 1; // Wrap to start of next year
+        }
       }
 
       daySlider.value = currentDay;
