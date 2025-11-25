@@ -690,20 +690,45 @@ export class ArmillaryScene {
       this.camera.position.addVectors(this.controls.target, offset);
       this.camera.up.applyQuaternion(deltaQuat);
     } else {
-      // Earth View: orbit around Earth's center (polar axis rotation)
-      // Don't move camera with surface - let it stay fixed relative to Earth's center
-      this.controls.target.copy(this.earthGroup.position);
+      // Earth View: orbit around a celestial object
+      // Update controls target based on current zoom target
+      const currentTarget = this.cameraController?.currentZoomTarget;
 
-      // Align camera up vector with Earth's polar axis
-      // Earth's polar axis is the Y-axis in earthMesh's local space
-      if (this.earthMesh) {
-        const earthPolarAxis = new THREE.Vector3(0, 1, 0);
-        const earthWorldQuat = new THREE.Quaternion();
-        this.earthMesh.getWorldQuaternion(earthWorldQuat);
-        earthPolarAxis.applyQuaternion(earthWorldQuat).normalize();
+      if (currentTarget === 'ecliptic-north' || currentTarget === 'sun') {
+        // Follow the Sun (center of solar system)
+        const sunWorldPos = new THREE.Vector3();
+        this.realisticSunGroup.getWorldPosition(sunWorldPos);
+        this.controls.target.copy(sunWorldPos);
+        // Don't update camera.up - it was set during initial zoom
+      } else if (currentTarget === 'moon') {
+        // Follow the Moon
+        const moonWorldPos = new THREE.Vector3();
+        this.realisticMoonGroup.getWorldPosition(moonWorldPos);
+        this.controls.target.copy(moonWorldPos);
+        // Don't update camera.up - it was set during initial zoom
+      } else if (currentTarget && this.planetGroups[currentTarget]) {
+        // Follow a specific planet
+        const planetWorldPos = new THREE.Vector3();
+        this.planetGroups[currentTarget].group.getWorldPosition(planetWorldPos);
+        this.controls.target.copy(planetWorldPos);
+        // Don't update camera.up - it was set during initial zoom
+      } else {
+        // Default: Follow Earth's center (original behavior for 'earth' target or no target)
+        const earthWorldPos = new THREE.Vector3();
+        this.earthGroup.getWorldPosition(earthWorldPos);
+        this.controls.target.copy(earthWorldPos);
 
-        // Update camera to use Earth's polar axis as "up"
-        this.camera.up.copy(earthPolarAxis);
+        // Align camera up vector with Earth's polar axis
+        // Earth's polar axis is the Y-axis in earthMesh's local space
+        if (this.earthMesh) {
+          const earthPolarAxis = new THREE.Vector3(0, 1, 0);
+          const earthWorldQuat = new THREE.Quaternion();
+          this.earthMesh.getWorldQuaternion(earthWorldQuat);
+          earthPolarAxis.applyQuaternion(earthWorldQuat).normalize();
+
+          // Update camera to use Earth's polar axis as "up"
+          this.camera.up.copy(earthPolarAxis);
+        }
       }
     }
 

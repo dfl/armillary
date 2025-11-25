@@ -310,8 +310,6 @@ export default class PlanetaryReferences {
   }
 
   createPlanetOrbits(astroCalc, currentYear) {
-    console.log(`Creating planet orbits using Keplerian elements...`);
-
     // Clear existing orbits if any
     if (this.planetOrbits) {
       Object.values(this.planetOrbits).forEach(orbit => {
@@ -415,8 +413,6 @@ export default class PlanetaryReferences {
       this.planetOrbits[planetName] = orbitLine;
     });
 
-    console.log(`Created ${Object.keys(this.planetOrbits).length} planet orbits`);
-
     // Set visibility based on checkbox state
     const toggle = document.getElementById('planetOrbitsToggle');
     if (toggle && toggle.checked) {
@@ -443,7 +439,6 @@ export default class PlanetaryReferences {
   }
 
   togglePlanetOrbits(visible) {
-    console.log(`togglePlanetOrbits called with visible=${visible}, orbits count=${this.planetOrbits ? Object.keys(this.planetOrbits).length : 0}`);
     if (this.planetOrbits) {
       Object.values(this.planetOrbits).forEach(orbit => {
         orbit.visible = visible;
