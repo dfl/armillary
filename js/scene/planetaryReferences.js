@@ -298,17 +298,26 @@ export default class PlanetaryReferences {
       this.sunReferencesGroup.add(dot);
     }
 
-    // Moon orbital path around Earth (dotted circle)
+    // Moon orbital path around Earth (elliptical)
     // This will be positioned relative to Earth in updateSphere
+    // Moon's orbit parameters (mean values):
+    // Semi-major axis: ~384,400 km (scaled as MOON_DISTANCE)
+    // Eccentricity: ~0.0549 (mean value, varies from 0.026 to 0.077)
+    // Perigee: ~363,300 km, Apogee: ~405,500 km
+    // NOTE: Eccentricity will be dynamically updated based on planet zoom factor
+    const moonEccentricity = 0.0549; // Base eccentricity, will be scaled by zoom
+    const moonSemiMajorAxis = this.MOON_DISTANCE; // Already scaled
+    const moonSemiMinorAxis = moonSemiMajorAxis * Math.sqrt(1 - moonEccentricity * moonEccentricity);
+    const moonFocalDistance = moonSemiMajorAxis * moonEccentricity;
+
     const moonOrbitPoints = [];
     const moonOrbitSegments = 128;
     for (let i = 0; i <= moonOrbitSegments; i++) {
       const angle = (i / moonOrbitSegments) * Math.PI * 2;
-      moonOrbitPoints.push(new THREE.Vector3(
-        this.MOON_DISTANCE * Math.cos(angle),
-        this.MOON_DISTANCE * Math.sin(angle),
-        0
-      ));
+      // Ellipse equation in parametric form, with Earth at one focus
+      const x = moonSemiMajorAxis * Math.cos(angle) - moonFocalDistance;
+      const y = moonSemiMinorAxis * Math.sin(angle);
+      moonOrbitPoints.push(new THREE.Vector3(x, y, 0));
     }
     this.moonOrbitOutline = new THREE.Line(
       new THREE.BufferGeometry().setFromPoints(moonOrbitPoints),
@@ -326,6 +335,58 @@ export default class PlanetaryReferences {
     this.moonOrbitOutline.userData.circleName = "Moon Orbit";
     this.moonOrbitOutline.visible = false; // Hide by default, shown with ecliptic plane
     this.scene.add(this.moonOrbitOutline); // Add to scene (not sunReferencesGroup) so we can position it independently
+
+    // Store orbital parameters for later use
+    this.moonOrbitalParams = {
+      semiMajorAxis: moonSemiMajorAxis,
+      semiMinorAxis: moonSemiMinorAxis,
+      eccentricity: moonEccentricity,
+      focalDistance: moonFocalDistance
+    };
+
+    // Create perigee and apogee markers for the lunar orbit
+    const createApsisMarker = (symbol, name) => {
+      const group = new THREE.Group();
+
+      // Create canvas with symbol
+      const canvas = document.createElement('canvas');
+      canvas.width = 128;
+      canvas.height = 128;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = 'white';
+      ctx.font = 'bold 60px Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(symbol, 64, 64);
+
+      // Create sprite from canvas
+      const texture = new THREE.CanvasTexture(canvas);
+      const material = new THREE.SpriteMaterial({
+        map: texture,
+        depthTest: true,
+        transparent: true,
+        opacity: 0.9
+      });
+      const sprite = new THREE.Sprite(material);
+
+      // Scale the sprite (similar to moon size)
+      const scale = this.EARTH_RADIUS * 0.3;
+      sprite.scale.set(scale, scale, 1);
+      sprite.userData.apsisName = name;
+
+      group.add(sprite);
+      group.userData.apsisName = name;
+      group.visible = false; // Hidden by default, shown with lunar orbit
+
+      // Add to scene
+      this.scene.add(group);
+      return group;
+    };
+
+    this.lunarApsisGroups = {
+      perigee: createApsisMarker('P', 'Perigee'),
+      apogee: createApsisMarker('A', 'Apogee')
+    };
 
     // Planet orbital paths - will be created in updateSphere with ephemeris data
     this.planetOrbits = {};
@@ -655,6 +716,36 @@ export default class PlanetaryReferences {
     if (this.geocentricEclipticGroup) {
       this.geocentricEclipticGroup.visible = visible;
     }
+  }
+
+  updateLunarOrbitEccentricity(newEccentricity) {
+    // Recalculate moon orbit geometry with new eccentricity
+    const moonSemiMajorAxis = this.MOON_DISTANCE;
+    const moonSemiMinorAxis = moonSemiMajorAxis * Math.sqrt(1 - newEccentricity * newEccentricity);
+    const moonFocalDistance = moonSemiMajorAxis * newEccentricity;
+
+    console.log('Updating lunar orbit: e =', newEccentricity, 'a =', moonSemiMajorAxis, 'b =', moonSemiMinorAxis, 'c =', moonFocalDistance);
+
+    const moonOrbitPoints = [];
+    const moonOrbitSegments = 128;
+    for (let i = 0; i <= moonOrbitSegments; i++) {
+      const angle = (i / moonOrbitSegments) * Math.PI * 2;
+      // Ellipse equation in parametric form, with Earth at one focus
+      const x = moonSemiMajorAxis * Math.cos(angle) - moonFocalDistance;
+      const y = moonSemiMinorAxis * Math.sin(angle);
+      moonOrbitPoints.push(new THREE.Vector3(x, y, 0));
+    }
+
+    // Update geometry
+    if (this.moonOrbitOutline) {
+      this.moonOrbitOutline.geometry.setFromPoints(moonOrbitPoints);
+      this.moonOrbitOutline.computeLineDistances();
+    }
+
+    // Update stored parameters
+    this.moonOrbitalParams.eccentricity = newEccentricity;
+    this.moonOrbitalParams.semiMinorAxis = moonSemiMinorAxis;
+    this.moonOrbitalParams.focalDistance = moonFocalDistance;
   }
 
   toggleSunReferences(visible) {

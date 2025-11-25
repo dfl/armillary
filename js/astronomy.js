@@ -326,6 +326,28 @@ export class AstronomyCalculator {
   }
 
   /**
+   * Calculate lunar argument of perigee (ω)
+   * Returns the angle from ascending node to perigee direction
+   * This is needed to orient the lunar orbit ellipse correctly
+   *
+   * @param {number} julianDate - Julian Date for the calculation
+   * @param {Object} moonPosition - Optional moon position to derive perigee from
+   * @returns {number} Argument of perigee in degrees (0..360)
+   */
+  calculateLunarArgumentOfPerigee(julianDate, moonPosition = null) {
+    // Using Meeus formula for mean argument of perigee
+    // T = centuries from J2000.0
+    const T = (julianDate - this.J2000_EPOCH) / 36525.0;
+
+    // Mean argument of perigee (ω) formula from Jean Meeus
+    // ω = 318.0634 + 6003.1498 * T - 0.0128 * T^2
+    let omega = 318.0634 + 6003.1498 * T - 0.0128 * T * T;
+
+    // Normalize to [0, 360)
+    return this._deg(omega);
+  }
+
+  /**
    * Calculate lunar nodes (ascending ☊ and descending ☋)
    * Uses TRUE node (instantaneous position with perturbations)
    * The ascending node is where the Moon crosses the ecliptic going north

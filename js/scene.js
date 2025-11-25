@@ -810,25 +810,9 @@ export class ArmillaryScene {
     // Calculate lunar phase
     this.lunarPhase = astroCalc.calculateLunarPhase(sunLonRad, moonLonRad);
 
-    // 2.5. Position Heliocentric Lunar Nodes (relative to Earth on ecliptic plane)
-    // These nodes show where the moon's orbital plane intersects the ecliptic
-    // Position them on the ecliptic plane (Z=0) at the node longitudes
+    // 2.5. Heliocentric Lunar Nodes are positioned after the orbit quaternion is set (section 2.6b)
     const northNodeRad = THREE.MathUtils.degToRad(northNodeDeg);
     const southNodeRad = THREE.MathUtils.degToRad(southNodeDeg);
-
-    // North Node position (relative to Earth)
-    const northNodeX = earthX + scaledMoonDistance * Math.cos(northNodeRad);
-    const northNodeY = earthY + scaledMoonDistance * Math.sin(northNodeRad);
-    this.heliocentricNodeGroups.NORTH_NODE.position.set(northNodeX, northNodeY, 0);
-
-    // South Node position (relative to Earth)
-    const southNodeX = earthX + scaledMoonDistance * Math.cos(southNodeRad);
-    const southNodeY = earthY + scaledMoonDistance * Math.sin(southNodeRad);
-    this.heliocentricNodeGroups.SOUTH_NODE.position.set(southNodeX, southNodeY, 0);
-
-    // Only show heliocentric nodes when ecliptic plane is visible
-    this.heliocentricNodeGroups.NORTH_NODE.visible = sunEclipticVisible;
-    this.heliocentricNodeGroups.SOUTH_NODE.visible = sunEclipticVisible;
 
     // 2.5a. Position Planetary Nodes (heliocentric, on ecliptic plane)
     // These nodes show where each planet's orbital plane intersects the ecliptic
@@ -918,29 +902,180 @@ export class ArmillaryScene {
     // 2.6. Position and orient moon orbit outline around Earth
     // The moon's orbital plane is inclined 5.145° to the ecliptic
     if (this.planetaryReferences.moonOrbitOutline) {
+      // Update lunar orbit eccentricity based on planet zoom factor
+      // At planetZoomFactor = 1.0 (max zoom), use 10x exaggerated eccentricity for clear visibility
+      // At planetZoomFactor = 0.0 (no zoom), use realistic eccentricity (1x)
+      // The exaggeration makes the ellipse visible, moon's angular position will still match
+      const baseEccentricity = 0.0549; // Moon's mean eccentricity
+      const eccentricityMultiplier = 1.0 + this.planetZoomFactor * 4.0;
+      this.planetaryReferences.updateLunarOrbitEccentricity(baseEccentricity * eccentricityMultiplier);
+
       this.planetaryReferences.moonOrbitOutline.position.set(earthX, earthY, 0);
       // Scale moon orbit outline with zoom (scales with distance, not inverse)
       this.planetaryReferences.moonOrbitOutline.scale.set(zoomScale, zoomScale, zoomScale);
 
-      // Rotate the orbit to match the moon's orbital inclination
+      // Rotate the orbit to match the moon's orbital inclination and perigee direction
       // The orbit is tilted 5.145° from the ecliptic, with the line of nodes
       // aligned to the ascending node position
       const MOON_INCLINATION = 5.145; // degrees
       const inclinationRad = THREE.MathUtils.degToRad(MOON_INCLINATION);
 
-      // Rotation order: first tilt around X-axis, then rotate around Z-axis to align with nodes
-      // The ascending node angle determines where the orbital plane crosses the ecliptic
-      const nodeRotation = new THREE.Quaternion().setFromAxisAngle(
+      // Calculate what argument of perigee would place the moon at its current position
+      // Moon's ecliptic longitude and distance from ephemeris
+      const moonLonDeg = THREE.MathUtils.radToDeg(moonLonRad);
+      const moonDistFromEarth = scaledMoonDistance / zoomScale; // Unscaled distance
+
+      // Calculate the true anomaly that would give this distance on the exaggerated orbit
+      const lunarParams = this.planetaryReferences.moonOrbitalParams;
+      const a = lunarParams.semiMajorAxis;
+      const e = lunarParams.eccentricity;
+
+      // From r = a(1-e²)/(1+e·cos(ν)), solve for ν:
+      // cos(ν) = (a(1-e²)/r - 1) / e
+      const cosNu = (a * (1 - e * e) / moonDistFromEarth - 1) / e;
+      const trueAnomaly = Math.acos(Math.max(-1, Math.min(1, cosNu))); // Clamp for safety
+
+      // Argument of perigee = moon's longitude - ascending node - true anomaly
+      const argumentOfPerigee = moonLonDeg - northNodeDeg - THREE.MathUtils.radToDeg(trueAnomaly);
+      const argumentOfPerigeeRad = THREE.MathUtils.degToRad(argumentOfPerigee);
+
+      // Rotation order for Keplerian orbital elements:
+      // The ellipse is drawn with perigee at +X
+      // 1. Rotate by ω around Z-axis (puts ascending node at +X)
+      // 2. Tilt by i around X-axis (along line of nodes)
+      // 3. Rotate by Ω around Z-axis (orients nodes to correct ecliptic longitude)
+
+      const perigeeRotation = new THREE.Quaternion().setFromAxisAngle(
         new THREE.Vector3(0, 0, 1),
-        northNodeRad
+        argumentOfPerigeeRad
       );
       const inclinationRotation = new THREE.Quaternion().setFromAxisAngle(
         new THREE.Vector3(1, 0, 0),
         inclinationRad
       );
+      const nodeRotation = new THREE.Quaternion().setFromAxisAngle(
+        new THREE.Vector3(0, 0, 1),
+        northNodeRad
+      );
 
-      // Apply rotations: inclination first, then node alignment
-      this.planetaryReferences.moonOrbitOutline.quaternion.copy(nodeRotation).multiply(inclinationRotation);
+      // Apply rotations: ω first, then i, then Ω
+      this.planetaryReferences.moonOrbitOutline.quaternion.copy(nodeRotation).multiply(inclinationRotation).multiply(perigeeRotation);
+
+      // Position perigee and apogee markers on the lunar orbit
+      if (this.planetaryReferences.lunarApsisGroups) {
+        const params = this.planetaryReferences.moonOrbitalParams;
+
+        // Perigee is at angle 0° (closest point, at -focalDistance from center)
+        const perigeeDistance = params.semiMajorAxis - params.focalDistance;
+        const perigeeLocal = new THREE.Vector3(-params.focalDistance, 0, 0);
+
+        // Apogee is at angle 180° (farthest point)
+        const apogeeDistance = params.semiMajorAxis + params.focalDistance;
+        const apogeeLocal = new THREE.Vector3(params.semiMajorAxis * 2 - params.focalDistance, 0, 0);
+
+        // Apply same rotation and position as moon orbit
+        const perigeeWorld = perigeeLocal.clone().applyQuaternion(this.planetaryReferences.moonOrbitOutline.quaternion);
+        const apogeeWorld = apogeeLocal.clone().applyQuaternion(this.planetaryReferences.moonOrbitOutline.quaternion);
+
+        this.planetaryReferences.lunarApsisGroups.perigee.position.set(
+          earthX + perigeeWorld.x * zoomScale,
+          earthY + perigeeWorld.y * zoomScale,
+          perigeeWorld.z * zoomScale
+        );
+        this.planetaryReferences.lunarApsisGroups.apogee.position.set(
+          earthX + apogeeWorld.x * zoomScale,
+          earthY + apogeeWorld.y * zoomScale,
+          apogeeWorld.z * zoomScale
+        );
+
+        // Scale markers with zoom
+        this.planetaryReferences.lunarApsisGroups.perigee.scale.set(zoomScale, zoomScale, zoomScale);
+        this.planetaryReferences.lunarApsisGroups.apogee.scale.set(zoomScale, zoomScale, zoomScale);
+
+        // Show/hide with lunar orbit
+        const lunarOrbitVisible = this.planetaryReferences.moonOrbitOutline.visible;
+        this.planetaryReferences.lunarApsisGroups.perigee.visible = lunarOrbitVisible;
+        this.planetaryReferences.lunarApsisGroups.apogee.visible = lunarOrbitVisible;
+      }
+
+      // 2.6b. Position Heliocentric Lunar Nodes on the exaggerated elliptical orbit
+      // Now that the orbit quaternion is set, we can use it to find node positions
+      if (this.heliocentricNodeGroups) {
+        const params = this.planetaryReferences.moonOrbitalParams;
+        const a = params.semiMajorAxis;
+        const b = params.semiMinorAxis;
+        const c = params.focalDistance;
+
+        // Find where a ray at the target angle intersects the transformed ellipse
+        const findIntersection = (targetAngle) => {
+          let minAngleDiff = Infinity;
+          let bestPoint = new THREE.Vector3();
+
+          // Normalize target angle to [0, 2π)
+          let normalizedTarget = targetAngle;
+          while (normalizedTarget < 0) normalizedTarget += 2 * Math.PI;
+          while (normalizedTarget >= 2 * Math.PI) normalizedTarget -= 2 * Math.PI;
+
+          // Sample the ellipse at many points in local space
+          const samples = 720;
+          for (let i = 0; i <= samples; i++) {
+            const theta = (i / samples) * 2 * Math.PI;
+
+            // Point on ellipse in orbital plane (local coordinates)
+            // Earth is at the focus, not the center
+            const localPoint = new THREE.Vector3(
+              a * Math.cos(theta) - c,
+              b * Math.sin(theta),
+              0
+            );
+
+            // Apply the orbit's quaternion transformation (same as the actual orbit)
+            const worldPoint = localPoint.clone().applyQuaternion(this.planetaryReferences.moonOrbitOutline.quaternion);
+
+            // Check angle from Earth (in the XY plane, which is the ecliptic)
+            let angle = Math.atan2(worldPoint.y, worldPoint.x);
+            // Normalize to [0, 2π)
+            while (angle < 0) angle += 2 * Math.PI;
+            while (angle >= 2 * Math.PI) angle -= 2 * Math.PI;
+
+            // Compute wrapped angle difference
+            let angleDiff = Math.abs(angle - normalizedTarget);
+            if (angleDiff > Math.PI) angleDiff = 2 * Math.PI - angleDiff;
+
+            if (angleDiff < minAngleDiff) {
+              minAngleDiff = angleDiff;
+              bestPoint.copy(worldPoint);
+            }
+          }
+
+          return bestPoint;
+        };
+
+        const northNodePos = findIntersection(northNodeRad);
+        const southNodePos = findIntersection(southNodeRad);
+
+        this.heliocentricNodeGroups.NORTH_NODE.position.set(
+          earthX + northNodePos.x * zoomScale,
+          earthY + northNodePos.y * zoomScale,
+          northNodePos.z * zoomScale
+        );
+        this.heliocentricNodeGroups.SOUTH_NODE.position.set(
+          earthX + southNodePos.x * zoomScale,
+          earthY + southNodePos.y * zoomScale,
+          southNodePos.z * zoomScale
+        );
+
+        // Scale nodes with zoom - keep them small and subtle
+        const nodeBaseScale = 5; // Smaller base scale
+        const nodeScale = nodeBaseScale * zoomScale;
+        this.heliocentricNodeGroups.NORTH_NODE.scale.set(nodeScale, nodeScale, nodeScale);
+        this.heliocentricNodeGroups.SOUTH_NODE.scale.set(nodeScale, nodeScale, nodeScale);
+
+        // Show/hide with lunar orbit
+        const lunarOrbitVisible2 = this.planetaryReferences.moonOrbitOutline.visible;
+        this.heliocentricNodeGroups.NORTH_NODE.visible = lunarOrbitVisible2;
+        this.heliocentricNodeGroups.SOUTH_NODE.visible = lunarOrbitVisible2;
+      }
     }
 
     // 2.7. Scale sun references group (ecliptic plane with 360 dots) with distance compression
@@ -1260,12 +1395,8 @@ export class ArmillaryScene {
   toggleSunReferences(visible) {
     this.planetaryReferences.toggleSunReferences(visible);
 
-    // Toggle heliocentric lunar nodes visibility with ecliptic plane
-    if (this.heliocentricNodeGroups) {
-      Object.values(this.heliocentricNodeGroups).forEach(nodeGroup => {
-        nodeGroup.visible = visible;
-      });
-    }
+    // NOTE: Heliocentric lunar nodes are now toggled with the lunar orbit (in updateSphere)
+    // not with the ecliptic plane
 
     // Update Earth depthWrite when ecliptic plane is toggled
     // Check if Earth references are also visible
@@ -1292,7 +1423,7 @@ export class ArmillaryScene {
     // Toggle moon orbit outline
     this.planetaryReferences.toggleLunarOrbit(visible);
 
-    // Toggle lunar nodes (spheres and labels)
+    // Toggle lunar nodes in horizon view (spheres and labels)
     if (this.nodeSpheres) {
       Object.values(this.nodeSpheres).forEach(sphere => {
         sphere.visible = visible;
@@ -1301,6 +1432,13 @@ export class ArmillaryScene {
     if (this.nodeLabels) {
       Object.values(this.nodeLabels).forEach(label => {
         label.visible = visible;
+      });
+    }
+
+    // Toggle heliocentric lunar nodes
+    if (this.heliocentricNodeGroups) {
+      Object.values(this.heliocentricNodeGroups).forEach(nodeGroup => {
+        nodeGroup.visible = visible;
       });
     }
 
