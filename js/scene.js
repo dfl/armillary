@@ -530,12 +530,8 @@ export class ArmillaryScene {
     // -----------------------------------------------------------
     // 5.5. Lunar Nodes (☊ and ☋)
     // -----------------------------------------------------------
-    const isLeapYear = (currentYear % 4 === 0 && currentYear % 100 !== 0) || (currentYear % 400 === 0);
-    const { month, day } = astroCalc.dayOfYearToMonthDay(currentDay, isLeapYear);
-    const hours = Math.floor(currentTime / 60);
-    const minutes = currentTime % 60;
-
-    const lunarNodes = astroCalc.calculateLunarNodes(currentDay, currentYear, month, day, hours, minutes);
+    // Use julianDate for all astronomical calculations (continuous across year boundaries)
+    const lunarNodes = astroCalc.calculateLunarNodes(julianDate);
     const northNodeDeg = lunarNodes.ascending;
     const southNodeDeg = lunarNodes.descending;
 
@@ -557,11 +553,7 @@ export class ArmillaryScene {
     // -----------------------------------------------------------
     // 6. Sun Position
     // -----------------------------------------------------------
-    // (using month, day, hours, minutes from lunar nodes section above)
-
-    const sunLonRad = astroCalc.calculateSunPosition(
-        currentDay, currentYear, month, day, hours, minutes
-    );
+    const sunLonRad = astroCalc.calculateSunPosition(julianDate);
     const sunDeg = THREE.MathUtils.radToDeg(sunLonRad);
 
     // Store sun zodiac position for tooltip
@@ -588,7 +580,7 @@ export class ArmillaryScene {
     this.realisticSunGroup.scale.set(sizeMultiplier, sizeMultiplier, sizeMultiplier);
 
     // 1. Position Earth
-    const earthData = astroCalc.getEarthHeliocentricPosition(currentDay, currentYear, month, day, hours, minutes);
+    const earthData = astroCalc.getEarthHeliocentricPosition(julianDate);
     const earthRad = earthData.longitude;
     // Apply distance compression (Earth is at 1 AU)
     const distanceExponent = 1.0 - this.planetZoomFactor * 0.65; // 1.0 at no zoom, 0.35 at max zoom
@@ -756,9 +748,7 @@ export class ArmillaryScene {
     }
 
     // 2. Position Moon (Relative to Earth)
-    const moonPos = astroCalc.calculateMoonPosition(
-      currentDay, currentYear, month, day, hours, minutes, currentLongitude
-    );
+    const moonPos = astroCalc.calculateMoonPosition(julianDate, currentLongitude);
     const moonLonRad = moonPos.longitude;
     const moonLatRad = moonPos.latitude;
     const moonDeg = THREE.MathUtils.radToDeg(moonLonRad);
@@ -891,9 +881,7 @@ export class ArmillaryScene {
 
     planetNames.forEach(planetName => {
       if (this.planetGroups[planetName]) {
-        const planetData = astroCalc.calculatePlanetPosition(
-          planetName, currentDay, currentYear, month, day, hours, minutes
-        );
+        const planetData = astroCalc.calculatePlanetPosition(planetName, julianDate);
 
         // Use geocentric longitude for tooltip display
         const geocentricDeg = THREE.MathUtils.radToDeg(planetData.geocentricLongitude);

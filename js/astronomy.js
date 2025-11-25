@@ -236,12 +236,12 @@ export class AstronomyCalculator {
    * Calculate Sun's ecliptic longitude (radians) using ephemeris npm package
    * The function returns longitude in RADIANS (0..2π)
    *
-   * NOTE: hours and minutes are already UTC time (provided by UI)
+   * @param {number} julianDate - Julian Date for the calculation
    */
-  calculateSunPosition(currentDay, currentYear, month, day, hours, minutes, longitude = 0) {
+  calculateSunPosition(julianDate, longitude = 0) {
     try {
-      // hours and minutes are already in UTC, use them directly
-      const date = new Date(Date.UTC(currentYear, month, day, hours, minutes, 0));
+      // Convert Julian Date to JavaScript Date for ephemeris library
+      const date = new Date((julianDate - 2440587.5) * 86400000);
 
       // ephemeris.getAllPlanets(date, lat, lon) -> results vary by package version.
       // We try to read an apparent longitude in degrees, falling back gracefully.
@@ -264,9 +264,10 @@ export class AstronomyCalculator {
       debugLog.warn('Ephemeris call failed:', e);
     }
 
-    // Fallback: simple mean-sun approximation based on day-of-year (not high accuracy)
-    // currentDay is day-of-year (1..365)
-    const approxLon = (280 + (currentDay - 1) * (360 / 365.2425)) % 360;
+    // Fallback: simple mean-sun approximation based on Julian Date
+    // Days since J2000.0 epoch
+    const daysSinceJ2000 = julianDate - this.J2000_EPOCH;
+    const approxLon = (280 + daysSinceJ2000 * (360 / 365.2425)) % 360;
     debugLog.warn('Using approximate Sun position (deg):', approxLon);
     return this._degToRad(approxLon);
   }
@@ -275,12 +276,12 @@ export class AstronomyCalculator {
    * Calculate Moon's ecliptic position (longitude and latitude in radians) using ephemeris npm package
    * Returns { longitude: radians (0..2π), latitude: radians }
    *
-   * NOTE: hours and minutes are already UTC time (provided by UI)
+   * @param {number} julianDate - Julian Date for the calculation
    */
-  calculateMoonPosition(currentDay, currentYear, month, day, hours, minutes, longitude = 0) {
+  calculateMoonPosition(julianDate, longitude = 0) {
     try {
-      // hours and minutes are already in UTC, use them directly
-      const date = new Date(Date.UTC(currentYear, month, day, hours, minutes, 0));
+      // Convert Julian Date to JavaScript Date for ephemeris library
+      const date = new Date((julianDate - 2440587.5) * 86400000);
 
       // ephemeris.getAllPlanets(date, lat, lon) -> results vary by package version.
       const result = ephemeris.getAllPlanets(date, 0, 0);
@@ -298,7 +299,7 @@ export class AstronomyCalculator {
           // Calculate ecliptic latitude using orbital mechanics
           // The moon's orbit is inclined ~5.14° to the ecliptic
           // β ≈ i × sin(λ_moon - Ω) where i is inclination and Ω is ascending node
-          const nodes = this.calculateLunarNodes(currentDay, currentYear, month, day, hours, minutes);
+          const nodes = this.calculateLunarNodes(julianDate);
           const ascendingNodeDeg = nodes.ascending;
 
           const MOON_INCLINATION = 5.145; // degrees, mean inclination to ecliptic
@@ -330,11 +331,13 @@ export class AstronomyCalculator {
    * The ascending node is where the Moon crosses the ecliptic going north
    * The descending node is 180° opposite
    * Returns { ascending: degrees (0..360), descending: degrees (0..360) }
+   *
+   * @param {number} julianDate - Julian Date for the calculation
    */
-  calculateLunarNodes(currentDay, currentYear, month, day, hours, minutes) {
+  calculateLunarNodes(julianDate) {
     try {
       // Try to get from ephemeris library first
-      const date = new Date(Date.UTC(currentYear, month, day, hours, minutes, 0));
+      const date = new Date((julianDate - 2440587.5) * 86400000);
       const result = ephemeris.getAllPlanets(date, 0, 0);
       const moonObj = result && result.observed && result.observed.moon ? result.observed.moon : (result && result.moon ? result.moon : null);
 
@@ -354,7 +357,7 @@ export class AstronomyCalculator {
     }
 
     // Calculate TRUE node (with perturbations)
-    const julianDate = new Date(Date.UTC(currentYear, month, day, hours, minutes, 0)).getTime() / 86400000 + 2440587.5;
+    // julianDate is already provided as parameter
     const T = (julianDate - this.J2000_EPOCH) / 36525.0; // Julian centuries since J2000
     const D = (julianDate - this.J2000_EPOCH); // Days since J2000
 
@@ -397,10 +400,12 @@ export class AstronomyCalculator {
   /**
    * Get Earth's heliocentric position derived from Sun's geocentric position
    * Returns { longitude: radians, distance: AU }
+   *
+   * @param {number} julianDate - Julian Date for the calculation
    */
-  getEarthHeliocentricPosition(currentDay, currentYear, month, day, hours, minutes) {
+  getEarthHeliocentricPosition(julianDate) {
     // Calculate Sun's geocentric position
-    const sunLonRad = this.calculateSunPosition(currentDay, currentYear, month, day, hours, minutes);
+    const sunLonRad = this.calculateSunPosition(julianDate);
 
     // Earth is opposite to Sun
     const earthLonRad = (sunLonRad + Math.PI) % (2 * Math.PI);
@@ -543,12 +548,11 @@ export class AstronomyCalculator {
    *   heliocentricDistance: AU - distance from Sun
    * }
    */
-  calculatePlanetPosition(planetName, currentDay, currentYear, month, day, hours, minutes) {
+  calculatePlanetPosition(planetName, julianDate) {
     debugLog.log(`calculatePlanetPosition called for ${planetName}`);
 
-    // Calculate Julian Date for Keplerian calculations
-    const date = new Date(Date.UTC(currentYear, month, day, hours, minutes, 0));
-    const julianDate = date.getTime() / 86400000 + 2440587.5;
+    // Convert Julian Date to JavaScript Date for ephemeris library
+    const date = new Date((julianDate - 2440587.5) * 86400000);
 
     // Calculate heliocentric position from Keplerian elements
     const keplerianHelio = this.calculateHeliocentricFromKeplerian(planetName, julianDate);
@@ -729,8 +733,12 @@ export class AstronomyCalculator {
     // Helper: Calculate sun's altitude at a given time
     const getSunAltitude = (hours, minutes) => {
       try {
+        // Calculate Julian Date for this time
+        const date = new Date(Date.UTC(year, month, day, hours, minutes, 0));
+        const jd = date.getTime() / 86400000 + 2440587.5;
+
         // Calculate sun's ecliptic longitude
-        const sunLon = this.calculateSunPosition(dayOfYear, year, month, day, hours, minutes, longitude);
+        const sunLon = this.calculateSunPosition(jd, longitude);
 
         // Convert to equatorial coordinates
         const { ra, dec } = this.eclipticToEquatorial(sunLon, 0, this.OBLIQUITY);
