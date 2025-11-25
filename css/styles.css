@@ -175,15 +175,15 @@ input[type="text"] {
 .help-button {
   position: fixed;
   bottom: 20px;
-  right: 20px;
-  width: 20px;
-  height: 20px;
+  left: 20px;
+  width: 31px;
+  height: 31px;
   background: rgba(0, 0, 0, 0.7);
   border: 1px solid rgba(255, 255, 255, 0.3);
   border-radius: 50%;
   color: white;
   font-family: sans-serif;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: bold;
   display: flex;
   align-items: center;
@@ -204,15 +204,15 @@ input[type="text"] {
 .animation-control-button {
   position: fixed;
   bottom: 20px;
-  left: 20px;
-  width: 20px;
-  height: 20px;
+  right: 20px;
+  width: 31px;
+  height: 31px;
   background: rgba(0, 0, 0, 0.7);
   border: 1px solid rgba(255, 255, 255, 0.3);
   border-radius: 50%;
   color: white;
   font-family: sans-serif;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: bold;
   display: flex;
   align-items: center;
@@ -387,4 +387,20 @@ input[type="text"] {
 .help-shortcut span {
   color: #ddd;
   font-size: 15px;
+}
+
+/* Mobile - hide help button */
+@media (max-width: 1024px) {
+  .help-button {
+    display: none;
+  }
+}
+
+/* Mobile portrait mode - larger animation button */
+@media (max-width: 1024px) and (orientation: portrait) {
+  .animation-control-button {
+    width: 80px;
+    height: 80px;
+    font-size: 36px;
+  }
 }
