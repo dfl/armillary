@@ -497,6 +497,9 @@ animationControlBtns.forEach(btn => {
     } else if (action === 'faster') {
       // Simulate ']' key press
       window.dispatchEvent(new KeyboardEvent('keydown', { key: ']' }));
+    } else if (action === 'stereo') {
+      // Simulate 's' key press
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 's' }));
     }
   });
 });

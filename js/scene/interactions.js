@@ -64,6 +64,9 @@ export default class InteractionManager {
   hideTooltips() {
     this.starInfoElement.classList.remove('visible');
     this.starInfoElement2.classList.remove('visible');
+    // Also hide the DOM elements
+    this.starInfoElement.style.display = 'none';
+    this.starInfoElement2.style.display = 'none';
   }
 
   setupStarHover() {
@@ -72,6 +75,26 @@ export default class InteractionManager {
     const mouse = new THREE.Vector2();
 
     const onStarHover = (event) => {
+      // Skip tooltips if hovering over UI elements
+      const target = event.target;
+      if (target !== this.renderer.domElement) {
+        this.hideTooltips();
+        return;
+      }
+
+      // Also check if mouse is over any UI elements via elementFromPoint
+      const elementAtPoint = document.elementFromPoint(event.clientX, event.clientY);
+      if (elementAtPoint && elementAtPoint !== this.renderer.domElement &&
+          (elementAtPoint.closest('#ui') ||
+           elementAtPoint.closest('#angles') ||
+           elementAtPoint.closest('#animationControlModal') ||
+           elementAtPoint.closest('.help-button') ||
+           elementAtPoint.closest('.animation-control-button') ||
+           elementAtPoint.closest('#contextMenu'))) {
+        this.hideTooltips();
+        return;
+      }
+
       let camera, mouseX, mouseY;
 
       if (this.sceneRef.cameraController && this.sceneRef.cameraController.stereoEnabled) {
@@ -541,6 +564,25 @@ export default class InteractionManager {
     };
 
     this.renderer.domElement.addEventListener('mousemove', onStarHover);
+
+    // Hide tooltips when hovering over UI elements
+    const uiElements = [
+      '#ui',
+      '#angles',
+      '#animationControlModal',
+      '#animationControlButton',
+      '#helpButton',
+      '#contextMenu'
+    ];
+
+    uiElements.forEach(selector => {
+      const element = document.querySelector(selector);
+      if (element) {
+        element.addEventListener('mouseenter', () => {
+          this.hideTooltips();
+        });
+      }
+    });
   }
 
   setupPlanetDoubleClick() {
@@ -809,8 +851,10 @@ export default class InteractionManager {
       const halfWidth = window.innerWidth / 2;
 
       // Make both tooltips visible for measurement
+      this.starInfoElement.style.display = '';
       this.starInfoElement.style.visibility = 'hidden';
       this.starInfoElement.classList.add('visible');
+      this.starInfoElement2.style.display = '';
       this.starInfoElement2.style.visibility = 'hidden';
       this.starInfoElement2.classList.add('visible');
 
@@ -872,6 +916,7 @@ export default class InteractionManager {
 
     } else {
       // Normal mode - single tooltip
+      tooltipElement.style.display = '';
       tooltipElement.style.visibility = 'hidden';
       tooltipElement.classList.add('visible');
       const rect = tooltipElement.getBoundingClientRect();
