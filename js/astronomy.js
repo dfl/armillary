@@ -355,6 +355,7 @@ export class AstronomyCalculator {
    */
   calculateLunarApsides(julianDate) {
     const T = (julianDate - this.J2000_EPOCH) / 36525.0;
+    const d = (julianDate - this.J2000_EPOCH); // Days since J2000
 
     // Mean Argument of Perigee (ω)
     let omega = 318.0634 + 6003.1498 * T - 0.0128 * T * T;
@@ -363,18 +364,49 @@ export class AstronomyCalculator {
     let node = 125.04452 - 1934.136261 * T + 0.0020708 * T * T + (T * T * T) / 450000;
 
     // Mean Longitude of Perigee = Ω + ω
-    let perigee = this._deg(node + omega);
+    let meanPerigee = this._deg(node + omega);
 
-    // Apogee is opposite
-    let apogee = this._deg(perigee + 180);
+    // Mean Apogee (Mean Lilith)
+    let meanApogee = this._deg(meanPerigee + 180);
 
-    // Black Moon Lilith is Mean Apogee
-    let lilith = apogee;
+    // Calculate True Apogee (True Lilith)
+    // Fundamental arguments (degrees)
+
+    // Mean Elongation of Moon (D)
+    const D = this._deg(297.8501921 + 12.19074913 * d - 0.0019142 * T * T + T * T * T / 189474);
+
+    // Mean Anomaly of Sun (M)
+    const M = this._deg(357.5291092 + 0.98560028 * d - 0.0001536 * T * T + T * T * T / 24490000);
+
+    // Mean Anomaly of Moon (M')
+    const M_prime = this._deg(134.9633964 + 13.06499295 * d + 0.0087414 * T * T + T * T * T / 69699);
+
+    // Mean Argument of Latitude (F)
+    const F = this._deg(93.2720950 + 13.22935024 * d - 0.0036539 * T * T - T * T * T / 3526000);
+
+    // Corrections to Perigee (degrees)
+    // Terms from Chapront ELP 2000-85 (simplified)
+    // Arguments in radians for Math.sin
+    const D_rad = this._degToRad(D);
+    const M_rad = this._degToRad(M);
+    const Mp_rad = this._degToRad(M_prime);
+    const F_rad = this._degToRad(F);
+
+    const correction =
+      + 9.76 * Math.sin(2*D_rad - Mp_rad)
+      - 3.11 * Math.sin(2*D_rad - 2*Mp_rad)
+      + 1.94 * Math.sin(2*D_rad - M_rad - Mp_rad)
+      - 0.66 * Math.sin(2*D_rad)
+      + 0.60 * Math.sin(2*D_rad - 2*F_rad + Mp_rad);
+
+    let truePerigee = this._deg(meanPerigee + correction);
+    let trueApogee = this._deg(truePerigee + 180);
 
     return {
-      perigee: perigee,
-      apogee: apogee,
-      lilith: lilith
+      perigee: truePerigee,
+      apogee: trueApogee,
+      lilith: trueApogee,
+      meanLilith: meanApogee
     };
   }
 
