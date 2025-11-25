@@ -403,18 +403,6 @@ export class ArmillaryScene {
       Object.values(this.planetGroups).forEach(planetData => {
         planetData.group.visible = planetsVisible;
       });
-
-      // Set lunar nodes visibility based on toggle state
-      if (this.nodeSpheres) {
-        Object.values(this.nodeSpheres).forEach(sphere => {
-          sphere.visible = planetsVisible;
-        });
-      }
-      if (this.nodeLabels) {
-        Object.values(this.nodeLabels).forEach(label => {
-          label.visible = planetsVisible;
-        });
-      }
     }
 
     // -----------------------------------------------------------
