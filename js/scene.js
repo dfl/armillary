@@ -880,28 +880,8 @@ export class ArmillaryScene {
       this.planetaryReferences.sunReferencesGroup.scale.set(eclipticScale, eclipticScale, eclipticScale);
     }
 
-    // 2.8. Scale planet orbital paths with distance compression
-    // Each orbit scales according to its own distance compression
-    if (this.planetaryReferences.planetOrbits) {
-      Object.keys(this.planetaryReferences.planetOrbits).forEach(planetName => {
-        const orbit = this.planetaryReferences.planetOrbits[planetName];
-        // Get the planet's orbital radius in AU from the original geometry
-        const planetAU = orbit.userData.planetName === 'mercury' ? 0.39 :
-                         orbit.userData.planetName === 'venus' ? 0.72 :
-                         orbit.userData.planetName === 'earth' ? 1.0 :
-                         orbit.userData.planetName === 'mars' ? 1.52 :
-                         orbit.userData.planetName === 'jupiter' ? 5.20 :
-                         orbit.userData.planetName === 'saturn' ? 9.54 :
-                         orbit.userData.planetName === 'uranus' ? 19.19 :
-                         orbit.userData.planetName === 'neptune' ? 30.07 :
-                         orbit.userData.planetName === 'pluto' ? 39.48 : 1.0;
-
-        const compressedPlanetDistAU = Math.pow(planetAU, distanceExponent);
-        const orbitCompressionScale = compressedPlanetDistAU / planetAU;
-        const orbitScale = orbitCompressionScale * zoomScale;
-        orbit.scale.set(orbitScale, orbitScale, orbitScale);
-      });
-    }
+    // 2.8. Planet orbital paths are now updated dynamically in updatePlanetOrbits()
+    // No additional scaling needed here since orbits are regenerated with correct transformations
 
     // 3. Position Planets (Heliocentric)
     const planetNames = ['mercury', 'venus', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune', 'pluto'];
@@ -918,8 +898,8 @@ export class ArmillaryScene {
         // Use geocentric longitude for tooltip display
         const geocentricDeg = THREE.MathUtils.radToDeg(planetData.geocentricLongitude);
 
-        // Ecliptic latitude is the same for both heliocentric and geocentric
-        const planetLatRad = planetData.geocentricLatitude || 0;
+        // Use heliocentric latitude for 3D positioning (must match orbital elements)
+        const planetLatRad = planetData.heliocentricLatitude || 0;
 
         // Use heliocentric coordinates for 3D positioning relative to Sun
         let planetLonRad, distance;
@@ -944,16 +924,16 @@ export class ArmillaryScene {
         const adjustedDistance = compressedDistance * zoomScale;
 
         const pRad = planetLonRad;
-        // Exaggerate ecliptic latitude by the same factor as planet sizes for visibility
-        const pLat = planetLatRad * sizeMultiplier;
+        const pLat = planetLatRad;
 
         // Position planet relative to Sun at origin (heliocentric)
         // x = r * cos(lat) * cos(lon)
         // y = r * cos(lat) * sin(lon)
-        // z = r * sin(lat) - exaggerated for visibility
+        // z = r * sin(lat)
         const x = adjustedDistance * Math.cos(pLat) * Math.cos(pRad);
         const y = adjustedDistance * Math.cos(pLat) * Math.sin(pRad);
-        const z = adjustedDistance * Math.sin(pLat);
+        // Exaggerate ecliptic latitude (Z coordinate) by the same factor as planet sizes for visibility
+        const z = adjustedDistance * Math.sin(pLat) * sizeMultiplier;
 
         this.planetGroups[planetName].group.position.set(x, y, z);
 
