@@ -797,4 +797,47 @@ export default class PlanetaryReferences {
       });
     }
   }
+
+  /**
+   * Update the stored geocentric longitude data for lunar apsides
+   * This ensures tooltips show accurate astronomical values regardless of visual zoom distortion
+   *
+   * @param {Object} astroCalc - Instance of AstronomyCalculator
+   * @param {number} julianDate - Current Julian Date
+   */
+  updateLunarApsidesLongitudes(astroCalc, julianDate) {
+    if (!this.lunarApsisSprites || !astroCalc) return;
+
+    const apsides = astroCalc.calculateLunarApsides(julianDate);
+
+    // Update Perigee
+    if (this.lunarApsisSprites.perigee) {
+      this.lunarApsisSprites.perigee.userData.geocentricLongitude = apsides.perigee;
+      this.lunarApsisSprites.perigee.userData.astronomicalInfo = {
+        type: 'Lunar Apsis',
+        name: 'Perigee',
+        longitude: apsides.perigee
+      };
+    }
+
+    // Update Apogee
+    if (this.lunarApsisSprites.apogee) {
+      this.lunarApsisSprites.apogee.userData.geocentricLongitude = apsides.apogee;
+      this.lunarApsisSprites.apogee.userData.astronomicalInfo = {
+        type: 'Lunar Apsis',
+        name: 'Apogee',
+        longitude: apsides.apogee
+      };
+    }
+
+    // Update Lilith
+    if (this.lunarApsisSprites.lilith) {
+      this.lunarApsisSprites.lilith.userData.geocentricLongitude = apsides.lilith;
+      this.lunarApsisSprites.lilith.userData.astronomicalInfo = {
+        type: 'Lunar Point',
+        name: 'Black Moon Lilith',
+        longitude: apsides.lilith
+      };
+    }
+  }
 }

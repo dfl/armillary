@@ -348,6 +348,37 @@ export class AstronomyCalculator {
   }
 
   /**
+   * Calculate lunar apsides (Perigee, Apogee) and Black Moon Lilith (Mean Apogee)
+   * Returns object with longitudes in degrees (0..360)
+   *
+   * @param {number} julianDate - Julian Date
+   */
+  calculateLunarApsides(julianDate) {
+    const T = (julianDate - this.J2000_EPOCH) / 36525.0;
+
+    // Mean Argument of Perigee (ω)
+    let omega = 318.0634 + 6003.1498 * T - 0.0128 * T * T;
+
+    // Mean Longitude of Ascending Node (Ω)
+    let node = 125.04452 - 1934.136261 * T + 0.0020708 * T * T + (T * T * T) / 450000;
+
+    // Mean Longitude of Perigee = Ω + ω
+    let perigee = this._deg(node + omega);
+
+    // Apogee is opposite
+    let apogee = this._deg(perigee + 180);
+
+    // Black Moon Lilith is Mean Apogee
+    let lilith = apogee;
+
+    return {
+      perigee: perigee,
+      apogee: apogee,
+      lilith: lilith
+    };
+  }
+
+  /**
    * Calculate lunar nodes (ascending ☊ and descending ☋)
    * Uses TRUE node (instantaneous position with perturbations)
    * The ascending node is where the Moon crosses the ecliptic going north
