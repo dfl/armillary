@@ -182,12 +182,16 @@ export class UIManager {
     this.currentYear = 2000;
     this.currentTimezone = null; // IANA timezone name (e.g., 'America/Anchorage')
     this.cameraState = null; // Store camera position, target, and up vector
+
+    // Initialize toggle states from HTML checkbox defaults
     this.toggleStates = {
-      starfield: true,
-      planets: true,
-      earthReferences: false,
-      sunReferences: false,
-      stereo: false,
+      starfield: document.getElementById('starfieldToggle')?.checked ?? true,
+      planets: document.getElementById('planetsToggle')?.checked ?? true,
+      earthReferences: document.getElementById('earthReferencesToggle')?.checked ?? false,
+      sunReferences: document.getElementById('sunReferencesToggle')?.checked ?? false,
+      lunarOrbit: document.getElementById('lunarOrbitToggle')?.checked ?? true,
+      planetOrbits: document.getElementById('planetOrbitsToggle')?.checked ?? false,
+      stereo: document.getElementById('stereoToggle')?.checked ?? false,
       sidereal: false
     };
     this.eyeSeparation = 0.3;
@@ -518,6 +522,12 @@ export class UIManager {
     if (this.toggleStates.sunReferences !== false) {
       params.set('sunRefs', this.toggleStates.sunReferences ? '1' : '0');
     }
+    if (this.toggleStates.lunarOrbit !== true) {
+      params.set('lunarOrbit', this.toggleStates.lunarOrbit ? '1' : '0');
+    }
+    if (this.toggleStates.planetOrbits !== false) {
+      params.set('planetOrbits', this.toggleStates.planetOrbits ? '1' : '0');
+    }
     if (this.toggleStates.stereo !== false) {
       params.set('stereo', this.toggleStates.stereo ? '1' : '0');
     }
@@ -760,6 +770,14 @@ export class UIManager {
     }
     if (params.has('sunRefs')) {
       this.toggleStates.sunReferences = params.get('sunRefs') === '1';
+      hasState = true;
+    }
+    if (params.has('lunarOrbit')) {
+      this.toggleStates.lunarOrbit = params.get('lunarOrbit') === '1';
+      hasState = true;
+    }
+    if (params.has('planetOrbits')) {
+      this.toggleStates.planetOrbits = params.get('planetOrbits') === '1';
       hasState = true;
     }
     if (params.has('stereo')) {

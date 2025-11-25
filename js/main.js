@@ -212,6 +212,14 @@ sunReferencesToggle.addEventListener('change', () => {
   uiManager.saveStateToURL();
 });
 
+// Lunar orbit toggle
+const lunarOrbitToggle = document.getElementById('lunarOrbitToggle');
+lunarOrbitToggle.addEventListener('change', () => {
+  scene.toggleLunarOrbit(lunarOrbitToggle.checked);
+  uiManager.setToggleState('lunarOrbit', lunarOrbitToggle.checked);
+  uiManager.saveStateToURL();
+});
+
 // Planet orbits toggle
 const planetOrbitsToggle = document.getElementById('planetOrbitsToggle');
 planetOrbitsToggle.addEventListener('change', () => {
@@ -529,7 +537,8 @@ starfieldToggle.checked = toggleStates.starfield;
 planetsToggle.checked = toggleStates.planets;
 earthReferencesToggle.checked = toggleStates.earthReferences;
 sunReferencesToggle.checked = toggleStates.sunReferences;
-planetOrbitsToggle.checked = toggleStates.planetOrbits !== undefined ? toggleStates.planetOrbits : true; // Default to true
+lunarOrbitToggle.checked = toggleStates.lunarOrbit;
+planetOrbitsToggle.checked = toggleStates.planetOrbits;
 stereoToggle.checked = toggleStates.stereo;
 if (uiManager.elements.siderealCheckbox) {
   uiManager.elements.siderealCheckbox.checked = toggleStates.sidereal;
@@ -552,7 +561,8 @@ scene.toggleStarfield(toggleStates.starfield);
 scene.togglePlanets(toggleStates.planets);
 scene.toggleEarthReferences(toggleStates.earthReferences);
 scene.toggleSunReferences(toggleStates.sunReferences);
-scene.togglePlanetOrbits(toggleStates.planetOrbits !== undefined ? toggleStates.planetOrbits : true); // Default to true
+scene.toggleLunarOrbit(toggleStates.lunarOrbit);
+scene.togglePlanetOrbits(toggleStates.planetOrbits);
 scene.toggleStereo(toggleStates.stereo);
 scene.setEyeSeparation(eyeSeparation);
 

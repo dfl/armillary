@@ -1237,18 +1237,6 @@ export class ArmillaryScene {
     // Hide the realistic sun and moon
     this.celestialObjects.realisticSunGroup.visible = visible;
     this.celestialObjects.realisticMoonGroup.visible = visible;
-
-    // Toggle lunar nodes
-    if (this.nodeSpheres) {
-      Object.values(this.nodeSpheres).forEach(sphere => {
-        sphere.visible = visible;
-      });
-    }
-    if (this.nodeLabels) {
-      Object.values(this.nodeLabels).forEach(label => {
-        label.visible = visible;
-      });
-    }
   }
 
   toggleEarthReferences(visible) {
@@ -1297,6 +1285,23 @@ export class ArmillaryScene {
     if (this.earthMaterial && this.earthMaterial.depthWrite !== shouldEnableDepth) {
       this.earthMaterial.depthWrite = shouldEnableDepth;
       this.earthMaterial.needsUpdate = true;
+    }
+  }
+
+  toggleLunarOrbit(visible) {
+    // Toggle moon orbit outline
+    this.planetaryReferences.toggleLunarOrbit(visible);
+
+    // Toggle lunar nodes (spheres and labels)
+    if (this.nodeSpheres) {
+      Object.values(this.nodeSpheres).forEach(sphere => {
+        sphere.visible = visible;
+      });
+    }
+    if (this.nodeLabels) {
+      Object.values(this.nodeLabels).forEach(label => {
+        label.visible = visible;
+      });
     }
   }
 

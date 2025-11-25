@@ -633,6 +633,9 @@ export default class PlanetaryReferences {
     if (this.sunReferencesGroup) {
       this.sunReferencesGroup.visible = visible;
     }
+  }
+
+  toggleLunarOrbit(visible) {
     if (this.moonOrbitOutline) {
       this.moonOrbitOutline.visible = visible;
     }
