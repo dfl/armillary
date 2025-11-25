@@ -83,15 +83,15 @@ export default class CameraController {
 
     if (targetName === 'horizon') {
       // Orient facing South (Local -Z) from North (Local +Z)
-      // Position camera at North (+Z) and slightly Up (+Y)
+      // Position camera at North (+Z) and slightly Up (+Y) in horizon's current frame
       // This places ASC on the left and DSC on the right
       const localOffset = new THREE.Vector3(0, targetRadius * 2.0, targetRadius * 6.0);
 
-      // Transform to world space
+      // Transform to world space using current armillary orientation
       const worldOffset = localOffset.applyQuaternion(this.sceneRef.armillaryRoot.quaternion);
       newCameraPos = targetWorldPos.clone().add(worldOffset);
 
-      // Align camera up with local up
+      // Camera up aligns with horizon's current up direction
       const localUp = new THREE.Vector3(0, 1, 0);
       newUp = localUp.applyQuaternion(this.sceneRef.armillaryRoot.quaternion);
     } else if (targetName === 'ecliptic-north') {

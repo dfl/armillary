@@ -37,9 +37,8 @@ export class ArmillaryScene {
     this.STAR_FIELD_RADIUS = this.PLANET_DISTANCE_SCALE * 200; // Star field radius (encompassing solar system)
 
     // View mode threshold: distance at which we switch from Horizon View to Earth View
-    // Set just beyond starting camera position so Earth becomes opaque very quickly
-    // Camera starts at ~3.4 × CE_RADIUS, set threshold slightly higher
-    this.VIEW_MODE_THRESHOLD = this.CE_RADIUS * 4.0;
+    // Threshold: 50 units (Earth radius is 5.0, Horizon view camera is ~15 units away)
+    this.VIEW_MODE_THRESHOLD = 50.0;
 
     // Calculate proportional radii (scaled down for visibility)
     this.SUN_RADIUS = this.EARTH_RADIUS * (this.SUN_RADIUS_KM / this.EARTH_RADIUS_KM) * 0.05; // ~109x Earth, scaled
@@ -669,7 +668,7 @@ export class ArmillaryScene {
 
     // Update inertial star sphere - keep in pure inertial frame
     // Stars stay stationary with only obliquity tilt (J2000 equatorial → ecliptic alignment)
-    // Camera motion (following Earth's rotation in horizon view) makes stars appear to rotate naturally
+    // Camera staying fixed in horizon view makes stars and celestial sphere move naturally
     this.inertialStarSphere.rotation.order = 'XYZ';
     this.inertialStarSphere.rotation.x = this.obliquity;
     this.inertialStarSphere.rotation.y = 0;
@@ -694,8 +693,8 @@ export class ArmillaryScene {
 
     // Adjust controls target and camera motion based on view distance
     if (distToObserver < this.VIEW_MODE_THRESHOLD) {
-      // Horizon View: orbit around observer location on surface
-      // Move camera to follow the geographic location (Earth rotation + orbital motion)
+      // Horizon View: camera follows geographic location on Earth's surface
+      // Move camera to follow Earth's orbital position and rotation
       this.camera.position.add(armillaryDelta);
       this.controls.target.add(armillaryDelta);
 
