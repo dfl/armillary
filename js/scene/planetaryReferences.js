@@ -371,6 +371,164 @@ export default class PlanetaryReferences {
     if (toggle && toggle.checked) {
       this.togglePlanetOrbits(true);
     }
+
+    // Create planetary node markers (☊ and ☋)
+    this.createPlanetaryNodeMarkers();
+
+    // Create planetary apsis markers (⊙ perihelion and ⊚ aphelion)
+    this.createPlanetaryApsisMarkers();
+  }
+
+  /**
+   * Create visual markers for planetary nodes (☊ ascending and ☋ descending)
+   * These show where each planet's orbital plane intersects the ecliptic plane
+   */
+  createPlanetaryNodeMarkers() {
+    this.planetaryNodeGroups = {};
+
+    const createNodeMarker = (planetName, nodeType, symbol, color) => {
+      const group = new THREE.Group();
+
+      // Create canvas with node symbol
+      const canvas = document.createElement('canvas');
+      canvas.width = 256;
+      canvas.height = 256;
+      const ctx = canvas.getContext('2d');
+
+      // Use the planet's orbit color
+      ctx.fillStyle = `#${color.toString(16).padStart(6, '0')}`;
+      ctx.font = 'bold 180px Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(symbol, 128, 128);
+
+      // Create sprite from canvas
+      const texture = new THREE.CanvasTexture(canvas);
+      const material = new THREE.SpriteMaterial({
+        map: texture,
+        depthTest: true,
+        transparent: true,
+        opacity: 1.0
+      });
+      const sprite = new THREE.Sprite(material);
+
+      // Scale the sprite large enough to see from ecliptic north pole view
+      const scale = this.EARTH_RADIUS * 15.0;
+      sprite.scale.set(scale, scale, 1);
+      sprite.userData.nodeName = `${planetName}_${nodeType}`;
+      sprite.userData.planetName = planetName;
+
+      group.add(sprite);
+      group.userData.nodeName = `${planetName}_${nodeType}`;
+      group.userData.planetName = planetName;
+
+      // Add to scene
+      this.scene.add(group);
+      group.visible = false; // Hidden by default, shown when ecliptic plane is visible
+
+      return group;
+    };
+
+    // Create node markers for each planet (excluding Earth)
+    Object.entries(this.orbitalElements).forEach(([planetName, elements]) => {
+      if (planetName === 'earth') {
+        return; // Skip Earth (it defines the ecliptic plane)
+      }
+
+      const color = elements.color;
+
+      if (!this.planetaryNodeGroups[planetName]) {
+        this.planetaryNodeGroups[planetName] = {};
+      }
+
+      this.planetaryNodeGroups[planetName].ascending = createNodeMarker(
+        planetName,
+        'ascending',
+        '☊',
+        color
+      );
+
+      this.planetaryNodeGroups[planetName].descending = createNodeMarker(
+        planetName,
+        'descending',
+        '☋',
+        color
+      );
+    });
+  }
+
+  /**
+   * Create visual markers for planetary apsides (⊙ perihelion and ⊚ aphelion)
+   * These show the closest and farthest points from the Sun in each planet's orbit
+   */
+  createPlanetaryApsisMarkers() {
+    this.planetaryApsisGroups = {};
+
+    const createApsisMarker = (planetName, apsisType, symbol, color) => {
+      const group = new THREE.Group();
+
+      // Create canvas with apsis symbol
+      const canvas = document.createElement('canvas');
+      canvas.width = 256;
+      canvas.height = 256;
+      const ctx = canvas.getContext('2d');
+
+      // Use the planet's orbit color
+      ctx.fillStyle = `#${color.toString(16).padStart(6, '0')}`;
+      ctx.font = 'bold 180px Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(symbol, 128, 128);
+
+      // Create sprite from canvas
+      const texture = new THREE.CanvasTexture(canvas);
+      const material = new THREE.SpriteMaterial({
+        map: texture,
+        depthTest: true,
+        transparent: true,
+        opacity: 1.0
+      });
+      const sprite = new THREE.Sprite(material);
+
+      // Scale the sprite large enough to see from ecliptic north pole view
+      const scale = this.EARTH_RADIUS * 15.0;
+      sprite.scale.set(scale, scale, 1);
+      sprite.userData.apsisName = `${planetName}_${apsisType}`;
+      sprite.userData.planetName = planetName;
+
+      group.add(sprite);
+      group.userData.apsisName = `${planetName}_${apsisType}`;
+      group.userData.planetName = planetName;
+
+      // Add to scene
+      this.scene.add(group);
+      group.visible = false; // Hidden by default, shown when ecliptic plane is visible
+
+      return group;
+    };
+
+    // Create apsis markers for each planet
+    Object.entries(this.orbitalElements).forEach(([planetName, elements]) => {
+      const color = elements.color;
+
+      if (!this.planetaryApsisGroups[planetName]) {
+        this.planetaryApsisGroups[planetName] = {};
+      }
+
+      this.planetaryApsisGroups[planetName].perihelion = createApsisMarker(
+        planetName,
+        'perihelion',
+        '⊙',
+        color
+      );
+
+      this.planetaryApsisGroups[planetName].aphelion = createApsisMarker(
+        planetName,
+        'aphelion',
+        '⊚',
+        color
+      );
+    });
   }
 
   /**
@@ -484,6 +642,32 @@ export default class PlanetaryReferences {
     if (this.planetOrbits) {
       Object.values(this.planetOrbits).forEach(orbit => {
         orbit.visible = visible;
+      });
+    }
+  }
+
+  togglePlanetaryNodes(visible) {
+    if (this.planetaryNodeGroups) {
+      Object.values(this.planetaryNodeGroups).forEach(nodeGroup => {
+        if (nodeGroup.ascending) {
+          nodeGroup.ascending.visible = visible;
+        }
+        if (nodeGroup.descending) {
+          nodeGroup.descending.visible = visible;
+        }
+      });
+    }
+  }
+
+  togglePlanetaryApsides(visible) {
+    if (this.planetaryApsisGroups) {
+      Object.values(this.planetaryApsisGroups).forEach(apsisGroup => {
+        if (apsisGroup.perihelion) {
+          apsisGroup.perihelion.visible = visible;
+        }
+        if (apsisGroup.aphelion) {
+          apsisGroup.aphelion.visible = visible;
+        }
       });
     }
   }

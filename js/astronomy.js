@@ -398,6 +398,78 @@ export class AstronomyCalculator {
   }
 
   /**
+   * Calculate planetary nodes (ascending ☊ and descending ☋)
+   * The nodes are where each planet's orbital plane crosses the ecliptic plane
+   * Returns object with node longitudes for each planet in degrees (0..360)
+   *
+   * Format: { planetName: { ascending: degrees, descending: degrees } }
+   *
+   * @param {number} julianDate - Julian Date for the calculation (used for precession)
+   */
+  calculatePlanetaryNodes(julianDate) {
+    const nodes = {};
+
+    // For each planet, the ascending node longitude (Ω) is where the orbit
+    // crosses the ecliptic going northward (increasing latitude)
+    // The descending node is 180° opposite
+
+    // Note: Omega values are at J2000.0 epoch; for high precision over long time spans,
+    // we would apply secular variations. For now, using J2000.0 values.
+
+    Object.entries(this.orbitalElements).forEach(([planetName, elements]) => {
+      // Skip Earth (it defines the ecliptic plane, so nodes are undefined)
+      if (planetName === 'earth') {
+        return;
+      }
+
+      const Omega = elements.Omega; // Longitude of ascending node at J2000.0
+
+      nodes[planetName] = {
+        ascending: this._deg(Omega),
+        descending: this._deg(Omega + 180)
+      };
+    });
+
+    return nodes;
+  }
+
+  /**
+   * Calculate planetary apsides (perihelion ⊙ and aphelion ⊚)
+   * Perihelion is the closest point to the Sun, aphelion is the farthest
+   * Returns object with apsis longitudes for each planet in degrees (0..360)
+   *
+   * Format: { planetName: { perihelion: degrees, aphelion: degrees, perihelionDistance: AU, aphelionDistance: AU } }
+   *
+   * @param {number} julianDate - Julian Date for the calculation (used for precession)
+   */
+  calculatePlanetaryApsides(julianDate) {
+    const apsides = {};
+
+    // For each planet, the longitude of perihelion (ϖ) = ω + Ω
+    // where ω is the argument of perihelion and Ω is the longitude of ascending node
+    // Aphelion is 180° opposite
+
+    Object.entries(this.orbitalElements).forEach(([planetName, elements]) => {
+      const a = elements.a;      // Semi-major axis in AU
+      const e = elements.e;      // Eccentricity
+      const pomega = elements.pomega; // Longitude of perihelion (ω + Ω) at J2000.0
+
+      // Calculate perihelion and aphelion distances
+      const perihelionDist = a * (1 - e); // Closest distance to Sun
+      const aphelionDist = a * (1 + e);   // Farthest distance from Sun
+
+      apsides[planetName] = {
+        perihelion: this._deg(pomega),
+        aphelion: this._deg(pomega + 180),
+        perihelionDistance: perihelionDist,
+        aphelionDistance: aphelionDist
+      };
+    });
+
+    return apsides;
+  }
+
+  /**
    * Get Earth's heliocentric position derived from Sun's geocentric position
    * Returns { longitude: radians, distance: AU }
    *

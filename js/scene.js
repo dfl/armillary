@@ -832,6 +832,91 @@ export class ArmillaryScene {
     this.heliocentricNodeGroups.NORTH_NODE.visible = sunEclipticVisible;
     this.heliocentricNodeGroups.SOUTH_NODE.visible = sunEclipticVisible;
 
+    // 2.5a. Position Planetary Nodes (heliocentric, on ecliptic plane)
+    // These nodes show where each planet's orbital plane intersects the ecliptic
+    const planetaryNodes = astroCalc.calculatePlanetaryNodes(julianDate);
+
+    // Check if planet orbits are visible to determine node/apsis visibility
+    const planetOrbitsVisible = this.planetaryReferences.planetOrbits &&
+      Object.values(this.planetaryReferences.planetOrbits).some(orbit => orbit.visible);
+
+    if (this.planetaryReferences.planetaryNodeGroups) {
+      Object.entries(planetaryNodes).forEach(([planetName, nodes]) => {
+        const nodeGroups = this.planetaryReferences.planetaryNodeGroups[planetName];
+        if (!nodeGroups) return;
+
+        // Get the planet's semi-major axis for proper scaling
+        const orbitalElements = this.planetaryReferences.orbitalElements[planetName];
+        if (!orbitalElements) return;
+
+        const semiMajorAxis = orbitalElements.a; // in AU
+
+        // Apply same distance compression as planets
+        const compressedDistance = Math.pow(semiMajorAxis, distanceExponent);
+        const scaledDistance = compressedDistance * this.PLANET_DISTANCE_SCALE;
+
+        // Position ascending node
+        const ascendingRad = THREE.MathUtils.degToRad(nodes.ascending);
+        const ascendingX = scaledDistance * Math.cos(ascendingRad);
+        const ascendingY = scaledDistance * Math.sin(ascendingRad);
+        nodeGroups.ascending.position.set(ascendingX, ascendingY, 0);
+
+        // Position descending node
+        const descendingRad = THREE.MathUtils.degToRad(nodes.descending);
+        const descendingX = scaledDistance * Math.cos(descendingRad);
+        const descendingY = scaledDistance * Math.sin(descendingRad);
+        nodeGroups.descending.position.set(descendingX, descendingY, 0);
+
+        // Scale nodes with zoom
+        nodeGroups.ascending.scale.set(zoomScale, zoomScale, zoomScale);
+        nodeGroups.descending.scale.set(zoomScale, zoomScale, zoomScale);
+
+        // Nodes visibility is controlled by planet orbits toggle, not set here
+        // (visibility is managed by togglePlanetOrbits method)
+      });
+    }
+
+    // 2.5b. Position Planetary Apsides (perihelion ⊙ and aphelion ⊚)
+    // These show the closest and farthest points from the Sun in each orbit
+    const planetaryApsides = astroCalc.calculatePlanetaryApsides(julianDate);
+
+    if (this.planetaryReferences.planetaryApsisGroups) {
+      Object.entries(planetaryApsides).forEach(([planetName, apsides]) => {
+        const apsisGroups = this.planetaryReferences.planetaryApsisGroups[planetName];
+        if (!apsisGroups) return;
+
+        // Perihelion: closest point to Sun (at distance a*(1-e))
+        const perihelionDist = apsides.perihelionDistance;
+        const perihelionRad = THREE.MathUtils.degToRad(apsides.perihelion);
+
+        // Apply same distance compression as planets
+        const compressedPerihelionDist = Math.pow(perihelionDist, distanceExponent);
+        const scaledPerihelionDist = compressedPerihelionDist * this.PLANET_DISTANCE_SCALE;
+
+        const perihelionX = scaledPerihelionDist * Math.cos(perihelionRad);
+        const perihelionY = scaledPerihelionDist * Math.sin(perihelionRad);
+        apsisGroups.perihelion.position.set(perihelionX, perihelionY, 0);
+
+        // Aphelion: farthest point from Sun (at distance a*(1+e))
+        const aphelionDist = apsides.aphelionDistance;
+        const aphelionRad = THREE.MathUtils.degToRad(apsides.aphelion);
+
+        const compressedAphelionDist = Math.pow(aphelionDist, distanceExponent);
+        const scaledAphelionDist = compressedAphelionDist * this.PLANET_DISTANCE_SCALE;
+
+        const aphelionX = scaledAphelionDist * Math.cos(aphelionRad);
+        const aphelionY = scaledAphelionDist * Math.sin(aphelionRad);
+        apsisGroups.aphelion.position.set(aphelionX, aphelionY, 0);
+
+        // Scale apsides with zoom
+        apsisGroups.perihelion.scale.set(zoomScale, zoomScale, zoomScale);
+        apsisGroups.aphelion.scale.set(zoomScale, zoomScale, zoomScale);
+
+        // Apsides visibility is controlled by planet orbits toggle, not set here
+        // (visibility is managed by togglePlanetOrbits method)
+      });
+    }
+
     // 2.6. Position and orient moon orbit outline around Earth
     // The moon's orbital plane is inclined 5.145° to the ecliptic
     if (this.planetaryReferences.moonOrbitOutline) {
@@ -1211,6 +1296,8 @@ export class ArmillaryScene {
 
   togglePlanetOrbits(visible) {
     this.planetaryReferences.togglePlanetOrbits(visible);
+    this.planetaryReferences.togglePlanetaryNodes(visible);
+    this.planetaryReferences.togglePlanetaryApsides(visible);
   }
 
   // ===================================================================

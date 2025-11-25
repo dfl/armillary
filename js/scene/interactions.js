@@ -161,6 +161,54 @@ export default class InteractionManager {
         });
       }
 
+      // Heliocentric planetary nodes
+      if (this.sceneRef.planetaryReferences?.planetaryNodeGroups) {
+        Object.entries(this.sceneRef.planetaryReferences.planetaryNodeGroups).forEach(([planetName, nodeGroups]) => {
+          if (nodeGroups.ascending) {
+            nodeGroups.ascending.children.forEach(child => {
+              allTargets.push({
+                obj: child,
+                type: 'planetary-node',
+                meta: { planetName, nodeType: 'ascending', group: nodeGroups.ascending }
+              });
+            });
+          }
+          if (nodeGroups.descending) {
+            nodeGroups.descending.children.forEach(child => {
+              allTargets.push({
+                obj: child,
+                type: 'planetary-node',
+                meta: { planetName, nodeType: 'descending', group: nodeGroups.descending }
+              });
+            });
+          }
+        });
+      }
+
+      // Heliocentric planetary apsides
+      if (this.sceneRef.planetaryReferences?.planetaryApsisGroups) {
+        Object.entries(this.sceneRef.planetaryReferences.planetaryApsisGroups).forEach(([planetName, apsisGroups]) => {
+          if (apsisGroups.perihelion) {
+            apsisGroups.perihelion.children.forEach(child => {
+              allTargets.push({
+                obj: child,
+                type: 'planetary-apsis',
+                meta: { planetName, apsisType: 'perihelion', group: apsisGroups.perihelion }
+              });
+            });
+          }
+          if (apsisGroups.aphelion) {
+            apsisGroups.aphelion.children.forEach(child => {
+              allTargets.push({
+                obj: child,
+                type: 'planetary-apsis',
+                meta: { planetName, apsisType: 'aphelion', group: apsisGroups.aphelion }
+              });
+            });
+          }
+        });
+      }
+
       // Angles
       [
         this.sceneRef.spheres?.MC,
@@ -248,7 +296,9 @@ export default class InteractionManager {
         'sun': 3,              // Largest: 0.12 * CE_RADIUS
         'earth': 2,            // Similar to moon
         'heliocentric-planet': 1, // Same as ecliptic planets
-        'heliocentric-node': 0.8, // Smaller than planets
+        'heliocentric-node': 0.8, // Smaller than planets (lunar nodes)
+        'planetary-node': 0.8, // Same as lunar nodes
+        'planetary-apsis': 0.8, // Same as nodes
         'angle': 0.5,          // Even smaller
         'circle': 0,           // Lines
         'pole': 0.5,           // Small
@@ -286,6 +336,14 @@ export default class InteractionManager {
         } else if (type === 'heliocentric-node') {
           candidate.nodeName = meta.name;
           candidate.nodeGroup = meta.group;
+        } else if (type === 'planetary-node') {
+          candidate.planetName = meta.planetName;
+          candidate.nodeType = meta.nodeType;
+          candidate.nodeGroup = meta.group;
+        } else if (type === 'planetary-apsis') {
+          candidate.planetName = meta.planetName;
+          candidate.apsisType = meta.apsisType;
+          candidate.apsisGroup = meta.group;
         } else if (type === 'star') {
           candidate.starData = meta.userData;
         } else if (type === 'angle' || type === 'circle' || type === 'pole' || type === 'node' || type === 'ecliptic-dot' || type === 'planet-orbit') {
@@ -409,6 +467,36 @@ export default class InteractionManager {
           };
           const position = this.sceneRef.nodePositions && this.sceneRef.nodePositions[nodeName] ? this.sceneRef.nodePositions[nodeName] : '';
           this.setTooltipContent(`${symbols[nodeName]} ${position}`, fullNames[nodeName]);
+          this.positionTooltip(this.starInfoElement, event);
+          this.renderer.domElement.style.cursor = 'pointer';
+        }
+        else if (closest.type === 'planetary-node') {
+          const planetName = closest.planetName;
+          const nodeType = closest.nodeType;
+          const planetNames = {
+            mercury: 'Mercury', venus: 'Venus', mars: 'Mars',
+            jupiter: 'Jupiter', saturn: 'Saturn', uranus: 'Uranus',
+            neptune: 'Neptune', pluto: 'Pluto'
+          };
+          const fullPlanetName = planetNames[planetName] || planetName;
+          const nodeSymbol = nodeType === 'ascending' ? '☊' : '☋';
+          const nodeLabel = nodeType === 'ascending' ? 'Ascending Node' : 'Descending Node';
+          this.setTooltipContent(`${nodeSymbol} ${fullPlanetName}`, nodeLabel);
+          this.positionTooltip(this.starInfoElement, event);
+          this.renderer.domElement.style.cursor = 'pointer';
+        }
+        else if (closest.type === 'planetary-apsis') {
+          const planetName = closest.planetName;
+          const apsisType = closest.apsisType;
+          const planetNames = {
+            mercury: 'Mercury', venus: 'Venus', earth: 'Earth', mars: 'Mars',
+            jupiter: 'Jupiter', saturn: 'Saturn', uranus: 'Uranus',
+            neptune: 'Neptune', pluto: 'Pluto'
+          };
+          const fullPlanetName = planetNames[planetName] || planetName;
+          const apsisSymbol = apsisType === 'perihelion' ? '⊙' : '⊚';
+          const apsisLabel = apsisType === 'perihelion' ? 'Perihelion' : 'Aphelion';
+          this.setTooltipContent(`${apsisSymbol} ${fullPlanetName}`, apsisLabel);
           this.positionTooltip(this.starInfoElement, event);
           this.renderer.domElement.style.cursor = 'pointer';
         }
