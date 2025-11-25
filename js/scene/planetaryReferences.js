@@ -35,6 +35,7 @@ export default class PlanetaryReferences {
     this.sunEclipticOutline = null;
     this.moonOrbitOutline = null; // Moon's orbital path around Earth
     this.eclipticDots = []; // Store ecliptic rim dots for hover detection
+    this.lunarApsisSprites = {}; // Store apsis sprites for hover detection
 
     // Create all reference geometry
     this.createEarthReferences();
@@ -345,7 +346,7 @@ export default class PlanetaryReferences {
     };
 
     // Create perigee and apogee markers for the lunar orbit
-    const createApsisMarker = (symbol, name) => {
+    const createApsisMarker = (symbol, name, key, scaleMultiplier = 1.0) => {
       const group = new THREE.Group();
 
       // Create canvas with symbol
@@ -353,8 +354,8 @@ export default class PlanetaryReferences {
       canvas.width = 128;
       canvas.height = 128;
       const ctx = canvas.getContext('2d');
-      ctx.fillStyle = 'white';
-      ctx.font = 'bold 60px Arial';
+      ctx.fillStyle = '#aaaaff'; // Match moon orbit color
+      ctx.font = 'bold 80px Arial';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(symbol, 64, 64);
@@ -365,14 +366,16 @@ export default class PlanetaryReferences {
         map: texture,
         depthTest: true,
         transparent: true,
-        opacity: 0.9
+        opacity: 1.0
       });
       const sprite = new THREE.Sprite(material);
 
-      // Scale the sprite (similar to moon size)
-      const scale = this.EARTH_RADIUS * 0.3;
+      // Scale the sprite (larger for visibility)
+      const scale = this.EARTH_RADIUS * 3.0 * scaleMultiplier;
       sprite.scale.set(scale, scale, 1);
       sprite.userData.apsisName = name;
+
+      this.lunarApsisSprites[key] = sprite;
 
       group.add(sprite);
       group.userData.apsisName = name;
@@ -384,8 +387,9 @@ export default class PlanetaryReferences {
     };
 
     this.lunarApsisGroups = {
-      perigee: createApsisMarker('P', 'Perigee'),
-      apogee: createApsisMarker('A', 'Apogee')
+      perigee: createApsisMarker('P', 'Perigee', 'perigee'),
+      apogee: createApsisMarker('A', 'Apogee', 'apogee'),
+      lilith: createApsisMarker('⚸', 'Black Moon Lilith', 'lilith', 1.5)
     };
 
     // Planet orbital paths - will be created in updateSphere with ephemeris data

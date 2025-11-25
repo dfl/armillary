@@ -304,6 +304,13 @@ export default class InteractionManager {
         });
       }
 
+      // Lunar Apsides (Perigee, Apogee, Lilith)
+      if (this.sceneRef.lunarApsisSprites) {
+        Object.values(this.sceneRef.lunarApsisSprites).forEach(sprite => {
+          allTargets.push({ obj: sprite, type: 'lunar-apsis', meta: sprite });
+        });
+      }
+
       // Planet orbits
       if (this.sceneRef.planetaryReferences && this.sceneRef.planetaryReferences.planetOrbits) {
         Object.values(this.sceneRef.planetaryReferences.planetOrbits).forEach(orbit => {
@@ -340,6 +347,7 @@ export default class InteractionManager {
         'heliocentric-node': 0.8, // Smaller than planets (lunar nodes)
         'planetary-node': 0.8, // Same as lunar nodes
         'planetary-apsis': 0.8, // Same as nodes
+        'lunar-apsis': 0.8,    // Same as planetary apsides
         'angle': 0.5,          // Even smaller
         'circle': 0,           // Lines
         'pole': 0.5,           // Small
@@ -385,6 +393,8 @@ export default class InteractionManager {
           candidate.planetName = meta.planetName;
           candidate.apsisType = meta.apsisType;
           candidate.apsisGroup = meta.group;
+        } else if (type === 'lunar-apsis') {
+          candidate.objectData = meta;
         } else if (type === 'star') {
           candidate.starData = meta.userData;
         } else if (type === 'angle' || type === 'circle' || type === 'pole' || type === 'node' || type === 'ecliptic-dot' || type === 'planet-orbit') {
@@ -539,6 +549,19 @@ export default class InteractionManager {
           const apsisSymbol = apsisType === 'perihelion' ? '⊙' : '⊚';
           const apsisLabel = apsisType === 'perihelion' ? 'Perihelion' : 'Aphelion';
           this.setTooltipContent(`${apsisSymbol} ${fullPlanetName}`, apsisLabel);
+          this.positionTooltip(this.starInfoElement, event);
+          this.renderer.domElement.style.cursor = 'pointer';
+        }
+        else if (closest.type === 'lunar-apsis') {
+          const apsisName = closest.objectData.userData.apsisName;
+          const position = this.sceneRef.lunarApsisPositions && this.sceneRef.lunarApsisPositions[apsisName] ? this.sceneRef.lunarApsisPositions[apsisName] : '';
+          
+          let symbol = '';
+          if (apsisName === 'Perigee') symbol = 'P';
+          else if (apsisName === 'Apogee') symbol = 'A';
+          else if (apsisName === 'Black Moon Lilith') symbol = '⚸';
+          
+          this.setTooltipContent(`${symbol} ${apsisName} ${position}`, 'Lunar Orbit');
           this.positionTooltip(this.starInfoElement, event);
           this.renderer.domElement.style.cursor = 'pointer';
         }

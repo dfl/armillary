@@ -141,6 +141,9 @@ export class ArmillaryScene {
     this.sunZodiacPosition = "";
     this.moonZodiacPosition = "";
 
+    // Store lunar apsis positions for tooltips
+    this.lunarApsisPositions = {};
+
     // Store angle positions for tooltips
     this.anglePositions = {
       MC: "",
@@ -341,6 +344,7 @@ export class ArmillaryScene {
     );
     // Map ecliptic dots for hover detection
     this.eclipticDots = this.planetaryReferences.eclipticDots;
+    this.lunarApsisSprites = this.planetaryReferences.lunarApsisSprites;
 
     // 6. Camera Controller (zoom, stereo, starfield toggle)
     this.cameraController = new CameraController(
@@ -961,21 +965,26 @@ export class ArmillaryScene {
       // Apply rotations: ω first, then i, then Ω
       this.planetaryReferences.moonOrbitOutline.quaternion.copy(nodeRotation).multiply(inclinationRotation).multiply(perigeeRotation);
 
-      // Position perigee and apogee markers on the lunar orbit
+      // Position perigee, apogee, and Lilith markers on the lunar orbit
       if (this.planetaryReferences.lunarApsisGroups) {
         const params = this.planetaryReferences.moonOrbitalParams;
+        const a = params.semiMajorAxis;
+        const c = params.focalDistance;
 
-        // Perigee is at angle 0° (closest point, at -focalDistance from center)
-        const perigeeDistance = params.semiMajorAxis - params.focalDistance;
-        const perigeeLocal = new THREE.Vector3(-params.focalDistance, 0, 0);
+        // Perigee is at angle 0° (closest point): x = a - c
+        const perigeeLocal = new THREE.Vector3(a - c, 0, 0);
 
-        // Apogee is at angle 180° (farthest point)
-        const apogeeDistance = params.semiMajorAxis + params.focalDistance;
-        const apogeeLocal = new THREE.Vector3(params.semiMajorAxis * 2 - params.focalDistance, 0, 0);
+        // Apogee is at angle 180° (farthest point): x = -a - c
+        const apogeeLocal = new THREE.Vector3(-a - c, 0, 0);
+
+        // Black Moon Lilith is the empty focus: x = -2c
+        const lilithLocal = new THREE.Vector3(-2 * c, 0, 0);
 
         // Apply same rotation and position as moon orbit
-        const perigeeWorld = perigeeLocal.clone().applyQuaternion(this.planetaryReferences.moonOrbitOutline.quaternion);
-        const apogeeWorld = apogeeLocal.clone().applyQuaternion(this.planetaryReferences.moonOrbitOutline.quaternion);
+        const orbitQuat = this.planetaryReferences.moonOrbitOutline.quaternion;
+        const perigeeWorld = perigeeLocal.clone().applyQuaternion(orbitQuat);
+        const apogeeWorld = apogeeLocal.clone().applyQuaternion(orbitQuat);
+        const lilithWorld = lilithLocal.clone().applyQuaternion(orbitQuat);
 
         this.planetaryReferences.lunarApsisGroups.perigee.position.set(
           earthX + perigeeWorld.x * zoomScale,
@@ -987,15 +996,34 @@ export class ArmillaryScene {
           earthY + apogeeWorld.y * zoomScale,
           apogeeWorld.z * zoomScale
         );
+        this.planetaryReferences.lunarApsisGroups.lilith.position.set(
+          earthX + lilithWorld.x * zoomScale,
+          earthY + lilithWorld.y * zoomScale,
+          lilithWorld.z * zoomScale
+        );
+
+        // Calculate zodiac positions for tooltips
+        const getZodiacPos = (vector) => {
+          let angle = Math.atan2(vector.y, vector.x);
+          if (angle < 0) angle += 2 * Math.PI;
+          const deg = THREE.MathUtils.radToDeg(angle);
+          return astroCalc.toZodiacString(deg - ayanamshaDeg);
+        };
+
+        this.lunarApsisPositions['Perigee'] = getZodiacPos(perigeeWorld);
+        this.lunarApsisPositions['Apogee'] = getZodiacPos(apogeeWorld);
+        this.lunarApsisPositions['Black Moon Lilith'] = getZodiacPos(lilithWorld);
 
         // Scale markers with zoom
         this.planetaryReferences.lunarApsisGroups.perigee.scale.set(zoomScale, zoomScale, zoomScale);
         this.planetaryReferences.lunarApsisGroups.apogee.scale.set(zoomScale, zoomScale, zoomScale);
+        this.planetaryReferences.lunarApsisGroups.lilith.scale.set(zoomScale, zoomScale, zoomScale);
 
         // Show/hide with lunar orbit
         const lunarOrbitVisible = this.planetaryReferences.moonOrbitOutline.visible;
         this.planetaryReferences.lunarApsisGroups.perigee.visible = lunarOrbitVisible;
         this.planetaryReferences.lunarApsisGroups.apogee.visible = lunarOrbitVisible;
+        this.planetaryReferences.lunarApsisGroups.lilith.visible = lunarOrbitVisible;
       }
 
       // 2.6b. Position Heliocentric Lunar Nodes on the exaggerated elliptical orbit
@@ -1292,6 +1320,7 @@ export class ArmillaryScene {
     requestAnimationFrame(() => this.animate());
     this.controls.update();
     this.cameraController.updateEarthVisibility();
+    this.updateOrbitVisibility();
 
     if (this.cameraController.stereoEnabled) {
       // Update stereo camera positions based on main camera
@@ -1315,6 +1344,37 @@ export class ArmillaryScene {
       this.renderer.setViewport(0, 0, window.innerWidth, window.innerHeight);
       this.renderer.setScissor(0, 0, window.innerWidth, window.innerHeight);
       this.renderer.render(this.scene, this.camera);
+    }
+  }
+
+  updateOrbitVisibility() {
+    const distToObserver = this.camera.position.distanceTo(this.armillaryRoot.position);
+    const isEarthView = (distToObserver >= this.VIEW_MODE_THRESHOLD);
+
+    // Lunar Orbit & Nodes
+    const lunarOrbitToggle = document.getElementById('lunarOrbitToggle');
+    if (lunarOrbitToggle) {
+      const shouldShow = lunarOrbitToggle.checked && isEarthView;
+      // Check current state to avoid redundant updates
+      const currentVisible = this.planetaryReferences.moonOrbitOutline?.visible ?? false;
+      if (currentVisible !== shouldShow) {
+        this.toggleLunarOrbit(shouldShow);
+      }
+    }
+
+    // Planet Orbits
+    const planetOrbitsToggle = document.getElementById('planetOrbitsToggle');
+    if (planetOrbitsToggle) {
+      const shouldShow = planetOrbitsToggle.checked && isEarthView;
+      // Check current state of one planet orbit as proxy
+      const firstPlanetOrbit = this.planetaryReferences.planetOrbits ? Object.values(this.planetaryReferences.planetOrbits)[0] : null;
+      const currentVisible = firstPlanetOrbit?.visible ?? false;
+
+      if (this.planetaryReferences.planetOrbits && Object.keys(this.planetaryReferences.planetOrbits).length > 0) {
+        if (currentVisible !== shouldShow) {
+          this.togglePlanetOrbits(shouldShow);
+        }
+      }
     }
   }
 
