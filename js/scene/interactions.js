@@ -27,10 +27,14 @@ export default class InteractionManager {
     this.starNameElement2 = document.getElementById('starName2');
     this.constellationNameElement2 = document.getElementById('constellationName2');
 
+    // Track dragging state
+    this.isDragging = false;
+
     // Setup all interactions
     this.setupStarHover();
     this.setupPlanetDoubleClick();
     this.setupContextMenu();
+    this.setupDragDetection();
   }
 
   /**
@@ -74,6 +78,12 @@ export default class InteractionManager {
     const mouse = new THREE.Vector2();
 
     const onStarHover = (event) => {
+      // Skip tooltips if dragging
+      if (this.isDragging) {
+        this.hideTooltips();
+        return;
+      }
+
       // Skip tooltips if hovering over UI elements
       const target = event.target;
       if (target !== this.renderer.domElement) {
@@ -955,5 +965,32 @@ export default class InteractionManager {
       tooltipElement.style.left = left + 'px';
       tooltipElement.style.top = top + 'px';
     }
+  }
+
+  setupDragDetection() {
+    // Get the OrbitControls instance from the scene
+    const controls = this.sceneRef.controls;
+
+    // Listen for pointer down (start of potential drag)
+    this.renderer.domElement.addEventListener('pointerdown', () => {
+      this.isDragging = true;
+      this.renderer.domElement.style.cursor = 'grabbing';
+      this.hideTooltips();
+    });
+
+    // Listen for pointer up (end of drag)
+    this.renderer.domElement.addEventListener('pointerup', () => {
+      this.isDragging = false;
+      this.renderer.domElement.style.cursor = 'grab';
+    });
+
+    // Listen for pointer cancel (drag interrupted)
+    this.renderer.domElement.addEventListener('pointercancel', () => {
+      this.isDragging = false;
+      this.renderer.domElement.style.cursor = 'grab';
+    });
+
+    // Set initial cursor to grab when over canvas
+    this.renderer.domElement.style.cursor = 'grab';
   }
 }
