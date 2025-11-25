@@ -144,6 +144,31 @@ export default class PlanetaryReferences {
     this.geocentricEclipticOutline.userData.circleName = "Geocentric Ecliptic";
     this.geocentricEclipticGroup.add(this.geocentricEclipticOutline);
 
+    // Radial lines to mark zodiac sign boundaries (0° of each sign)
+    const radialLineGroup = new THREE.Group();
+    const radialLineMaterial = new THREE.LineBasicMaterial({
+      color: 0x888888,
+      transparent: true,
+      opacity: 0.3,
+      depthWrite: false
+    });
+
+    for (let i = 0; i < 12; i++) {
+      const angle = THREE.MathUtils.degToRad(i * 30); // 0°, 30°, 60°, etc.
+      const linePoints = [
+        new THREE.Vector3(0, 0, 0), // Center
+        new THREE.Vector3(
+          eclipticRadius * Math.cos(angle),
+          eclipticRadius * Math.sin(angle),
+          0
+        )
+      ];
+      const lineGeometry = new THREE.BufferGeometry().setFromPoints(linePoints);
+      const line = new THREE.Line(lineGeometry, radialLineMaterial);
+      radialLineGroup.add(line);
+    }
+    this.geocentricEclipticGroup.add(radialLineGroup);
+
     // Zodiac glyphs inside the ecliptic plane
     const zodiacGlyphRadius = eclipticRadius * 0.85;
     const zodiacGlyphs = Array.from({ length: 12 }, (_, i) => String.fromCodePoint(0x2648 + i) + '\uFE0E');

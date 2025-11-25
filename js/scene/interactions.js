@@ -137,7 +137,7 @@ export default class InteractionManager {
       // Scale threshold proportionally: smaller when zoomed in, larger when zoomed out
       // Base threshold of ~0.02 at standard viewing distance (CE_RADIUS * 10)
       const standardDistance = this.sceneRef.CE_RADIUS * 10;
-      raycaster.params.Line.threshold = (distanceToCenter / standardDistance) * 0.02 * this.sceneRef.CE_RADIUS;
+      raycaster.params.Line.threshold = (distanceToCenter / standardDistance) * 0.05 * this.sceneRef.CE_RADIUS;
 
       // Build a list of all potential targets to raycast against
       // We'll collect ALL objects and then intersect them all at once to get proper depth sorting
@@ -273,7 +273,8 @@ export default class InteractionManager {
         this.sceneRef.meridianOutline,
         this.sceneRef.primeVerticalOutline,
         this.sceneRef.celestialEquatorOutline,
-        this.sceneRef.outerEclipticLine
+        this.sceneRef.outerEclipticLine,
+        this.sceneRef.planetaryReferences?.moonOrbitOutline
       ].forEach(obj => {
         if (obj) allTargets.push({ obj, type: 'circle', meta: obj });
       });
@@ -467,7 +468,8 @@ export default class InteractionManager {
             "Meridian": "North-South great circle through zenith",
             "Prime Vertical": "East-West great circle through zenith",
             "Celestial Equator": "Projection of Earth's equator onto celestial sphere",
-            "Ecliptic": "Path of the Sun through the zodiac constellations"
+            "Ecliptic": "Path of the Sun through the zodiac constellations",
+            "Moon Orbit": "Moon's orbital path around Earth"
           };
           this.setTooltipContent(circleName, descriptions[circleName]);
           this.positionTooltip(this.starInfoElement, event);
