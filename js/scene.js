@@ -578,6 +578,11 @@ export class ArmillaryScene {
     const zoomScale = 1.0 - this.planetZoomFactor * 0.7; // At zoom=1.0, scale to 30% of original
     const sizeMultiplier = 1.0 / zoomScale; // Inverse: if distances shrink, sizes grow to compensate
 
+    // Update planet orbits to match the same transformations as planet positions
+    if (this.planetaryReferences) {
+      this.planetaryReferences.updatePlanetOrbits(this.planetZoomFactor, sizeMultiplier);
+    }
+
     // Realistic sun at ORIGIN (0,0,0) for heliocentric system
     this.realisticSunGroup.position.set(0, 0, 0);
     this.realisticSunGroup.scale.set(sizeMultiplier, sizeMultiplier, sizeMultiplier);

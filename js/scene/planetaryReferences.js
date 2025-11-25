@@ -304,6 +304,7 @@ export default class PlanetaryReferences {
 
     // Planet orbital paths - will be created in updateSphere with ephemeris data
     this.planetOrbits = {};
+    this.orbitalElements = null; // Store orbital elements for dynamic updates
 
     // Hide by default
     this.sunReferencesGroup.visible = false;
@@ -323,7 +324,7 @@ export default class PlanetaryReferences {
     // J2000.0 orbital elements (epoch Jan 1, 2000)
     // Format: { a: semi-major axis (AU), e: eccentricity, i: inclination (deg),
     //          Ω: longitude of ascending node (deg), ω: argument of perihelion (deg) }
-    const orbitalElements = {
+    this.orbitalElements = {
       mercury: { color: 0x8c7853, a: 0.38710, e: 0.20563, i: 7.005, Ω: 48.331, ω: 29.124 },
       venus:   { color: 0xffc649, a: 0.72333, e: 0.00677, i: 3.395, Ω: 76.680, ω: 54.884 },
       earth:   { color: 0x4488ff, a: 1.00000, e: 0.01671, i: 0.000, Ω: 0.000, ω: 102.937 },
@@ -335,8 +336,59 @@ export default class PlanetaryReferences {
       pluto:   { color: 0xbca89f, a: 39.4817, e: 0.24883, i: 17.140, Ω: 110.299, ω: 113.834 }
     };
 
-    Object.entries(orbitalElements).forEach(([planetName, elements]) => {
-      const { a, e, i, Ω, ω, color } = elements;
+    // Create orbit line objects (initially with no transformations)
+    Object.entries(this.orbitalElements).forEach(([planetName, elements]) => {
+      const { color, i, e } = elements;
+
+      const orbitLine = new THREE.Line(
+        new THREE.BufferGeometry(),
+        new THREE.LineDashedMaterial({
+          color: color,
+          opacity: 0.4,
+          transparent: true,
+          dashSize: 50.0,
+          gapSize: 50.0,
+          depthTest: true,
+          depthWrite: false
+        })
+      );
+
+      orbitLine.userData.circleName = `${planetName.charAt(0).toUpperCase() + planetName.slice(1)} Orbit`;
+      orbitLine.userData.inclination = i;
+      orbitLine.userData.planetName = planetName;
+      orbitLine.userData.eccentricity = e;
+
+      orbitLine.visible = false;
+      this.scene.add(orbitLine);
+      this.planetOrbits[planetName] = orbitLine;
+    });
+
+    // Update orbit geometries with no compression (planetZoomFactor = 0)
+    this.updatePlanetOrbits(0, 1.0);
+
+    // Set visibility based on checkbox state
+    const toggle = document.getElementById('planetOrbitsToggle');
+    if (toggle && toggle.checked) {
+      this.togglePlanetOrbits(true);
+    }
+  }
+
+  /**
+   * Update planet orbit geometries to match planet position transformations
+   * @param {number} planetZoomFactor - Zoom factor (0 = no zoom, 1 = max zoom)
+   * @param {number} sizeMultiplier - Size multiplier for latitude exaggeration
+   */
+  updatePlanetOrbits(planetZoomFactor, sizeMultiplier) {
+    if (!this.orbitalElements || !this.planetOrbits) {
+      return;
+    }
+
+    // Calculate zoom scale and distance compression (matching scene.js)
+    const zoomScale = 1.0 - planetZoomFactor * 0.7;
+    const distanceExponent = 1.0 - planetZoomFactor * 0.65; // 1.0 at no zoom, 0.35 at max zoom
+
+    Object.entries(this.orbitalElements).forEach(([planetName, elements]) => {
+      const { a, e, i, Ω, ω } = elements;
 
       // Generate orbit points using Keplerian elements
       const orbitPoints = [];
@@ -380,44 +432,34 @@ export default class PlanetaryReferences {
         const y3 = x2 * Math.sin(ΩRad) + y2 * Math.cos(ΩRad);
         const z3 = z2;
 
-        // Scale to visualization size
+        // Apply distance compression (matching planet position calculation in scene.js)
+        const distanceInAU = Math.sqrt(x3 * x3 + y3 * y3 + z3 * z3);
+        const compressedDistanceAU = Math.pow(distanceInAU, distanceExponent);
+        const compressionRatio = compressedDistanceAU / distanceInAU;
+
+        // Apply compression to x, y, z coordinates
+        const x3Compressed = x3 * compressionRatio;
+        const y3Compressed = y3 * compressionRatio;
+        let z3Compressed = z3 * compressionRatio;
+
+        // Exaggerate latitude by sizeMultiplier (matching planet position calculation)
+        z3Compressed *= sizeMultiplier;
+
+        // Scale to visualization size and apply zoom scale
         orbitPoints.push(new THREE.Vector3(
-          x3 * this.PLANET_DISTANCE_SCALE,
-          y3 * this.PLANET_DISTANCE_SCALE,
-          z3 * this.PLANET_DISTANCE_SCALE
+          x3Compressed * this.PLANET_DISTANCE_SCALE * zoomScale,
+          y3Compressed * this.PLANET_DISTANCE_SCALE * zoomScale,
+          z3Compressed * this.PLANET_DISTANCE_SCALE * zoomScale
         ));
       }
 
-      const orbitLine = new THREE.Line(
-        new THREE.BufferGeometry().setFromPoints(orbitPoints),
-        new THREE.LineDashedMaterial({
-          color: color,
-          opacity: 0.4,
-          transparent: true,
-          dashSize: 50.0,
-          gapSize: 50.0,
-          depthTest: true,
-          depthWrite: false
-        })
-      );
-
-      orbitLine.computeLineDistances();
-
-      orbitLine.userData.circleName = `${planetName.charAt(0).toUpperCase() + planetName.slice(1)} Orbit`;
-      orbitLine.userData.inclination = i;
-      orbitLine.userData.planetName = planetName;
-      orbitLine.userData.eccentricity = e;
-
-      orbitLine.visible = false;
-      this.scene.add(orbitLine);
-      this.planetOrbits[planetName] = orbitLine;
+      // Update the orbit line geometry
+      const orbitLine = this.planetOrbits[planetName];
+      if (orbitLine) {
+        orbitLine.geometry.setFromPoints(orbitPoints);
+        orbitLine.computeLineDistances();
+      }
     });
-
-    // Set visibility based on checkbox state
-    const toggle = document.getElementById('planetOrbitsToggle');
-    if (toggle && toggle.checked) {
-      this.togglePlanetOrbits(true);
-    }
   }
 
   toggleEarthReferences(visible) {
