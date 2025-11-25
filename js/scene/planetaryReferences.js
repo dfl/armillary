@@ -65,8 +65,8 @@ export default class PlanetaryReferences {
         transparent: true,
         depthTest: true,
         depthWrite: false,
-        dashSize: 5,
-        gapSize: 3
+        dashSize: 0.5,
+        gapSize: 0.5
       })
     );
     this.earthEquatorOutline.computeLineDistances();

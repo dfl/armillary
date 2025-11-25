@@ -159,7 +159,7 @@ export default class ReferenceGeometry {
     }
     this.celestialEquatorOutline = new THREE.Line(
       new THREE.BufferGeometry().setFromPoints(ceqPoints),
-      new THREE.LineDashedMaterial({ color: 0x00ffff, opacity: 0.6, transparent: true, dashSize: 0.5, gapSize: 0.3 })
+      new THREE.LineDashedMaterial({ color: 0x00ffff, opacity: 0.6, transparent: true, dashSize: 0.025, gapSize: 0.025 })
     );
     this.celestialEquatorOutline.computeLineDistances();
     this.celestialEquatorOutline.userData.circleName = "Celestial Equator";
