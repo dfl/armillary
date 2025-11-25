@@ -556,12 +556,12 @@ export default class InteractionManager {
           const apsisName = closest.objectData.userData.apsisName;
           const position = this.sceneRef.lunarApsisPositions && this.sceneRef.lunarApsisPositions[apsisName] ? this.sceneRef.lunarApsisPositions[apsisName] : '';
           
-          let symbol = '';
-          if (apsisName === 'Perigee') symbol = 'P';
-          else if (apsisName === 'Apogee') symbol = 'A';
-          else if (apsisName === 'Black Moon Lilith') symbol = '⚸';
+          let displayText = `${apsisName} ${position}`;
+          if (apsisName === 'Black Moon Lilith') {
+            displayText = `⚸ ${displayText}`;
+          }
           
-          this.setTooltipContent(`${symbol} ${apsisName} ${position}`, 'Lunar Orbit');
+          this.setTooltipContent(displayText, 'Lunar Orbit');
           this.positionTooltip(this.starInfoElement, event);
           this.renderer.domElement.style.cursor = 'pointer';
         }
