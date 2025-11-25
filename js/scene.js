@@ -685,9 +685,13 @@ export class ArmillaryScene {
         document.getElementById('earthReferencesToggle').checked;
       this.planetaryReferences.earthReferencesGroup.visible = shouldShowEarthRefs;
 
-      // Enable Earth depthWrite when Earth references OR Sun ecliptic plane are visible
+      // Check if lunar orbit is visible
+      const lunarOrbitVisible = this.planetaryReferences.moonOrbitOutline &&
+        this.planetaryReferences.moonOrbitOutline.visible;
+
+      // Enable Earth depthWrite when Earth references OR Sun ecliptic plane OR lunar orbit are visible
       // This allows them to properly clip against Earth
-      const shouldEnableEarthDepth = shouldShowEarthRefs || sunEclipticVisible;
+      const shouldEnableEarthDepth = shouldShowEarthRefs || sunEclipticVisible || lunarOrbitVisible;
       if (this.earthMaterial && this.earthMaterial.depthWrite !== shouldEnableEarthDepth) {
         this.earthMaterial.depthWrite = shouldEnableEarthDepth;
         this.earthMaterial.needsUpdate = true;
@@ -1252,8 +1256,12 @@ export class ArmillaryScene {
     const sunEclipticVisible = document.getElementById('sunReferencesToggle') &&
       document.getElementById('sunReferencesToggle').checked;
 
-    // Enable Earth depthWrite when Earth references OR Sun ecliptic plane are visible
-    const shouldEnableDepth = shouldShowEarthRefs || sunEclipticVisible;
+    // Check if lunar orbit is visible
+    const lunarOrbitVisible = this.planetaryReferences.moonOrbitOutline &&
+      this.planetaryReferences.moonOrbitOutline.visible;
+
+    // Enable Earth depthWrite when Earth references OR Sun ecliptic plane OR lunar orbit are visible
+    const shouldEnableDepth = shouldShowEarthRefs || sunEclipticVisible || lunarOrbitVisible;
 
     if (this.earthMaterial && this.earthMaterial.depthWrite !== shouldEnableDepth) {
       this.earthMaterial.depthWrite = shouldEnableDepth;
@@ -1279,8 +1287,12 @@ export class ArmillaryScene {
       document.getElementById('earthReferencesToggle') &&
       document.getElementById('earthReferencesToggle').checked;
 
-    // Enable Earth depthWrite when Earth references OR Sun ecliptic plane are visible
-    const shouldEnableDepth = shouldShowEarthRefs || visible;
+    // Check if lunar orbit is visible
+    const lunarOrbitVisible = this.planetaryReferences.moonOrbitOutline &&
+      this.planetaryReferences.moonOrbitOutline.visible;
+
+    // Enable Earth depthWrite when Earth references OR Sun ecliptic plane OR lunar orbit are visible
+    const shouldEnableDepth = shouldShowEarthRefs || visible || lunarOrbitVisible;
 
     if (this.earthMaterial && this.earthMaterial.depthWrite !== shouldEnableDepth) {
       this.earthMaterial.depthWrite = shouldEnableDepth;
@@ -1302,6 +1314,25 @@ export class ArmillaryScene {
       Object.values(this.nodeLabels).forEach(label => {
         label.visible = visible;
       });
+    }
+
+    // Update Earth depthWrite when lunar orbit is toggled
+    const distToObserver = this.camera.position.distanceTo(this.armillaryRoot.position);
+    const isEarthView = (distToObserver >= this.VIEW_MODE_THRESHOLD);
+    const shouldShowEarthRefs = isEarthView &&
+      document.getElementById('earthReferencesToggle') &&
+      document.getElementById('earthReferencesToggle').checked;
+
+    // Check if Sun ecliptic plane is visible
+    const sunEclipticVisible = document.getElementById('sunReferencesToggle') &&
+      document.getElementById('sunReferencesToggle').checked;
+
+    // Enable Earth depthWrite when Earth references OR Sun ecliptic plane OR lunar orbit are visible
+    const shouldEnableDepth = shouldShowEarthRefs || sunEclipticVisible || visible;
+
+    if (this.earthMaterial && this.earthMaterial.depthWrite !== shouldEnableDepth) {
+      this.earthMaterial.depthWrite = shouldEnableDepth;
+      this.earthMaterial.needsUpdate = true;
     }
   }
 
