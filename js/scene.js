@@ -1002,17 +1002,19 @@ export class ArmillaryScene {
           lilithWorld.z * zoomScale
         );
 
-        // Calculate zodiac positions for tooltips
-        const getZodiacPos = (vector) => {
-          let angle = Math.atan2(vector.y, vector.x);
-          if (angle < 0) angle += 2 * Math.PI;
-          const deg = THREE.MathUtils.radToDeg(angle);
-          return astroCalc.toZodiacString(deg - ayanamshaDeg);
-        };
+        // Calculate zodiac positions for tooltips using astronomical data
+        // We use the true astronomical values rather than deriving from the visual position
+        // because the visual orbit might be exaggerated for visibility
+        const apsides = astroCalc.calculateLunarApsides(julianDate);
 
-        this.lunarApsisPositions['Perigee'] = getZodiacPos(perigeeWorld);
-        this.lunarApsisPositions['Apogee'] = getZodiacPos(apogeeWorld);
-        this.lunarApsisPositions['Black Moon Lilith'] = getZodiacPos(lilithWorld);
+        this.lunarApsisPositions['Perigee'] = astroCalc.toZodiacString(apsides.perigee - ayanamshaDeg);
+        this.lunarApsisPositions['Apogee'] = astroCalc.toZodiacString(apsides.apogee - ayanamshaDeg);
+        this.lunarApsisPositions['Black Moon Lilith'] = astroCalc.toZodiacString(apsides.lilith - ayanamshaDeg);
+
+        // Also update the user data on the sprites themselves
+        if (this.planetaryReferences) {
+          this.planetaryReferences.updateLunarApsidesLongitudes(astroCalc, julianDate);
+        }
 
         // Scale markers with zoom
         this.planetaryReferences.lunarApsisGroups.perigee.scale.set(zoomScale, zoomScale, zoomScale);
