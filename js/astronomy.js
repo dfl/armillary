@@ -8,6 +8,23 @@ export class AstronomyCalculator {
     this.J2000_EPOCH = 2451545.0;
     // nominal mean obliquity (radians) fallback — we still call calculateObliquity(JD) when needed
     this.OBLIQUITY = 23.44 * Math.PI / 180;
+
+    // Keplerian orbital elements at J2000.0 epoch (Jan 1, 2000, 12:00 TT)
+    // Based on NASA JPL approximations for 1800-2050
+    // Format: { a: semi-major axis (AU), e: eccentricity, I: inclination (deg),
+    //          L: mean longitude (deg), pomega: longitude of perihelion (deg),
+    //          Omega: longitude of ascending node (deg) }
+    this.orbitalElements = {
+      mercury: { a: 0.38709927, e: 0.20563593, I: 7.00497902, L: 252.25032350, pomega: 77.45779628, Omega: 48.33076593 },
+      venus:   { a: 0.72333566, e: 0.00677672, I: 3.39467605, L: 181.97909950, pomega: 131.60246718, Omega: 76.67984255 },
+      earth:   { a: 1.00000261, e: 0.01671123, I: -0.00001531, L: 100.46457166, pomega: 102.93768193, Omega: 0.0 },
+      mars:    { a: 1.52371034, e: 0.09339410, I: 1.84969142, L: -4.55343205, pomega: -23.94362959, Omega: 49.55953891 },
+      jupiter: { a: 5.20288700, e: 0.04838624, I: 1.30439695, L: 34.39644051, pomega: 14.72847983, Omega: 100.47390909 },
+      saturn:  { a: 9.53667594, e: 0.05386179, I: 2.48599187, L: 49.95424423, pomega: 92.59887831, Omega: 113.66242448 },
+      uranus:  { a: 19.18916464, e: 0.04725744, I: 0.77263783, L: 313.23810451, pomega: 170.95427630, Omega: 74.01692503 },
+      neptune: { a: 30.06992276, e: 0.00859048, I: 1.77004347, L: -55.12002969, pomega: 44.96476227, Omega: 131.78422574 },
+      pluto:   { a: 39.48211675, e: 0.24882730, I: 17.14001206, L: 238.92903833, pomega: 224.06891629, Omega: 110.30393684 }
+    };
   }
 
   // -----------------------
@@ -398,6 +415,125 @@ export class AstronomyCalculator {
   }
 
   /**
+   * Solve Kepler's equation: M = E - e*sin(E)
+   * Uses Newton-Raphson iteration to find eccentric anomaly E
+   * M: mean anomaly (radians)
+   * e: eccentricity
+   * Returns: eccentric anomaly E (radians)
+   */
+  solveKeplerEquation(M, e, tolerance = 1e-8, maxIterations = 30) {
+    // Initial guess
+    let E = M;
+
+    for (let i = 0; i < maxIterations; i++) {
+      const dE = (E - e * Math.sin(E) - M) / (1 - e * Math.cos(E));
+      E -= dE;
+
+      if (Math.abs(dE) < tolerance) {
+        return E;
+      }
+    }
+
+    return E; // Return best guess if not converged
+  }
+
+  /**
+   * Calculate heliocentric position from Keplerian orbital elements
+   * planetName: 'mercury', 'venus', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune', 'pluto'
+   * Returns { longitude: radians, latitude: radians, distance: AU }
+   */
+  calculateHeliocentricFromKeplerian(planetName, julianDate) {
+    const elements = this.orbitalElements[planetName];
+    if (!elements) {
+      return null;
+    }
+
+    // Calculate time from J2000 epoch in centuries
+    const T = (julianDate - this.J2000_EPOCH) / 36525.0;
+
+    // For first-order approximation, we assume elements are constant
+    // (More accurate would include rates of change, but this is sufficient)
+    const a = elements.a;
+    const e = elements.e;
+    const I = this._degToRad(elements.I);
+    const L = this._degToRad(elements.L);
+    const pomega = this._degToRad(elements.pomega); // longitude of perihelion
+    const Omega = this._degToRad(elements.Omega); // longitude of ascending node
+
+    // Calculate argument of perihelion (ω) and mean longitude at date
+    const omega = pomega - Omega; // argument of perihelion
+
+    // Mean anomaly: M = L - pomega
+    // We need to account for time progression: mean longitude increases over time
+    // Mean motion n (rad/day) = sqrt(GM_sun/a^3), but for our units:
+    // n (deg/century) ≈ 360 * 36525 / period, where period depends on a^3
+    // Simplified: use mean longitude at epoch and adjust by approximate rate
+    const n = this._degToRad(360.0 / 365.25) / Math.pow(a, 1.5); // Mean motion in radians/day
+    const daysSinceEpoch = (julianDate - this.J2000_EPOCH);
+    const L_current = L + n * daysSinceEpoch;
+
+    let M = L_current - pomega;
+
+    // Normalize mean anomaly to [0, 2π]
+    M = M % (2 * Math.PI);
+    if (M < 0) M += 2 * Math.PI;
+
+    // Solve Kepler's equation for eccentric anomaly
+    const E = this.solveKeplerEquation(M, e);
+
+    // Calculate true anomaly (ν) from eccentric anomaly
+    const nu = 2 * Math.atan2(
+      Math.sqrt(1 + e) * Math.sin(E / 2),
+      Math.sqrt(1 - e) * Math.cos(E / 2)
+    );
+
+    // Calculate heliocentric distance
+    const r = a * (1 - e * Math.cos(E));
+
+    // Position in orbital plane (perihelion at x-axis)
+    const xOrb = r * Math.cos(nu);
+    const yOrb = r * Math.sin(nu);
+    const zOrb = 0;
+
+    // Transform to ecliptic coordinates:
+    // 1. Rotate by argument of perihelion (ω) around z-axis
+    // 2. Rotate by inclination (I) around x-axis
+    // 3. Rotate by longitude of ascending node (Ω) around z-axis
+
+    // Step 1: Rotate by ω
+    const cosω = Math.cos(omega);
+    const sinω = Math.sin(omega);
+    const x1 = xOrb * cosω - yOrb * sinω;
+    const y1 = xOrb * sinω + yOrb * cosω;
+    const z1 = zOrb;
+
+    // Step 2: Rotate by I
+    const cosI = Math.cos(I);
+    const sinI = Math.sin(I);
+    const x2 = x1;
+    const y2 = y1 * cosI - z1 * sinI;
+    const z2 = y1 * sinI + z1 * cosI;
+
+    // Step 3: Rotate by Ω
+    const cosΩ = Math.cos(Omega);
+    const sinΩ = Math.sin(Omega);
+    const x3 = x2 * cosΩ - y2 * sinΩ;
+    const y3 = x2 * sinΩ + y2 * cosΩ;
+    const z3 = z2;
+
+    // Convert Cartesian to ecliptic longitude and latitude
+    const longitude = Math.atan2(y3, x3);
+    const latitude = Math.atan2(z3, Math.sqrt(x3 * x3 + y3 * y3));
+    const distance = r;
+
+    return {
+      longitude: (longitude + 2 * Math.PI) % (2 * Math.PI), // Normalize to [0, 2π]
+      latitude: latitude,
+      distance: distance
+    };
+  }
+
+  /**
    * Calculate planet's position using ephemeris npm package
    * planetName: 'mercury', 'venus', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune', 'pluto'
    * Returns {
@@ -409,8 +545,16 @@ export class AstronomyCalculator {
    */
   calculatePlanetPosition(planetName, currentDay, currentYear, month, day, hours, minutes) {
     debugLog.log(`calculatePlanetPosition called for ${planetName}`);
+
+    // Calculate Julian Date for Keplerian calculations
+    const date = new Date(Date.UTC(currentYear, month, day, hours, minutes, 0));
+    const julianDate = date.getTime() / 86400000 + 2440587.5;
+
+    // Calculate heliocentric position from Keplerian elements
+    const keplerianHelio = this.calculateHeliocentricFromKeplerian(planetName, julianDate);
+    debugLog.log(`  Keplerian heliocentric for ${planetName}:`, keplerianHelio);
+
     try {
-      const date = new Date(Date.UTC(currentYear, month, day, hours, minutes, 0));
       debugLog.log(`  Date: ${date.toISOString()}`);
       const result = ephemeris.getAllPlanets(date, 0, 0);
       debugLog.log(`  Ephemeris result keys:`, result ? Object.keys(result) : 'null');
@@ -420,47 +564,28 @@ export class AstronomyCalculator {
         ? result.observed[planetName]
         : (result && result[planetName] ? result[planetName] : null);
 
-      // Get heliocentric data (relative to Sun) for 3D positioning
-      const heliocentricObj = result && result.heliocentric && result.heliocentric[planetName]
-        ? result.heliocentric[planetName]
-        : null;
-
       debugLog.log(`  Geocentric object for ${planetName}:`, geocentricObj ? Object.keys(geocentricObj) : 'null');
-      debugLog.log(`  Heliocentric object for ${planetName}:`, heliocentricObj ? Object.keys(heliocentricObj) : 'null');
 
       if (geocentricObj) {
         const geocentricLon = geocentricObj.apparentLongitudeDd ?? geocentricObj.longitude ?? geocentricObj.lon ?? geocentricObj.lambda;
         const geocentricLat = geocentricObj.apparentLatitudeDd ?? geocentricObj.latitude ?? geocentricObj.lat ?? geocentricObj.beta;
 
-        // Try to get heliocentric position
-        const heliocentricLon = heliocentricObj ? (heliocentricObj.longitude ?? heliocentricObj.lon ?? heliocentricObj.lambda) : null;
-        const heliocentricLat = heliocentricObj ? (heliocentricObj.latitude ?? heliocentricObj.lat ?? heliocentricObj.beta) : null;
-        const heliocentricDist = heliocentricObj ? (heliocentricObj.distance ?? heliocentricObj.dist ?? heliocentricObj.r) : null;
-
         debugLog.log(`  Geocentric longitude value:`, geocentricLon);
         debugLog.log(`  Geocentric latitude value:`, geocentricLat);
-        debugLog.log(`  Heliocentric longitude value:`, heliocentricLon);
-        debugLog.log(`  Heliocentric latitude value:`, heliocentricLat);
-        debugLog.log(`  Heliocentric distance value:`, heliocentricDist);
 
         if (typeof geocentricLon === 'number' && !Number.isNaN(geocentricLon)) {
           let geocentricLonDeg = this._deg(geocentricLon);
           debugLog.log(`  Normalized geocentric longitude (deg):`, geocentricLonDeg);
 
+          // Use Keplerian heliocentric position for accurate prograde motion
           return {
             geocentricLongitude: this._degToRad(geocentricLonDeg),
             geocentricLatitude: (typeof geocentricLat === 'number' && !Number.isNaN(geocentricLat))
               ? this._degToRad(geocentricLat)
               : 0,
-            heliocentricLongitude: (typeof heliocentricLon === 'number' && !Number.isNaN(heliocentricLon))
-              ? this._degToRad(this._deg(heliocentricLon))
-              : null,
-            heliocentricLatitude: (typeof heliocentricLat === 'number' && !Number.isNaN(heliocentricLat))
-              ? this._degToRad(heliocentricLat)
-              : 0,
-            heliocentricDistance: (typeof heliocentricDist === 'number' && !Number.isNaN(heliocentricDist))
-              ? heliocentricDist
-              : null
+            heliocentricLongitude: keplerianHelio ? keplerianHelio.longitude : null,
+            heliocentricLatitude: keplerianHelio ? keplerianHelio.latitude : 0,
+            heliocentricDistance: keplerianHelio ? keplerianHelio.distance : null
           };
         }
       }
@@ -468,9 +593,15 @@ export class AstronomyCalculator {
       debugLog.warn(`${planetName} ephemeris call failed:`, e);
     }
 
-    // Fallback
+    // Fallback - still use Keplerian for heliocentric if we have it
     debugLog.warn(`Using fallback position for ${planetName}`);
-    return { geocentricLongitude: 0, geocentricLatitude: 0, heliocentricLongitude: null, heliocentricLatitude: 0, heliocentricDistance: null };
+    return {
+      geocentricLongitude: 0,
+      geocentricLatitude: 0,
+      heliocentricLongitude: keplerianHelio ? keplerianHelio.longitude : null,
+      heliocentricLatitude: keplerianHelio ? keplerianHelio.latitude : 0,
+      heliocentricDistance: keplerianHelio ? keplerianHelio.distance : null
+    };
   }
 
   /**
