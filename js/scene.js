@@ -1442,6 +1442,13 @@ export class ArmillaryScene {
       });
     }
 
+    // Toggle lunar apsis markers (perigee/apogee)
+    if (this.planetaryReferences.lunarApsisGroups) {
+      Object.values(this.planetaryReferences.lunarApsisGroups).forEach(apsisGroup => {
+        apsisGroup.visible = visible;
+      });
+    }
+
     // Update Earth depthWrite when lunar orbit is toggled
     const distToObserver = this.camera.position.distanceTo(this.armillaryRoot.position);
     const isEarthView = (distToObserver >= this.VIEW_MODE_THRESHOLD);
