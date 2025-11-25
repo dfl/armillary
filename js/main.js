@@ -472,6 +472,51 @@ window.addEventListener('keydown', (e) => {
   }
 });
 
+// Animation control modal for mobile
+const animationControlButton = document.getElementById('animationControlButton');
+const animationControlModal = document.getElementById('animationControlModal');
+
+animationControlButton.addEventListener('click', (e) => {
+  e.stopPropagation();
+  animationControlModal.classList.toggle('visible');
+});
+
+// Handle animation control button clicks
+const animationControlBtns = document.querySelectorAll('.animation-control-btn');
+animationControlBtns.forEach(btn => {
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const action = btn.dataset.action;
+
+    if (action === 'play-pause') {
+      // Simulate spacebar key press
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
+    } else if (action === 'slower') {
+      // Simulate '[' key press
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: '[' }));
+    } else if (action === 'faster') {
+      // Simulate ']' key press
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: ']' }));
+    }
+  });
+});
+
+// Close animation control modal when clicking outside
+document.addEventListener('click', (e) => {
+  if (animationControlModal.classList.contains('visible') &&
+      !animationControlModal.contains(e.target) &&
+      e.target !== animationControlButton) {
+    animationControlModal.classList.remove('visible');
+  }
+});
+
+// Close animation control modal with Escape key
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && animationControlModal.classList.contains('visible')) {
+    animationControlModal.classList.remove('visible');
+  }
+});
+
 // Load state from URL first
 const hasURLState = uiManager.loadStateFromURL(parser);
 
