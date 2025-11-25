@@ -117,6 +117,12 @@ export default class CameraController {
       const zoomDistance = targetRadius * 4; // Distance from surface
       const direction = camera.position.clone().sub(targetWorldPos).normalize();
       newCameraPos = targetWorldPos.clone().add(direction.multiplyScalar(zoomDistance));
+
+      // Align camera up with ecliptic north (+Z in zodiac group's local space)
+      const zodiacWorldQuaternion = new THREE.Quaternion();
+      this.sceneRef.zodiacGroup.getWorldQuaternion(zodiacWorldQuaternion);
+      const localUp = new THREE.Vector3(0, 0, 1); // Ecliptic north pole
+      newUp = localUp.applyQuaternion(zodiacWorldQuaternion);
     }
 
     if (skipAnimation) {
