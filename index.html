@@ -132,7 +132,7 @@
         Stereoscopic View (Cross-eyed)
       </label>
       <br>
-      <div style="display: block">
+      <div style="display: none">
         Eye Separation:
         <input
           autocomplete="off"
@@ -221,6 +221,12 @@
 
     <div id="animationControlModal" class="animation-control-modal">
       <div class="animation-control-content">
+        <button class="animation-control-btn" data-action="reset">
+          🔄
+          <br>
+          <span>Reset</span>
+        </button>
+
         <button class="animation-control-btn" data-action="slower">
           ⏪
           <br>

@@ -553,6 +553,21 @@ animationControlBtns.forEach(btn => {
 
       // Close the animation control modal
       animationControlModal.classList.remove('visible');
+    } else if (action === 'reset') {
+      // Reset URL parameters except datetime and location
+      const params = new URLSearchParams(window.location.hash.slice(1));
+      const dt = params.get('dt');
+      const loc = params.get('loc');
+
+      // Clear all params and only keep dt and loc
+      const newParams = new URLSearchParams();
+      if (dt) newParams.set('dt', dt);
+      if (loc) newParams.set('loc', loc);
+
+      window.history.replaceState({}, '', `#${newParams.toString()}`);
+
+      // Reload the page to reset everything
+      window.location.reload();
     }
   });
 });

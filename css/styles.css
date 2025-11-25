@@ -264,8 +264,13 @@ input[type="text"] {
   flex: 1;
 }
 
-.animation-control-btn:not([data-action="zoom-to"]) {
+.animation-control-btn:not([data-action="zoom-to"]):not([data-action="reset"]) {
   margin: 0 10px;
+}
+
+.animation-control-btn[data-action="reset"] {
+  position: absolute;
+  left: 20px;
 }
 
 .animation-control-btn[data-action="zoom-to"] {
