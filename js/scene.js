@@ -646,6 +646,9 @@ export class ArmillaryScene {
     const basis = new THREE.Matrix4().makeBasis(west, up, north);
     this.armillaryRoot.quaternion.setFromRotationMatrix(basis);
 
+    // Force matrix update after position/rotation changes
+    this.armillaryRoot.updateMatrixWorld(true);
+
     // Move camera and controls to follow the observer's geographic location
     // Store previous armillary root position and rotation
     if (!this.prevArmillaryPos) {
@@ -694,14 +697,18 @@ export class ArmillaryScene {
     // Adjust controls target and camera motion based on view distance
     if (distToObserver < this.VIEW_MODE_THRESHOLD) {
       // Horizon View: camera follows geographic location on Earth's surface
-      // Move camera to follow Earth's orbital position and rotation
+      // Lock controls target to center of horizon (armillaryRoot origin in world space)
+      // This ensures orbital rotation happens around the horizon center, not a point on the edge
+      this.controls.target.copy(this.armillaryRoot.position);
+
+      // Move camera to follow Earth's position
       this.camera.position.add(armillaryDelta);
-      this.controls.target.add(armillaryDelta);
 
       // Rotate camera to follow the horizon orientation (keep compass fixed)
+      // Calculate camera's offset from target, rotate it, then reposition camera
       const offset = new THREE.Vector3().subVectors(this.camera.position, this.controls.target);
       offset.applyQuaternion(deltaQuat);
-      this.camera.position.addVectors(this.controls.target, offset);
+      this.camera.position.copy(this.controls.target).add(offset);
       this.camera.up.applyQuaternion(deltaQuat);
     } else {
       // Earth View: orbit around a celestial object

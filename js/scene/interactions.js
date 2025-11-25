@@ -347,8 +347,8 @@ export default class InteractionManager {
 
         const { type, meta } = target;
 
-        // Skip earth if not visible enough
-        if (type === 'earth' && earthOpacity <= 0.1) return;
+        // Skip earth if not visible enough (only show at Earth zoom level, not at horizon zoom)
+        if (type === 'earth' && earthOpacity < 0.5) return;
 
         // Skip stars without proper metadata
         if (type === 'star' && (!meta.userData.name || !meta.userData.constellation)) return;

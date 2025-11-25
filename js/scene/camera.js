@@ -152,11 +152,25 @@ export default class CameraController {
           ? 2 * progress * progress
           : 1 - Math.pow(-2 * progress + 2, 2) / 2;
 
+        // For horizon zoom, dynamically track armillaryRoot position and orientation during animation
+        // to handle cases where Earth moves while zooming
+        let currentTargetPos = targetWorldPos;
+        let currentCameraPos = newCameraPos;
+        if (targetName === 'horizon') {
+          currentTargetPos = new THREE.Vector3();
+          this.sceneRef.armillaryRoot.getWorldPosition(currentTargetPos);
+
+          // Recalculate camera position based on current armillary orientation
+          const localOffset = new THREE.Vector3(0, targetRadius * 2.0, targetRadius * 6.0);
+          const worldOffset = localOffset.clone().applyQuaternion(this.sceneRef.armillaryRoot.quaternion);
+          currentCameraPos = currentTargetPos.clone().add(worldOffset);
+        }
+
         // Interpolate position
-        camera.position.lerpVectors(startPos, newCameraPos, eased);
+        camera.position.lerpVectors(startPos, currentCameraPos, eased);
 
         // Interpolate target
-        this.controls.target.lerpVectors(startTarget, targetWorldPos, eased);
+        this.controls.target.lerpVectors(startTarget, currentTargetPos, eased);
 
         // Interpolate up vector
         camera.up.lerpVectors(startUp, newUp, eased).normalize();
