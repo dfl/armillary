@@ -1104,6 +1104,13 @@ export class ArmillaryScene {
     // Store zoom factor (0 = accurate, 1.0 = max zoom)
     // This will be used in updateSphere to adjust planet positions and sizes
     this.planetZoomFactor = zoom;
+    // Update camera position if zoomed to a target (after updateSphere recalculates positions)
+    if (this.cameraController) {
+      // Defer camera update to after next render so new scales are applied
+      requestAnimationFrame(() => {
+        this.cameraController.updateForPlanetZoom();
+      });
+    }
   }
 
   toggleStarfield(visible) {

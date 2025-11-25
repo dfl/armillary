@@ -26,9 +26,13 @@ export default class CameraController {
     // Properties
     this.stereoEnabled = false;
     this.eyeSeparation = 0.3;
+    this.currentZoomTarget = null; // Track current zoom target for dynamic updates
   }
 
-  zoomToTarget(targetName) {
+  zoomToTarget(targetName, skipAnimation = false) {
+    // Store current zoom target for dynamic updates when planet zoom changes
+    this.currentZoomTarget = targetName;
+
     let targetWorldPos = new THREE.Vector3();
     let targetRadius = null;
     const camera = this.stereoEnabled ? this.camera : this.camera;
@@ -59,7 +63,9 @@ export default class CameraController {
       // Account for distance compression: Pluto at 39.48 AU gets compressed
       const distanceExponent = 1.0 - this.sceneRef.planetZoomFactor * 0.65;
       const compressedPlutoDistAU = Math.pow(39.48, distanceExponent);
-      targetRadius = compressedPlutoDistAU * this.sceneRef.PLANET_DISTANCE_SCALE * 1.3; // Pluto's orbit * 1.3 for margin
+      // Apply zoom scale (same as in scene.js planet positioning)
+      const zoomScale = 1.0 - this.sceneRef.planetZoomFactor * 0.7;
+      targetRadius = compressedPlutoDistAU * this.sceneRef.PLANET_DISTANCE_SCALE * zoomScale * 1.3; // Pluto's orbit * 1.3 for margin
     } else if (this.sceneRef.planetGroups[targetName]) {
       this.sceneRef.planetGroups[targetName].group.getWorldPosition(targetWorldPos);
       // Get the actual visual radius (accounting for planet scale)
@@ -113,47 +119,63 @@ export default class CameraController {
       newCameraPos = targetWorldPos.clone().add(direction.multiplyScalar(zoomDistance));
     }
 
-    // Smoothly animate camera
-    const startPos = camera.position.clone();
-    const startTarget = this.controls.target.clone();
-    const startUp = camera.up.clone();
-    const duration = 1000; // 1 second
-    const startTime = performance.now();
-
-    // Disable controls during animation to prevent conflict
-    this.controls.enabled = false;
-
-    const animateCamera = () => {
-      const elapsed = performance.now() - startTime;
-      const progress = Math.min(elapsed / duration, 1);
-
-      // Ease-in-out function
-      const eased = progress < 0.5
-        ? 2 * progress * progress
-        : 1 - Math.pow(-2 * progress + 2, 2) / 2;
-
-      // Interpolate position
-      camera.position.lerpVectors(startPos, newCameraPos, eased);
-
-      // Interpolate target
-      this.controls.target.lerpVectors(startTarget, targetWorldPos, eased);
-
-      // Interpolate up vector
-      camera.up.lerpVectors(startUp, newUp, eased).normalize();
-
-      // Ensure camera looks at target during transition
+    if (skipAnimation) {
+      // Immediate update without animation (for planet zoom changes)
+      camera.position.copy(newCameraPos);
+      this.controls.target.copy(targetWorldPos);
+      camera.up.copy(newUp);
       camera.lookAt(this.controls.target);
+      this.controls.update();
+    } else {
+      // Smoothly animate camera
+      const startPos = camera.position.clone();
+      const startTarget = this.controls.target.clone();
+      const startUp = camera.up.clone();
+      const duration = 1000; // 1 second
+      const startTime = performance.now();
 
-      if (progress < 1) {
-        requestAnimationFrame(animateCamera);
-      } else {
-        // Animation complete
-        this.controls.enabled = true;
-        this.controls.update();
-      }
-    };
+      // Disable controls during animation to prevent conflict
+      this.controls.enabled = false;
 
-    animateCamera();
+      const animateCamera = () => {
+        const elapsed = performance.now() - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+
+        // Ease-in-out function
+        const eased = progress < 0.5
+          ? 2 * progress * progress
+          : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+
+        // Interpolate position
+        camera.position.lerpVectors(startPos, newCameraPos, eased);
+
+        // Interpolate target
+        this.controls.target.lerpVectors(startTarget, targetWorldPos, eased);
+
+        // Interpolate up vector
+        camera.up.lerpVectors(startUp, newUp, eased).normalize();
+
+        // Ensure camera looks at target during transition
+        camera.lookAt(this.controls.target);
+
+        if (progress < 1) {
+          requestAnimationFrame(animateCamera);
+        } else {
+          // Animation complete
+          this.controls.enabled = true;
+          this.controls.update();
+        }
+      };
+
+      animateCamera();
+    }
+  }
+
+  updateForPlanetZoom() {
+    // Re-zoom to current target if one is set (for dynamic planet zoom updates)
+    if (this.currentZoomTarget) {
+      this.zoomToTarget(this.currentZoomTarget, true); // Skip animation for smooth updates
+    }
   }
 
   toggleStereo(enabled) {
