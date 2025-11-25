@@ -207,6 +207,15 @@ export class ArmillaryScene {
     this.zodiacGroup.rotation.x = this.obliquity;
     this.celestial.add(this.zodiacGroup);
 
+    // Inertial star sphere - stationary reference frame for fixed stars
+    // Positioned at Sun (origin) in heliocentric view, doesn't move with Earth's orbit
+    this.inertialStarSphere = new THREE.Group();
+    this.scene.add(this.inertialStarSphere);
+    // Orient to J2000 equatorial coordinate system (aligned with ecliptic at obliquity angle)
+    // Stars are in RA/Dec, which is tilted relative to ecliptic by obliquity
+    this.inertialStarSphere.rotation.order = 'XYZ';
+    this.inertialStarSphere.rotation.x = this.obliquity;
+
     // Hide celestial objects until first updateSphere() call
     this.celestial.visible = false;
     this.armillaryRoot.visible = false;
@@ -272,6 +281,7 @@ export class ArmillaryScene {
       this.scene,
       this.celestial,
       this.zodiacGroup,
+      this.inertialStarSphere,
       constants,
       texturePaths
     );
@@ -659,6 +669,14 @@ export class ArmillaryScene {
     // Check distance from camera to Earth center to determine view mode
     const distToObserver = this.camera.position.distanceTo(this.armillaryRoot.position);
     const isEarthView = (distToObserver >= this.VIEW_MODE_THRESHOLD);
+
+    // Update inertial star sphere - keep in pure inertial frame
+    // Stars stay stationary with only obliquity tilt (J2000 equatorial → ecliptic alignment)
+    // Camera motion (following Earth's rotation in horizon view) makes stars appear to rotate naturally
+    this.inertialStarSphere.rotation.order = 'XYZ';
+    this.inertialStarSphere.rotation.x = this.obliquity;
+    this.inertialStarSphere.rotation.y = 0;
+    this.inertialStarSphere.rotation.z = 0;
 
     // Only show Earth references (equator/poles) in Earth view
     // In horizon view, they're not visible/relevant anyway

@@ -14,10 +14,11 @@ import { starData, constellationLines } from '../stardata.js';
  * - Earth (with day/night shader)
  */
 export default class CelestialObjects {
-  constructor(scene, celestial, zodiacGroup, constants, texturePaths) {
+  constructor(scene, celestial, zodiacGroup, inertialStarSphere, constants, texturePaths) {
     this.scene = scene;
     this.celestial = celestial;
     this.zodiacGroup = zodiacGroup;
+    this.inertialStarSphere = inertialStarSphere;
 
     // Constants
     this.CE_RADIUS = constants.CE_RADIUS;
@@ -148,8 +149,9 @@ export default class CelestialObjects {
       }
     });
 
-    this.celestial.add(this.starGroup);
-    this.celestial.add(this.constellationLineGroup);
+    // Add stars to inertial sphere (stationary reference frame)
+    this.inertialStarSphere.add(this.starGroup);
+    this.inertialStarSphere.add(this.constellationLineGroup);
 
     // Background stars
     const bgStarCount = 1000;
@@ -183,7 +185,7 @@ export default class CelestialObjects {
     });
 
     this.bgStarField = new THREE.Points(bgStarGeometry, bgStarMaterial);
-    this.celestial.add(this.bgStarField);
+    this.inertialStarSphere.add(this.bgStarField);
   }
 
   createSun() {
