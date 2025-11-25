@@ -68,7 +68,7 @@ export default class InteractionManager {
 
   setupStarHover() {
     const raycaster = new THREE.Raycaster();
-    raycaster.params.Line.threshold = 10; // Larger threshold for orbit line detection
+    raycaster.params.Line.threshold = 5; // Threshold for orbit line detection
     const mouse = new THREE.Vector2();
 
     const onStarHover = (event) => {
@@ -441,7 +441,7 @@ export default class InteractionManager {
 
           this.setTooltipContent(
             `${fullName} Orbit`,
-            `Eccentricity: ${ecc}% | Inclination: ${inc}°`
+            `Eccentricity: ${ecc}%   Inclination: ${inc}°`
           );
           this.positionTooltip(this.starInfoElement, event);
           this.renderer.domElement.style.cursor = 'pointer';
