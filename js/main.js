@@ -508,6 +508,51 @@ animationControlBtns.forEach(btn => {
     } else if (action === 'stereo') {
       // Simulate 's' key press
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 's' }));
+    } else if (action === 'zoom-to') {
+      // Open context menu at button location
+      const contextMenu = document.getElementById('contextMenu');
+      const btnRect = btn.getBoundingClientRect();
+
+      // Create a synthetic event for positioning
+      const syntheticEvent = {
+        clientX: btnRect.left + btnRect.width / 2,
+        clientY: btnRect.top + btnRect.height / 2,
+        preventDefault: () => {},
+        stopPropagation: () => {}
+      };
+
+      // Show the context menu
+      contextMenu.classList.add('visible');
+      const rect = contextMenu.getBoundingClientRect();
+
+      let left = syntheticEvent.clientX;
+      let top = syntheticEvent.clientY;
+
+      // Check right boundary
+      if (left + rect.width > window.innerWidth) {
+        left = window.innerWidth - rect.width - 5;
+      }
+
+      // Check bottom boundary
+      if (top + rect.height > window.innerHeight) {
+        top = window.innerHeight - rect.height - 5;
+      }
+
+      // Ensure menu doesn't go off left edge
+      if (left < 5) {
+        left = 5;
+      }
+
+      // Ensure menu doesn't go off top edge
+      if (top < 5) {
+        top = 5;
+      }
+
+      contextMenu.style.left = left + 'px';
+      contextMenu.style.top = top + 'px';
+
+      // Close the animation control modal
+      animationControlModal.classList.remove('visible');
     }
   });
 });

@@ -252,11 +252,25 @@ input[type="text"] {
 
 .animation-control-content {
   display: flex;
-  gap: 20px;
   align-items: center;
-  justify-content: center;
+  justify-content: space-between;
   width: 100%;
   padding: 10px;
+}
+
+.animation-control-content::before,
+.animation-control-content::after {
+  content: '';
+  flex: 1;
+}
+
+.animation-control-btn:not([data-action="zoom-to"]) {
+  margin: 0 10px;
+}
+
+.animation-control-btn[data-action="zoom-to"] {
+  position: absolute;
+  right: 20px;
 }
 
 .animation-control-btn {
@@ -275,7 +289,7 @@ input[type="text"] {
   align-items: center;
   justify-content: center;
   min-width: 70px;
-  max-height: 70px;
+  height: 70px;
 }
 
 .animation-control-btn span {
