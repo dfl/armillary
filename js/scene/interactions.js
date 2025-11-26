@@ -554,9 +554,8 @@ export default class InteractionManager {
         }
         else if (closest.type === 'lunar-apsis') {
           const apsisName = closest.objectData.userData.apsisName;
-          const position = this.sceneRef.lunarApsisPositions && this.sceneRef.lunarApsisPositions[apsisName] ? this.sceneRef.lunarApsisPositions[apsisName] : '';
           
-          let displayText = `${apsisName} ${position}`;
+          let displayText = apsisName;
           if (apsisName === 'Black Moon Lilith') {
             displayText = `⚸ ${displayText}`;
           }
