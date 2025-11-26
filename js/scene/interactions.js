@@ -546,7 +546,7 @@ export default class InteractionManager {
             neptune: 'Neptune', pluto: 'Pluto'
           };
           const fullPlanetName = planetNames[planetName] || planetName;
-          const apsisSymbol = apsisType === 'perihelion' ? '⊙' : '⊚';
+          const apsisSymbol = apsisType === 'perihelion' ? '⊕' : '⊖';
           const apsisLabel = apsisType === 'perihelion' ? 'Perihelion' : 'Aphelion';
           this.setTooltipContent(`${apsisSymbol} ${fullPlanetName}`, apsisLabel);
           this.positionTooltip(this.starInfoElement, event);

@@ -387,9 +387,9 @@ export default class PlanetaryReferences {
     };
 
     this.lunarApsisGroups = {
-      perigee: createApsisMarker('P', 'Perigee', 'perigee'),
-      apogee: createApsisMarker('A', 'Apogee', 'apogee'),
-      lilith: createApsisMarker('⚸', 'Black Moon Lilith', 'lilith', 1.5)
+      perigee: createApsisMarker('⊕', 'Perigee', 'perigee'),
+      apogee: createApsisMarker('⊖', 'Apogee', 'apogee'),
+      lilith: createApsisMarker('⚸', 'Black Moon Lilith (empty focus)', 'lilith', 1.5)
     };
 
     // Planet orbital paths - will be created in updateSphere with ephemeris data
@@ -468,7 +468,7 @@ export default class PlanetaryReferences {
     // Create planetary node markers (☊ and ☋)
     this.createPlanetaryNodeMarkers();
 
-    // Create planetary apsis markers (⊙ perihelion and ⊚ aphelion)
+    // Create planetary apsis markers (⊕ perihelion and ⊖ aphelion)
     this.createPlanetaryApsisMarkers();
   }
 
@@ -551,7 +551,7 @@ export default class PlanetaryReferences {
   }
 
   /**
-   * Create visual markers for planetary apsides (⊙ perihelion and ⊚ aphelion)
+   * Create visual markers for planetary apsides (⊕ perihelion and ⊖ aphelion)
    * These show the closest and farthest points from the Sun in each planet's orbit
    */
   createPlanetaryApsisMarkers() {
@@ -611,14 +611,14 @@ export default class PlanetaryReferences {
       this.planetaryApsisGroups[planetName].perihelion = createApsisMarker(
         planetName,
         'perihelion',
-        '⊙',
+        '⊕',
         color
       );
 
       this.planetaryApsisGroups[planetName].aphelion = createApsisMarker(
         planetName,
         'aphelion',
-        '⊚',
+        '⊖',
         color
       );
     });

@@ -519,7 +519,7 @@ export class AstronomyCalculator {
   }
 
   /**
-   * Calculate planetary apsides (perihelion ⊙ and aphelion ⊚)
+   * Calculate planetary apsides (perihelion ⊕ and aphelion ⊖)
    * Perihelion is the closest point to the Sun, aphelion is the farthest
    * Returns object with apsis longitudes for each planet in degrees (0..360)
    *

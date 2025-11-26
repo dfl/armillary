@@ -862,7 +862,8 @@ export class ArmillaryScene {
       });
     }
 
-    // 2.5b. Position Planetary Apsides (perihelion ⊙ and aphelion ⊚)
+    //  apo:  peri: 
+    // 2.5b. Position Planetary Apsides (perihelion ⊕ and aphelion ⊖)
     // These show the closest and farthest points from the Sun in each orbit
     const planetaryApsides = astroCalc.calculatePlanetaryApsides(julianDate);
 
