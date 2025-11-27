@@ -71,8 +71,6 @@ const updateVisualization = () => {
 const uiManager = new UIManager(updateVisualization);
 
 // Animation state
-let isAnimating = false;
-let animationSpeed = 60; // Speed in minutes per second (60 = 1 hour per second)
 let lastAnimationTime = 0;
 let animationStartTime = 0;
 let animationStartValue = 0;
@@ -84,7 +82,7 @@ let keyRepeatMultiplier = 1;
 
 // Animation loop for time progression
 const animateTime = (timestamp) => {
-  if (!isAnimating) return;
+  if (!uiManager.isAnimating) return;
 
   // Calculate time delta (limit to reasonable values)
   const deltaTime = lastAnimationTime ? Math.min(timestamp - lastAnimationTime, 100) : 16;
@@ -93,7 +91,7 @@ const animateTime = (timestamp) => {
   // Increment time based on speed
   // animationSpeed is in minutes per second (real time)
   // deltaTime is in milliseconds
-  const timeIncrement = (deltaTime / 1000) * animationSpeed;
+  const timeIncrement = (deltaTime / 1000) * uiManager.animationSpeed;
 
   // Debugging: Log actual speed every 3 seconds
   if (timestamp - animationStartTime > 3000 && animationStartTime > 0) {
@@ -103,7 +101,7 @@ const animateTime = (timestamp) => {
     const elapsedRealSeconds = (timestamp - animationStartTime) / 1000;
     const elapsedSimMinutes = currentValue - animationStartValue;
     const actualSpeed = elapsedSimMinutes / elapsedRealSeconds;
-    console.log(`Actual speed: ${actualSpeed.toFixed(1)} min/sec (target: ${animationSpeed} min/sec)`);
+    console.log(`Actual speed: ${actualSpeed.toFixed(1)} min/sec (target: ${uiManager.animationSpeed} min/sec)`);
     animationStartTime = timestamp;
     animationStartValue = currentValue;
   }
@@ -322,15 +320,16 @@ window.addEventListener('keydown', (e) => {
   // Space bar to toggle animation
   if (e.key === ' ') {
     e.preventDefault(); // Prevent page scroll
-    isAnimating = !isAnimating;
-    if (isAnimating) {
+    uiManager.isAnimating = !uiManager.isAnimating;
+    uiManager.saveStateToURL();
+    if (uiManager.isAnimating) {
       lastAnimationTime = 0; // Reset for smooth start
       animationStartTime = 0; // Reset speed tracking
       const timeSlider = document.getElementById('timeSlider');
       const daySlider = document.getElementById('daySlider');
       animationStartValue = parseFloat(daySlider.value) * 1440 + parseFloat(timeSlider.value);
       requestAnimationFrame(animateTime);
-      const speedLabel = getSpeedLabel(animationSpeed);
+      const speedLabel = getSpeedLabel(uiManager.animationSpeed);
       console.log('Animation started at speed:', speedLabel);
       showSpeedIndicator(speedLabel);
     } else {
@@ -350,10 +349,11 @@ window.addEventListener('keydown', (e) => {
 
   // '[' to decrease speed (when animating) or move time back (when not)
   if (e.key === '[') {
-    if (isAnimating) {
+    if (uiManager.isAnimating) {
       // Decrease animation speed (halve it, with minimum of 30 min/sec)
-      animationSpeed = Math.max(30, animationSpeed / 2);
-      const speedLabel = getSpeedLabel(animationSpeed);
+      uiManager.animationSpeed = Math.max(30, uiManager.animationSpeed / 2);
+      uiManager.saveStateToURL();
+      const speedLabel = getSpeedLabel(uiManager.animationSpeed);
       console.log('Animation speed:', speedLabel);
       showSpeedIndicator(speedLabel);
       // Reset speed tracking for accurate measurement
@@ -397,10 +397,11 @@ window.addEventListener('keydown', (e) => {
 
   // ']' to increase speed (when animating) or move time forward (when not)
   if (e.key === ']') {
-    if (isAnimating) {
+    if (uiManager.isAnimating) {
       // Increase animation speed (double it, with maximum of 525600 min/sec = 1 year/sec)
-      animationSpeed = Math.min(525600, animationSpeed * 2);
-      const speedLabel = getSpeedLabel(animationSpeed);
+      uiManager.animationSpeed = Math.min(525600, uiManager.animationSpeed * 2);
+      uiManager.saveStateToURL();
+      const speedLabel = getSpeedLabel(uiManager.animationSpeed);
       console.log('Animation speed:', speedLabel);
       showSpeedIndicator(speedLabel);
       // Reset speed tracking for accurate measurement
@@ -631,6 +632,19 @@ scene.setEyeSeparation(eyeSeparation);
 if (!hasURLState) {
   uiManager.initialize();
   parser.setNow();
+} else {
+  // If state loaded from URL, check if we should be animating
+  if (uiManager.isAnimating) {
+    lastAnimationTime = 0;
+    animationStartTime = 0;
+    const timeSlider = document.getElementById('timeSlider');
+    const daySlider = document.getElementById('daySlider');
+    animationStartValue = parseFloat(daySlider.value) * 1440 + parseFloat(timeSlider.value);
+    requestAnimationFrame(animateTime);
+    const speedLabel = getSpeedLabel(uiManager.animationSpeed);
+    console.log('Resuming animation at speed:', speedLabel);
+    showSpeedIndicator(speedLabel);
+  }
 }
 
 // Restore camera state from URL or set default camera position

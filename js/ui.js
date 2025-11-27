@@ -182,6 +182,8 @@ export class UIManager {
     this.currentYear = 2000;
     this.currentTimezone = null; // IANA timezone name (e.g., 'America/Anchorage')
     this.cameraState = null; // Store camera position, target, and up vector
+    this.animationSpeed = 60;
+    this.isAnimating = false;
 
     // Initialize toggle states from HTML checkbox defaults
     this.toggleStates = {
@@ -500,13 +502,21 @@ export class UIManager {
     // Save camera state if available
     if (this.cameraState) {
       // Format: "x,y,z" for position, target, and up
-      const posStr = `${this.cameraState.position.x.toFixed(2)},${this.cameraState.position.y.toFixed(2)},${this.cameraState.position.z.toFixed(2)}`;
-      const targetStr = `${this.cameraState.target.x.toFixed(2)},${this.cameraState.target.y.toFixed(2)},${this.cameraState.target.z.toFixed(2)}`;
-      const upStr = `${this.cameraState.up.x.toFixed(3)},${this.cameraState.up.y.toFixed(3)},${this.cameraState.up.z.toFixed(3)}`;
+      const posStr = `${this.cameraState.position.x.toFixed(5)},${this.cameraState.position.y.toFixed(5)},${this.cameraState.position.z.toFixed(5)}`;
+      const targetStr = `${this.cameraState.target.x.toFixed(5)},${this.cameraState.target.y.toFixed(5)},${this.cameraState.target.z.toFixed(5)}`;
+      const upStr = `${this.cameraState.up.x.toFixed(5)},${this.cameraState.up.y.toFixed(5)},${this.cameraState.up.z.toFixed(5)}`;
 
       params.set('cam_pos', posStr);
       params.set('cam_target', targetStr);
       params.set('cam_up', upStr);
+    }
+
+    // Save animation state
+    if (this.isAnimating) {
+      params.set('anim', '1');
+    }
+    if (this.animationSpeed !== 60) {
+      params.set('speed', this.animationSpeed.toFixed(1));
     }
 
     // Save toggle states (only save if different from defaults)
@@ -752,6 +762,16 @@ export class UIManager {
         up: { x: upStr[0], y: upStr[1], z: upStr[2] }
       };
       debugLog.log('Loading camera state from URL:', this.cameraState);
+      hasState = true;
+    }
+
+    // Load animation state
+    if (params.has('anim')) {
+      this.isAnimating = params.get('anim') === '1';
+      hasState = true;
+    }
+    if (params.has('speed')) {
+      this.animationSpeed = parseFloat(params.get('speed'));
       hasState = true;
     }
 
