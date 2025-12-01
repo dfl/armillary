@@ -1430,9 +1430,75 @@ export class ArmillaryScene {
 
   animate() {
     requestAnimationFrame(() => this.animate());
+
+    // Constrain camera rotation based on view mode
+    const distToArmillary = this.camera.position.distanceTo(this.armillaryRoot.position);
+    const isInZenithView = distToArmillary < this.SPHERE_RADIUS * 1.5;
+
+    if (isInZenithView) {
+      // In zenith view (camera at observer position looking up at sky)
+      // Polar angle is measured from vertical axis to vector from target to camera
+      // π/2 = camera at horizon level, π = camera directly below target (looking straight up)
+      this.controls.minPolarAngle = Math.PI / 2; // Can look down to horizon (horizontal)
+      this.controls.maxPolarAngle = Math.PI; // Can look straight up at zenith
+
+      // Capture the "up" direction when first entering zenith view (but not during zoom animation)
+      // This stays fixed during time animation so horizon doesn't roll
+      if (!this.zenithViewUpVector && !this.cameraController.isZoomAnimating) {
+        const localUp = new THREE.Vector3(0, 1, 0); // Perpendicular to horizon plane
+        this.zenithViewUpVector = localUp.applyQuaternion(this.armillaryRoot.quaternion);
+        // Set it once when entering zenith view
+        this.camera.up.copy(this.zenithViewUpVector);
+      }
+    } else {
+      // Not in zenith view - allow full rotation and clear stored up vector
+      this.controls.minPolarAngle = 0;
+      this.controls.maxPolarAngle = Math.PI;
+      this.zenithViewUpVector = null;
+    }
+
     this.controls.update();
     this.cameraController.updateEarthVisibility();
     this.updateOrbitVisibility();
+
+    // Update sky billboards to always face camera when visible
+    if (this.celestialObjects.skySunMesh && this.celestialObjects.skySunMesh.visible) {
+      // Calculate local quaternion to face camera, accounting for parent's world rotation
+      const sunParentQuat = new THREE.Quaternion();
+      this.eclipticSunGroup.getWorldQuaternion(sunParentQuat);
+      const sunLocalQuat = sunParentQuat.clone().invert().multiply(this.camera.quaternion);
+      this.celestialObjects.skySunMesh.quaternion.copy(sunLocalQuat);
+    }
+    if (this.celestialObjects.skyMoonMesh && this.celestialObjects.skyMoonMesh.visible) {
+      // Calculate local quaternion to face camera, accounting for parent's world rotation
+      const moonParentQuat = new THREE.Quaternion();
+      this.eclipticMoonGroup.getWorldQuaternion(moonParentQuat);
+      const moonLocalQuat = moonParentQuat.clone().invert().multiply(this.camera.quaternion);
+      this.celestialObjects.skyMoonMesh.quaternion.copy(moonLocalQuat);
+
+      // Update sun direction in billboard's local space for correct phase rendering
+      if (this.eclipticSunGroup && this.eclipticMoonGroup && this.celestialObjects.skyMoonMaterial) {
+        // Get sun position in world space
+        const sunWorldPos = new THREE.Vector3();
+        this.eclipticSunGroup.getWorldPosition(sunWorldPos);
+
+        // Get moon position in world space
+        const moonWorldPos = new THREE.Vector3();
+        this.eclipticMoonGroup.getWorldPosition(moonWorldPos);
+
+        // Calculate sun direction from moon in world space
+        const sunDirWorld = sunWorldPos.clone().sub(moonWorldPos).normalize();
+
+        // Transform sun direction to billboard's local space
+        // Billboard's world quaternion should match camera, so inverse camera quat gives us billboard local space
+        const billboardWorldQuat = this.camera.quaternion.clone();
+        const billboardLocalSpace = billboardWorldQuat.clone().invert();
+        const sunDirBillboard = sunDirWorld.clone().applyQuaternion(billboardLocalSpace);
+
+        // Update shader uniform
+        this.celestialObjects.skyMoonMaterial.uniforms.sunDirection.value.copy(sunDirBillboard);
+      }
+    }
 
     if (this.cameraController.stereoEnabled) {
       // Update stereo camera positions based on main camera
@@ -1679,9 +1745,47 @@ export class ArmillaryScene {
       }
     };
 
+    // Detect zenith view - use threshold to catch transition
+    const isZenithView = opacity < 0.5; // Entering zenith view when opacity drops below 50%
+
     // Horizon plane and outline
-    setMaterialOpacity(this.horizonPlane, 0.1);
-    setMaterialOpacity(this.horizonOutline, 0.5);
+    // Keep horizon outline visible when approaching/in zenith view
+    if (isZenithView) {
+      // Approaching or in zenith view - keep horizon outline at full visibility
+      if (this.horizonOutline) {
+        this.horizonOutline.visible = true;
+        if (this.horizonOutline.material) {
+          this.horizonOutline.material.opacity = 1.0; // Always full brightness
+          this.horizonOutline.material.transparent = true;
+          this.horizonOutline.material.depthTest = false; // Always visible, no depth clipping
+          this.horizonOutline.material.needsUpdate = true;
+        }
+        this.horizonOutline.renderOrder = 1000; // Render on top of everything
+      }
+      // Fade out horizon plane as approaching zenith
+      if (this.horizonPlane) {
+        if (opacity === 0) {
+          this.horizonPlane.visible = false;
+        } else {
+          this.horizonPlane.visible = true;
+          setMaterialOpacity(this.horizonPlane, 0.1);
+        }
+      }
+    } else {
+      // Normal view - fade with opacity and reset depth settings
+      if (this.horizonPlane) {
+        this.horizonPlane.visible = true;
+        setMaterialOpacity(this.horizonPlane, 0.1);
+      }
+      if (this.horizonOutline) {
+        this.horizonOutline.visible = true;
+        this.horizonOutline.renderOrder = 0; // Reset render order
+        if (this.horizonOutline.material) {
+          this.horizonOutline.material.depthTest = true; // Re-enable depth testing
+        }
+        setMaterialOpacity(this.horizonOutline, 0.5);
+      }
+    }
 
     // Meridian and prime vertical
     setMaterialOpacity(this.meridianOutline, 0.5);
@@ -1726,6 +1830,11 @@ export class ArmillaryScene {
           }
         }
 
+        // Skip angle markers - their visibility is controlled explicitly below
+        if (child.userData?.angleName) {
+          return;
+        }
+
         if (child.material) {
           const baseOpacity = child.material.userData?.baseOpacity ?? child.material.opacity;
           if (!child.material.userData) child.material.userData = {};
@@ -1737,11 +1846,13 @@ export class ArmillaryScene {
     }
 
     // Angle markers (MC, IC, ASC, DSC, VTX, AVX)
+    // IMPORTANT: Angle spheres should NEVER show in zenith view
     if (this.spheres) {
       for (const name in this.spheres) {
         const sphere = this.spheres[name];
         if (sphere) {
-          sphere.visible = opacity > 0;
+          // Force hidden in zenith view, regardless of other toggle states
+          sphere.visible = !isZenithView && opacity > 0;
         }
       }
     }
@@ -1751,7 +1862,27 @@ export class ArmillaryScene {
       for (const name in this.angleLabels) {
         const label = this.angleLabels[name];
         if (label) {
-          label.visible = opacity > 0;
+          // Force hidden in zenith view, regardless of other toggle states
+          label.visible = !isZenithView && opacity > 0;
+        }
+      }
+    }
+
+    // Ecliptic planet markers (on the zodiac wheel)
+    // IMPORTANT: Should NEVER show in zenith view, regardless of planets toggle
+    if (this.eclipticPlanetGroups) {
+      for (const planetName in this.eclipticPlanetGroups) {
+        const planetGroup = this.eclipticPlanetGroups[planetName].group;
+        if (planetGroup) {
+          // In zenith view, always hide. Otherwise, respect the planets toggle state
+          if (isZenithView) {
+            planetGroup.visible = false;
+          } else {
+            // Restore visibility based on planets toggle when not in zenith view
+            const planetsToggle = document.getElementById('planetsToggle');
+            const planetsVisible = planetsToggle ? planetsToggle.checked : true;
+            planetGroup.visible = planetsVisible;
+          }
         }
       }
     }
@@ -1787,33 +1918,115 @@ export class ArmillaryScene {
     if (this.eclipticMoonGroup) this.eclipticMoonGroup.visible = true;
 
     // Toggle between ecliptic spheres and sky view discs based on zenith view
-    const isZenithView = opacity === 0;
+    // (isZenithView already defined above at line 1744)
 
-    // Ecliptic sun/moon spheres - hide in zenith view
-    if (this.eclipticSunMesh) this.eclipticSunMesh.visible = !isZenithView;
-    if (this.eclipticMoonMesh) this.eclipticMoonMesh.visible = !isZenithView;
+    // Ecliptic sun/moon spheres - fade out as approaching zenith view
+    if (this.eclipticSunMesh) {
+      // Fade out ecliptic sun sphere based on opacity (0 = zenith, 1 = normal)
+      this.eclipticSunMesh.visible = opacity > 0;
+      if (this.eclipticSunMesh.material && opacity < 1) {
+        this.eclipticSunMesh.material.opacity = opacity;
+        this.eclipticSunMesh.material.transparent = true;
+      }
+    }
+    if (this.eclipticMoonMesh) {
+      // Fade out ecliptic moon sphere based on opacity
+      this.eclipticMoonMesh.visible = opacity > 0;
+      if (this.eclipticMoonMesh.material && opacity < 1) {
+        this.eclipticMoonMesh.material.opacity = opacity;
+        this.eclipticMoonMesh.material.transparent = true;
+      }
+    }
 
-    // Sun/moon glow meshes - hide in zenith view
+    // Sun/moon glow meshes - fade out with their parent spheres
     if (this.eclipticSunGlowMeshes) {
-      this.eclipticSunGlowMeshes.forEach(glow => glow.visible = !isZenithView);
+      this.eclipticSunGlowMeshes.forEach(glow => {
+        glow.visible = opacity > 0;
+        if (glow.material && opacity < 1) {
+          glow.material.opacity = opacity * (glow.material.userData?.baseOpacity ?? 1.0);
+        }
+      });
     }
     if (this.moonGlowMeshes) {
-      this.moonGlowMeshes.forEach(glow => glow.visible = !isZenithView);
+      this.moonGlowMeshes.forEach(glow => {
+        glow.visible = opacity > 0;
+        if (glow.material && opacity < 1) {
+          glow.material.opacity = opacity * (glow.material.userData?.baseOpacity ?? 1.0);
+        }
+      });
     }
 
-    // Sky sun/moon discs - show only in zenith view
+    // Sky sun/moon discs - fade in as ecliptic spheres fade out
     if (this.celestialObjects.skySunMesh) {
-      this.celestialObjects.skySunMesh.visible = isZenithView;
-      if (isZenithView) {
+      // Start showing billboard when opacity < 0.5, fully visible at opacity = 0
+      const billboardOpacity = opacity < 0.5 ? (1.0 - opacity * 2.0) : 0.0;
+      this.celestialObjects.skySunMesh.visible = billboardOpacity > 0;
+      if (this.celestialObjects.skySunMesh.material && billboardOpacity > 0) {
+        this.celestialObjects.skySunMesh.material.opacity = billboardOpacity;
+        this.celestialObjects.skySunMesh.material.transparent = true;
+      }
+      if (billboardOpacity > 0) {
         // Make billboard face camera
         this.celestialObjects.skySunMesh.quaternion.copy(this.camera.quaternion);
       }
     }
     if (this.celestialObjects.skyMoonMesh) {
-      this.celestialObjects.skyMoonMesh.visible = isZenithView;
-      if (isZenithView) {
+      // Start showing billboard when opacity < 0.5, fully visible at opacity = 0
+      const billboardOpacity = opacity < 0.5 ? (1.0 - opacity * 2.0) : 0.0;
+      this.celestialObjects.skyMoonMesh.visible = billboardOpacity > 0;
+      if (this.celestialObjects.skyMoonMesh.material && billboardOpacity > 0) {
+        this.celestialObjects.skyMoonMesh.material.opacity = billboardOpacity;
+        this.celestialObjects.skyMoonMesh.material.transparent = true;
+      }
+      if (billboardOpacity > 0) {
         // Make billboard face camera
         this.celestialObjects.skyMoonMesh.quaternion.copy(this.camera.quaternion);
+      }
+    }
+
+    // Realistic heliocentric sun and moon (planetary system bodies)
+    // Fade these out in zenith view so they don't distract from the sky view
+    if (this.realisticSunMesh) {
+      this.realisticSunMesh.visible = opacity > 0;
+      if (this.realisticSunMesh.material && opacity < 1) {
+        this.realisticSunMesh.material.opacity = opacity;
+        this.realisticSunMesh.material.transparent = true;
+      }
+    }
+    if (this.realisticSunGlowMeshes) {
+      this.realisticSunGlowMeshes.forEach(glow => {
+        glow.visible = opacity > 0;
+        if (glow.material && opacity < 1) {
+          glow.material.opacity = opacity * (glow.material.userData?.baseOpacity ?? 1.0);
+        }
+      });
+    }
+    if (this.realisticMoonMesh) {
+      this.realisticMoonMesh.visible = opacity > 0;
+      if (this.realisticMoonMesh.material && opacity < 1) {
+        this.realisticMoonMesh.material.opacity = opacity;
+        this.realisticMoonMesh.material.transparent = true;
+      }
+    }
+    if (this.realisticMoonGlowMeshes) {
+      this.realisticMoonGlowMeshes.forEach(glow => {
+        glow.visible = opacity > 0;
+        if (glow.material && opacity < 1) {
+          glow.material.opacity = opacity * (glow.material.userData?.baseOpacity ?? 1.0);
+        }
+      });
+    }
+
+    // FINAL OVERRIDE: Force horizon outline to stay visible in zenith view
+    // This runs last to override any other opacity settings
+    if (isZenithView && this.horizonOutline) {
+      this.horizonOutline.visible = true;
+      this.horizonOutline.renderOrder = 1000;
+      if (this.horizonOutline.material) {
+        this.horizonOutline.material.opacity = 1.0;
+        this.horizonOutline.material.transparent = true;
+        this.horizonOutline.material.depthTest = false;
+        this.horizonOutline.material.needsUpdate = true;
       }
     }
   }

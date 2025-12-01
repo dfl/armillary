@@ -29,6 +29,7 @@ export default class CameraController {
     const eyeSeparationSlider = typeof document !== 'undefined' ? document.getElementById('eyeSeparationSlider') : null;
     this.eyeSeparation = eyeSeparationSlider ? parseFloat(eyeSeparationSlider.value) : 0.05;
     this.currentZoomTarget = null; // Track current zoom target for dynamic updates
+    this.isZoomAnimating = false; // Track if zoom animation is in progress
   }
 
   zoomToTarget(targetName, skipAnimation = false) {
@@ -100,22 +101,22 @@ export default class CameraController {
       const localUp = new THREE.Vector3(0, 1, 0);
       newUp = localUp.applyQuaternion(this.sceneRef.armillaryRoot.quaternion);
     } else if (targetName === 'zenith') {
-      // Position camera below the horizon looking straight UP at the zenith
+      // Position camera near observer's position looking up at the sky
       const armillaryPos = new THREE.Vector3();
       this.sceneRef.armillaryRoot.getWorldPosition(armillaryPos);
 
-      // Camera slightly below the horizon plane (negative Y in local space)
-      const localCameraOffset = new THREE.Vector3(0, -targetRadius * 0.1, 0);
+      // Camera slightly above the horizon plane (so horizon circle is visible below and OrbitControls works smoothly)
+      const localCameraOffset = new THREE.Vector3(0, targetRadius * 0.02, 0);
       const worldCameraOffset = localCameraOffset.applyQuaternion(this.sceneRef.armillaryRoot.quaternion);
       newCameraPos = armillaryPos.clone().add(worldCameraOffset);
 
-      // Target is at the zenith (positive Y above the horizon)
-      const localZenith = new THREE.Vector3(0, targetRadius * 2, 0);
-      const worldZenith = localZenith.applyQuaternion(this.sceneRef.armillaryRoot.quaternion);
-      targetWorldPos.copy(armillaryPos).add(worldZenith);
+      // Target at 45° angle up (so you can see both horizon and sky)
+      const localTarget = new THREE.Vector3(0, targetRadius * 0.5, targetRadius * 0.5);
+      const worldTarget = localTarget.applyQuaternion(this.sceneRef.armillaryRoot.quaternion);
+      targetWorldPos.copy(armillaryPos).add(worldTarget);
 
-      // Camera up aligns with North (local +Z) so North is at the top of the view
-      const localUp = new THREE.Vector3(0, 0, 1);
+      // Camera up perpendicular to horizon plane
+      const localUp = new THREE.Vector3(0, 1, 0);
       newUp = localUp.applyQuaternion(this.sceneRef.armillaryRoot.quaternion);
     } else if (targetName === 'ecliptic-north') {
       // Position camera directly above ecliptic north pole, looking straight down at the ecliptic plane
@@ -163,6 +164,12 @@ export default class CameraController {
       const duration = 1000; // 1 second
       const startTime = performance.now();
 
+      // Mark zoom animation as in progress and clear zenithViewUpVector so it can be recaptured after zoom
+      this.isZoomAnimating = true;
+      if (targetName === 'zenith' || targetName === 'horizon') {
+        this.sceneRef.zenithViewUpVector = null;
+      }
+
       // Disable controls during animation to prevent conflict
       this.controls.enabled = false;
 
@@ -175,10 +182,12 @@ export default class CameraController {
           ? 2 * progress * progress
           : 1 - Math.pow(-2 * progress + 2, 2) / 2;
 
-        // For horizon/zenith zoom, dynamically track armillaryRoot position and orientation during animation
-        // to handle cases where Earth moves while zooming
+        // For horizon/zenith zoom, dynamically track armillaryRoot position and orientation
+        // to handle cases where Earth moves or time advances while zooming
         let currentTargetPos = targetWorldPos;
         let currentCameraPos = newCameraPos;
+        let currentUp = newUp;
+
         if (targetName === 'horizon') {
           currentTargetPos = new THREE.Vector3();
           this.sceneRef.armillaryRoot.getWorldPosition(currentTargetPos);
@@ -187,19 +196,27 @@ export default class CameraController {
           const localOffset = new THREE.Vector3(0, targetRadius * 2.0, targetRadius * 6.0);
           const worldOffset = localOffset.clone().applyQuaternion(this.sceneRef.armillaryRoot.quaternion);
           currentCameraPos = currentTargetPos.clone().add(worldOffset);
+
+          // Recalculate up vector to stay aligned with current horizon orientation
+          const localUp = new THREE.Vector3(0, 1, 0);
+          currentUp = localUp.clone().applyQuaternion(this.sceneRef.armillaryRoot.quaternion);
         } else if (targetName === 'zenith') {
           const armillaryPos = new THREE.Vector3();
           this.sceneRef.armillaryRoot.getWorldPosition(armillaryPos);
 
-          // Camera slightly below the horizon plane (negative Y in local space)
-          const localCameraOffset = new THREE.Vector3(0, -targetRadius * 0.1, 0);
+          // Camera slightly above the horizon plane
+          const localCameraOffset = new THREE.Vector3(0, targetRadius * 0.02, 0);
           const worldCameraOffset = localCameraOffset.clone().applyQuaternion(this.sceneRef.armillaryRoot.quaternion);
           currentCameraPos = armillaryPos.clone().add(worldCameraOffset);
 
-          // Target is at the zenith (positive Y above the horizon)
-          const localZenith = new THREE.Vector3(0, targetRadius * 2, 0);
-          const worldZenith = localZenith.clone().applyQuaternion(this.sceneRef.armillaryRoot.quaternion);
-          currentTargetPos = armillaryPos.clone().add(worldZenith);
+          // Target at 45° angle up
+          const localTarget = new THREE.Vector3(0, targetRadius * 0.5, targetRadius * 0.5);
+          const worldTarget = localTarget.clone().applyQuaternion(this.sceneRef.armillaryRoot.quaternion);
+          currentTargetPos = armillaryPos.clone().add(worldTarget);
+
+          // Recalculate up vector to stay aligned with current horizon orientation
+          const localUp = new THREE.Vector3(0, 1, 0);
+          currentUp = localUp.clone().applyQuaternion(this.sceneRef.armillaryRoot.quaternion);
         }
 
         // Interpolate position
@@ -208,8 +225,18 @@ export default class CameraController {
         // Interpolate target
         this.controls.target.lerpVectors(startTarget, currentTargetPos, eased);
 
-        // Interpolate up vector
-        camera.up.lerpVectors(startUp, newUp, eased).normalize();
+        // Interpolate up vector using quaternion slerp for smooth rotation without tilting
+        // Convert up vectors to quaternions for proper spherical interpolation
+        const startQuat = new THREE.Quaternion().setFromUnitVectors(
+          new THREE.Vector3(0, 1, 0),
+          startUp.clone().normalize()
+        );
+        const currentQuat = new THREE.Quaternion().setFromUnitVectors(
+          new THREE.Vector3(0, 1, 0),
+          currentUp.clone().normalize()
+        );
+        const interpQuat = new THREE.Quaternion().slerpQuaternions(startQuat, currentQuat, eased);
+        camera.up.copy(new THREE.Vector3(0, 1, 0).applyQuaternion(interpQuat));
 
         // Ensure camera looks at target during transition
         camera.lookAt(this.controls.target);
@@ -218,6 +245,13 @@ export default class CameraController {
           requestAnimationFrame(animateCamera);
         } else {
           // Animation complete
+          this.isZoomAnimating = false;
+
+          // For zenith zoom, capture the final camera.up as zenithViewUpVector to ensure continuity
+          if (targetName === 'zenith') {
+            this.sceneRef.zenithViewUpVector = camera.up.clone();
+          }
+
           this.controls.enabled = true;
           this.controls.update();
         }
@@ -336,12 +370,23 @@ export default class CameraController {
 
     const distToObserver = this.camera.position.distanceTo(this.sceneRef.armillaryRoot.position);
 
-    // Horizon elements disappear when camera is inside 90% of sphere radius
+    // Horizon elements fade out as camera approaches zenith view
     const sphereRadius = this.sceneRef.SPHERE_RADIUS;
-    const threshold = sphereRadius * 0.9;
 
-    // Sharp cutoff - elements hidden when inside threshold
-    const opacity = distToObserver < threshold ? 0.0 : 1.0;
+    // Start fading at 1.5x sphere radius, fully faded at 0.9x sphere radius
+    const fadeStartDistance = sphereRadius * 1.5;
+    const fadeEndDistance = sphereRadius * 0.9;
+
+    let opacity = 1.0;
+    if (distToObserver < fadeEndDistance) {
+      opacity = 0.0; // Fully transparent (zenith view)
+    } else if (distToObserver > fadeStartDistance) {
+      opacity = 1.0; // Fully visible (normal view)
+    } else {
+      // Smooth fade between fadeEnd and fadeStart
+      const t = (distToObserver - fadeEndDistance) / (fadeStartDistance - fadeEndDistance);
+      opacity = t; // Linear fade from 0 to 1
+    }
 
     // Apply opacity to horizon elements
     this.sceneRef.setHorizonElementsOpacity(opacity);
