@@ -293,6 +293,10 @@ export class ArmillaryScene {
     this.celestialObjects.loadConstellationFigures().then(() => {
       this.constellationFigureGroup = this.celestialObjects.constellationFigureGroup;
       console.log('Constellation figures loaded');
+      // Apply toggle state if it was set before loading completed
+      if (this.constellationArtAlwaysOn) {
+        this.toggleConstellationArt(true);
+      }
     });
 
     // Map properties for backward compatibility
@@ -1428,6 +1432,25 @@ export class ArmillaryScene {
 
   toggleStarfield(visible) {
     this.cameraController.toggleStarfield(visible);
+  }
+
+  toggleConstellationArt(visible) {
+    this.constellationArtAlwaysOn = visible;
+    if (this.constellationFigureGroup) {
+      if (visible) {
+        // Show all constellation figures
+        this.constellationFigureGroup.children.forEach(mesh => {
+          mesh.visible = true;
+          mesh.material.opacity = 0.7;
+        });
+      } else {
+        // Hide all constellation figures
+        this.constellationFigureGroup.children.forEach(mesh => {
+          mesh.visible = false;
+          mesh.material.opacity = 0;
+        });
+      }
+    }
   }
 
   togglePlanets(visible) {

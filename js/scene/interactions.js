@@ -85,8 +85,8 @@ export default class InteractionManager {
       // Skip tooltips if dragging
       if (this.isDragging) {
         this.hideTooltips();
-        // Hide constellation figure when dragging
-        if (this.currentConstellationFigure) {
+        // Hide constellation figure when dragging (only if not always-on)
+        if (this.currentConstellationFigure && !this.sceneRef.constellationArtAlwaysOn) {
           hideConstellationFigure(this.sceneRef.constellationFigureGroup, this.currentConstellationFigure);
           this.currentConstellationFigure = null;
         }
@@ -578,16 +578,18 @@ export default class InteractionManager {
           this.positionTooltip(this.starInfoElement, event);
           this.renderer.domElement.style.cursor = 'pointer';
 
-          // Show constellation figure on star hover
-          const constellation = closest.starData.constellation;
-          if (constellation !== this.currentConstellationFigure) {
-            // Hide previous constellation figure
-            if (this.currentConstellationFigure) {
-              hideConstellationFigure(this.sceneRef.constellationFigureGroup, this.currentConstellationFigure);
+          // Show constellation figure on star hover (only if not always-on)
+          if (!this.sceneRef.constellationArtAlwaysOn) {
+            const constellation = closest.starData.constellation;
+            if (constellation !== this.currentConstellationFigure) {
+              // Hide previous constellation figure
+              if (this.currentConstellationFigure) {
+                hideConstellationFigure(this.sceneRef.constellationFigureGroup, this.currentConstellationFigure);
+              }
+              // Show new constellation figure
+              showConstellationFigure(this.sceneRef.constellationFigureGroup, constellation);
+              this.currentConstellationFigure = constellation;
             }
-            // Show new constellation figure
-            showConstellationFigure(this.sceneRef.constellationFigureGroup, constellation);
-            this.currentConstellationFigure = constellation;
           }
         }
         else if (closest.type === 'ecliptic-dot') {
@@ -623,8 +625,8 @@ export default class InteractionManager {
         this.hideTooltips();
         this.renderer.domElement.style.cursor = 'default';
 
-        // Hide constellation figure when not hovering over a star
-        if (this.currentConstellationFigure) {
+        // Hide constellation figure when not hovering over a star (only if not always-on)
+        if (this.currentConstellationFigure && !this.sceneRef.constellationArtAlwaysOn) {
           hideConstellationFigure(this.sceneRef.constellationFigureGroup, this.currentConstellationFigure);
           this.currentConstellationFigure = null;
         }
