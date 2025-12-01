@@ -36,6 +36,8 @@ export default class InteractionManager {
 
     // Track currently shown constellation figure
     this.currentConstellationFigure = null;
+    this.dimTimeout = null; // Timeout for delayed dimming
+    this.CONSTELLATION_DIM_DELAY = 150; // ms delay before dimming
 
     // Setup all interactions
     this.setupStarHover();
@@ -104,6 +106,59 @@ export default class InteractionManager {
     });
   }
 
+  /**
+   * Schedule dimming of constellation figures with a delay
+   * Cancels any pending dim if called again before timeout
+   */
+  scheduleDim() {
+    // Clear any existing timeout
+    if (this.dimTimeout) {
+      clearTimeout(this.dimTimeout);
+    }
+
+    this.dimTimeout = setTimeout(() => {
+      if (this.currentConstellationFigure) {
+        if (this.sceneRef.constellationArtAlwaysOn) {
+          this.dimAllConstellationFigures();
+        } else {
+          hideConstellationFigure(this.sceneRef.constellationFigureGroup, this.currentConstellationFigure);
+        }
+        this.currentConstellationFigure = null;
+      }
+      this.dimTimeout = null;
+    }, this.CONSTELLATION_DIM_DELAY);
+  }
+
+  /**
+   * Cancel any pending dim timeout
+   */
+  cancelDim() {
+    if (this.dimTimeout) {
+      clearTimeout(this.dimTimeout);
+      this.dimTimeout = null;
+    }
+  }
+
+  /**
+   * Highlight a constellation (from star hover or direct artwork hover)
+   */
+  highlightConstellation(constellationName) {
+    // Cancel any pending dim
+    this.cancelDim();
+
+    if (constellationName !== this.currentConstellationFigure) {
+      // Dim all other constellation figures first
+      if (this.sceneRef.constellationArtAlwaysOn) {
+        this.dimAllConstellationFigures();
+      } else if (this.currentConstellationFigure) {
+        hideConstellationFigure(this.sceneRef.constellationFigureGroup, this.currentConstellationFigure);
+      }
+      // Brighten the target constellation
+      showConstellationFigure(this.sceneRef.constellationFigureGroup, constellationName);
+      this.currentConstellationFigure = constellationName;
+    }
+  }
+
   setupStarHover() {
     const raycaster = new THREE.Raycaster();
     const mouse = new THREE.Vector2();
@@ -112,10 +167,11 @@ export default class InteractionManager {
       // Skip tooltips if dragging
       if (this.isDragging) {
         this.hideTooltips();
-        // Dim or hide constellation figure when dragging
+        // Cancel any pending dim and dim immediately when dragging
+        this.cancelDim();
         if (this.currentConstellationFigure) {
           if (this.sceneRef.constellationArtAlwaysOn) {
-            this.dimConstellationFigure(this.currentConstellationFigure);
+            this.dimAllConstellationFigures();
           } else {
             hideConstellationFigure(this.sceneRef.constellationFigureGroup, this.currentConstellationFigure);
           }
@@ -360,6 +416,16 @@ export default class InteractionManager {
         });
       }
 
+      // Constellation figures (for direct hover on artwork)
+      if (this.sceneRef.constellationFigureGroup) {
+        this.sceneRef.constellationFigureGroup.children.forEach(mesh => {
+          // Only raycast against visible meshes or in always-on mode
+          if (mesh.visible || this.sceneRef.constellationArtAlwaysOn) {
+            allTargets.push({ obj: mesh, type: 'constellation-figure', meta: mesh });
+          }
+        });
+      }
+
       // Perform single raycast against all objects
       const allIntersects = raycaster.intersectObjects(allTargets.map(t => t.obj), false);
 
@@ -394,7 +460,8 @@ export default class InteractionManager {
         'node': 0.5,           // Small (zodiac nodes)
         'star': 0.1,           // Very small
         'ecliptic-dot': 0.1,   // Very small dots
-        'planet-orbit': 0.05   // Lines - lower priority than most objects
+        'planet-orbit': 0.05,  // Lines - lower priority than most objects
+        'constellation-figure': 10 // Background artwork - lowest priority
       };
 
       // Process all intersections and build candidates
@@ -439,6 +506,24 @@ export default class InteractionManager {
           candidate.starData = meta.userData;
         } else if (type === 'angle' || type === 'circle' || type === 'pole' || type === 'node' || type === 'ecliptic-dot' || type === 'planet-orbit') {
           candidate.objectData = meta;
+        } else if (type === 'constellation-figure') {
+          // Check pixel at UV coordinates to exclude dark/transparent areas
+          const uv = intersection.uv;
+          if (!uv || !meta.userData.alphaContext) {
+            return; // Can't check pixel, skip this hit
+          }
+          const px = Math.floor(uv.x * meta.userData.textureWidth);
+          const py = Math.floor((1 - uv.y) * meta.userData.textureHeight); // Flip Y
+          const imageData = meta.userData.alphaContext.getImageData(px, py, 1, 1);
+          const r = imageData.data[0];
+          const g = imageData.data[1];
+          const b = imageData.data[2];
+          const alpha = imageData.data[3];
+          // Check both alpha AND brightness (textures use black backgrounds, not transparency)
+          const brightness = (r + g + b) / 3;
+          // Skip if alpha is low OR pixel is too dark (black background)
+          if (alpha < 30 || brightness < 15) return;
+          candidate.constellationName = meta.userData.constellation;
         }
 
         candidates.push(candidate);
@@ -448,18 +533,24 @@ export default class InteractionManager {
       // This ensures smaller objects inside larger ones are detected
       if (candidates.length > 0) {
         candidates.sort((a, b) => {
-          // If distance difference is very small (within 20% of CE_RADIUS), prioritize smaller object
+          // If distance difference is small relative to the distances themselves, prioritize by size
           const distanceDiff = Math.abs(a.distance - b.distance);
-          const overlapThreshold = this.sceneRef.CE_RADIUS * 0.2;
+          const avgDistance = (a.distance + b.distance) / 2;
+          const relativeThreshold = avgDistance * 0.05; // 5% of average distance
 
-          if (distanceDiff < overlapThreshold) {
-            // Objects are close/overlapping - prefer smaller object
+          if (distanceDiff < relativeThreshold) {
+            // Objects are close/overlapping - prefer smaller object (higher priority)
             return a.size - b.size;
           }
           // Objects are well separated - prefer closer object
           return a.distance - b.distance;
         });
         const closest = candidates[0];
+
+        // Dim constellation figure when hovering over non-constellation/non-star objects
+        if (closest.type !== 'constellation-figure' && closest.type !== 'star' && this.currentConstellationFigure) {
+          this.scheduleDim();
+        }
 
         const planetSymbols = {
           mercury: '☿', venus: '♀', mars: '♂', jupiter: '♃',
@@ -608,22 +699,9 @@ export default class InteractionManager {
           this.setTooltipContent(closest.starData.name, closest.starData.constellation);
           this.positionTooltip(this.starInfoElement, event);
           this.renderer.domElement.style.cursor = 'pointer';
-
-          // Highlight constellation figure on star hover
-          const constellation = closest.starData.constellation;
-          if (constellation !== this.currentConstellationFigure) {
-            // Dim previous constellation figure (or hide if not always-on)
-            if (this.currentConstellationFigure) {
-              if (this.sceneRef.constellationArtAlwaysOn) {
-                // Dim back to subtle opacity
-                this.dimConstellationFigure(this.currentConstellationFigure);
-              } else {
-                hideConstellationFigure(this.sceneRef.constellationFigureGroup, this.currentConstellationFigure);
-              }
-            }
-            // Brighten the hovered constellation to full opacity
-            showConstellationFigure(this.sceneRef.constellationFigureGroup, constellation);
-            this.currentConstellationFigure = constellation;
+          // Highlight the star's constellation
+          if (closest.starData.constellation) {
+            this.highlightConstellation(closest.starData.constellation);
           }
         }
         else if (closest.type === 'ecliptic-dot') {
@@ -655,35 +733,30 @@ export default class InteractionManager {
           this.positionTooltip(this.starInfoElement, event);
           this.renderer.domElement.style.cursor = 'pointer';
         }
+        else if (closest.type === 'constellation-figure') {
+          // Hovering on constellation artwork - brighten it
+          this.highlightConstellation(closest.constellationName);
+          this.hideTooltips();
+          this.renderer.domElement.style.cursor = 'default';
+        }
       } else {
         this.hideTooltips();
         this.renderer.domElement.style.cursor = 'default';
 
-        // Dim or hide constellation figure when not hovering over a star
+        // Schedule dim when not hovering over anything
         if (this.currentConstellationFigure) {
-          if (this.sceneRef.constellationArtAlwaysOn) {
-            // Dim back to subtle opacity
-            this.dimConstellationFigure(this.currentConstellationFigure);
-          } else {
-            hideConstellationFigure(this.sceneRef.constellationFigureGroup, this.currentConstellationFigure);
-          }
-          this.currentConstellationFigure = null;
+          this.scheduleDim();
         }
       }
     };
 
     this.renderer.domElement.addEventListener('mousemove', onStarHover);
 
-    // Handle mouse leaving the canvas - ensure constellations are dimmed
+    // Handle mouse leaving the canvas - schedule constellation dim
     this.renderer.domElement.addEventListener('mouseleave', () => {
       this.hideTooltips();
       if (this.currentConstellationFigure) {
-        if (this.sceneRef.constellationArtAlwaysOn) {
-          this.dimConstellationFigure(this.currentConstellationFigure);
-        } else {
-          hideConstellationFigure(this.sceneRef.constellationFigureGroup, this.currentConstellationFigure);
-        }
-        this.currentConstellationFigure = null;
+        this.scheduleDim();
       }
     });
 

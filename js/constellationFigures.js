@@ -256,6 +256,27 @@ function createConstellationMesh(constellation, texture, radius) {
   mesh.renderOrder = -1;
   mesh.visible = false;
 
+  // Create canvas for alpha sampling (used by hover detection)
+  if (texture.image) {
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = texture.image.width;
+      canvas.height = texture.image.height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(texture.image, 0, 0);
+      // Test that we can read pixel data (fails if canvas is tainted)
+      ctx.getImageData(0, 0, 1, 1);
+      mesh.userData.alphaCanvas = canvas;
+      mesh.userData.alphaContext = ctx;
+      mesh.userData.textureWidth = texture.image.width;
+      mesh.userData.textureHeight = texture.image.height;
+    } catch (e) {
+      console.warn(`Could not create alpha canvas for ${constellation.native}:`, e.message);
+    }
+  } else {
+    console.warn(`No texture image for ${constellation.native}`);
+  }
+
   return mesh;
 }
 
