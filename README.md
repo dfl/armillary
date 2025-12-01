@@ -244,6 +244,7 @@ This project is provided as-is for educational and astronomical purposes.
 - Ephemeris calculations powered by Moshier Ephemeris
 - Geocoding by [Nominatim](https://nominatim.org/)
 - Timezone data from [Geoapify](https://www.geoapify.com/)
+- Constellation art by [Johan Meuris](https://johanmeuris.eu/work/stellarium-constellation-art/)
 
 ## Support
 

@@ -1,6 +1,7 @@
 // interactions.js - User interaction handling (hover, double-click, context menu)
 
 import * as THREE from 'three';
+import { showConstellationFigure, hideConstellationFigure } from '../constellationFigures.js';
 
 /**
  * InteractionManager class handles all user interactions with the 3D scene.
@@ -29,6 +30,9 @@ export default class InteractionManager {
 
     // Track dragging state
     this.isDragging = false;
+
+    // Track currently shown constellation figure
+    this.currentConstellationFigure = null;
 
     // Setup all interactions
     this.setupStarHover();
@@ -81,6 +85,11 @@ export default class InteractionManager {
       // Skip tooltips if dragging
       if (this.isDragging) {
         this.hideTooltips();
+        // Hide constellation figure when dragging
+        if (this.currentConstellationFigure) {
+          hideConstellationFigure(this.sceneRef.constellationFigureGroup, this.currentConstellationFigure);
+          this.currentConstellationFigure = null;
+        }
         return;
       }
 
@@ -568,6 +577,18 @@ export default class InteractionManager {
           this.setTooltipContent(closest.starData.name, closest.starData.constellation);
           this.positionTooltip(this.starInfoElement, event);
           this.renderer.domElement.style.cursor = 'pointer';
+
+          // Show constellation figure on star hover
+          const constellation = closest.starData.constellation;
+          if (constellation !== this.currentConstellationFigure) {
+            // Hide previous constellation figure
+            if (this.currentConstellationFigure) {
+              hideConstellationFigure(this.sceneRef.constellationFigureGroup, this.currentConstellationFigure);
+            }
+            // Show new constellation figure
+            showConstellationFigure(this.sceneRef.constellationFigureGroup, constellation);
+            this.currentConstellationFigure = constellation;
+          }
         }
         else if (closest.type === 'ecliptic-dot') {
           const degree = closest.objectData.userData.eclipticDegree;
@@ -601,6 +622,12 @@ export default class InteractionManager {
       } else {
         this.hideTooltips();
         this.renderer.domElement.style.cursor = 'default';
+
+        // Hide constellation figure when not hovering over a star
+        if (this.currentConstellationFigure) {
+          hideConstellationFigure(this.sceneRef.constellationFigureGroup, this.currentConstellationFigure);
+          this.currentConstellationFigure = null;
+        }
       }
     };
 

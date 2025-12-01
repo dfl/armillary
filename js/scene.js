@@ -288,6 +288,13 @@ export class ArmillaryScene {
       constants,
       texturePaths
     );
+
+    // Load constellation figures asynchronously
+    this.celestialObjects.loadConstellationFigures().then(() => {
+      this.constellationFigureGroup = this.celestialObjects.constellationFigureGroup;
+      console.log('Constellation figures loaded');
+    });
+
     // Map properties for backward compatibility
     this.starGroup = this.celestialObjects.starGroup;
     this.starMeshes = this.celestialObjects.starMeshes;

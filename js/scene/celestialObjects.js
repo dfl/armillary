@@ -2,6 +2,7 @@
 
 import * as THREE from 'three';
 import { starData, constellationLines } from '../stardata.js';
+import { createConstellationFigures } from '../constellationFigures.js';
 
 /**
  * CelestialObjects class manages all celestial bodies in the visualization.
@@ -52,6 +53,7 @@ export default class CelestialObjects {
     this.starGroup = null;
     this.starMeshes = {};
     this.constellationLineGroup = null;
+    this.constellationFigureGroup = null;
     this.bgStarField = null;
     this.eclipticSunGroup = null;
     this.realisticSunGroup = null;
@@ -74,6 +76,7 @@ export default class CelestialObjects {
 
     // Initialize all celestial objects
     this.createStarField();
+    // Constellation figures loaded asynchronously - call loadConstellationFigures() after construction
     this.createSun();
     this.createMoon();
     this.createHeliocentricNodes();
@@ -227,6 +230,22 @@ export default class CelestialObjects {
 
     this.bgStarField = new THREE.Points(bgStarGeometry, bgStarMaterial);
     this.inertialStarSphere.add(this.bgStarField);
+  }
+
+  async loadConstellationFigures() {
+    // Load Stellarium constellation artwork with texture warping
+    try {
+      this.constellationFigureGroup = await createConstellationFigures(
+        this.STAR_FIELD_RADIUS * 0.98, // Slightly inside star field
+        'textures/constellations/'
+      );
+
+      // Add to inertial star sphere (same as stars)
+      this.inertialStarSphere.add(this.constellationFigureGroup);
+    } catch (err) {
+      console.error('Failed to load constellation figures:', err);
+      this.constellationFigureGroup = new THREE.Group();
+    }
   }
 
   createSun() {
