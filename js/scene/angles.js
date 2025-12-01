@@ -10,9 +10,10 @@ import * as THREE from 'three';
  * - Text labels for each angle
  */
 export default class AngleMarkers {
-  constructor(zodiacGroup, CE_RADIUS) {
+  constructor(zodiacGroup, CE_RADIUS, SPHERE_RADIUS) {
     this.zodiacGroup = zodiacGroup;
     this.CE_RADIUS = CE_RADIUS;
+    this.SPHERE_RADIUS = SPHERE_RADIUS;
 
     // Objects that will be exposed as properties
     this.spheres = {};
@@ -24,7 +25,6 @@ export default class AngleMarkers {
   }
 
   createAngleSpheres() {
-    const sphereRadius = this.CE_RADIUS * 1.6;
     const addAngle = (name, color) => {
       const mesh = new THREE.Mesh(
         new THREE.SphereGeometry(0.08 * (this.CE_RADIUS / 1.5), 16, 16),

@@ -733,7 +733,7 @@ export default class PlanetaryReferences {
     const moonSemiMinorAxis = moonSemiMajorAxis * Math.sqrt(1 - newEccentricity * newEccentricity);
     const moonFocalDistance = moonSemiMajorAxis * newEccentricity;
 
-    console.log('Updating lunar orbit: e =', newEccentricity, 'a =', moonSemiMajorAxis, 'b =', moonSemiMinorAxis, 'c =', moonFocalDistance);
+    // console.log('Updating lunar orbit: e =', newEccentricity, 'a =', moonSemiMajorAxis, 'b =', moonSemiMinorAxis, 'c =', moonFocalDistance);
 
     const moonOrbitPoints = [];
     const moonOrbitSegments = 128;

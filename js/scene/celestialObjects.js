@@ -75,11 +75,17 @@ export default class CelestialObjects {
     this.earthGroup = null;
     this.earthMesh = null;
 
+    // Sky view sun/moon (flat discs for zenith view)
+    this.skySunMesh = null;
+    this.skyMoonMesh = null;
+    this.skyMoonMaterial = null;
+
     // Initialize all celestial objects
     this.createStarField();
     // Constellation figures loaded asynchronously - call loadConstellationFigures() after construction
     this.createSun();
     this.createMoon();
+    this.createSkySunAndMoon();
     this.createHeliocentricNodes();
     this.createPlanets();
     this.createEclipticPlanets();
@@ -294,9 +300,11 @@ export default class CelestialObjects {
         color: 0xffaa44,
         transparent: true,
         opacity: 1.0,
-        depthWrite: false
+        depthWrite: false,
+        depthTest: false // Render on top of sky dome
       })
     );
+    sun.renderOrder = 100; // Render after sky dome
 
     // Apply pole orientation
     this.applyPoleOrientation(sun, 'sun');
@@ -321,9 +329,11 @@ export default class CelestialObjects {
           transparent: true,
           opacity: layer.opacity,
           blending: THREE.AdditiveBlending,
-          depthWrite: false
+          depthWrite: false,
+          depthTest: false // Render on top of sky dome
         })
       );
+      glowMesh.renderOrder = 99; // Render after sky dome but before sun
       glowMesh.raycast = () => {}; // Exclude from raycasting
       this.eclipticSunGroup.add(glowMesh);
       this.eclipticSunGlowMeshes.push(glowMesh);
@@ -397,20 +407,70 @@ export default class CelestialObjects {
     // Scale moon relative to celestial sphere radius (approx 9% of radius)
     const eclipticMoonRadius = this.CE_RADIUS * 0.09;
 
+    // Moon phase shader - shows realistic illumination based on sun position
+    const moonPhaseMaterial = new THREE.ShaderMaterial({
+      uniforms: {
+        moonTexture: { value: moonTexture },
+        sunDirection: { value: new THREE.Vector3(1, 0, 0) }
+      },
+      vertexShader: `
+        varying vec2 vUv;
+        varying vec3 vNormal;
+        varying vec3 vPosition;
+
+        void main() {
+          vUv = uv;
+          vNormal = normalize(normalMatrix * normal);
+          vPosition = (modelMatrix * vec4(position, 1.0)).xyz;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform sampler2D moonTexture;
+        uniform vec3 sunDirection;
+
+        varying vec2 vUv;
+        varying vec3 vNormal;
+        varying vec3 vPosition;
+
+        void main() {
+          vec4 texColor = texture2D(moonTexture, vUv);
+
+          // Calculate illumination based on sun direction
+          vec3 sunDir = normalize(sunDirection);
+          float illumination = dot(vNormal, sunDir);
+
+          // Smooth the terminator slightly
+          illumination = smoothstep(-0.1, 0.2, illumination);
+
+          // Apply illumination - dark side is very dark but not black
+          vec3 litColor = texColor.rgb * 0.9;
+          vec3 darkColor = texColor.rgb * 0.05;
+          vec3 finalColor = mix(darkColor, litColor, illumination);
+
+          gl_FragColor = vec4(finalColor, 1.0);
+        }
+      `,
+      depthWrite: false,
+      depthTest: false
+    });
+
     const eclipticMoon = new THREE.Mesh(
       new THREE.SphereGeometry(eclipticMoonRadius, 32, 32),
-      new THREE.MeshBasicMaterial({
-        map: moonTexture,
-        color: 0xaaaaaa
-      })
+      moonPhaseMaterial
     );
+    eclipticMoon.renderOrder = 100; // Render after sky dome
+
+    // Store reference to update sun direction
+    this.moonPhaseMaterial = moonPhaseMaterial;
 
     // Apply pole orientation
     this.applyPoleOrientation(eclipticMoon, 'moon');
 
     const eclipticMoonGlowLayers = [
-      { size: eclipticMoonRadius * 1.2, opacity: 0.15, color: 0xdddddd },
-      { size: eclipticMoonRadius * 1.5, opacity: 0.1, color: 0xcccccc }
+      { size: eclipticMoonRadius * 1.4, opacity: 0.25, color: 0xffffee },
+      { size: eclipticMoonRadius * 2.0, opacity: 0.15, color: 0xeeeedd },
+      { size: eclipticMoonRadius * 3.0, opacity: 0.08, color: 0xddddcc }
     ];
 
     this.eclipticMoonGroup = new THREE.Group();
@@ -427,9 +487,11 @@ export default class CelestialObjects {
           transparent: true,
           opacity: layer.opacity,
           blending: THREE.AdditiveBlending,
-          depthWrite: false
+          depthWrite: false,
+          depthTest: false // Render on top of sky dome
         })
       );
+      glowMesh.renderOrder = 99; // Render after sky dome but before moon
       this.eclipticMoonGroup.add(glowMesh);
       this.moonGlowMeshes.push(glowMesh);
     });
@@ -485,6 +547,183 @@ export default class CelestialObjects {
 
     // Hide initially until first updateSphere() call
     this.realisticMoonGroup.visible = false;
+  }
+
+  /**
+   * Create sky-view sun and moon (flat discs for zenith view)
+   * Based on Stellarium's approach with Oren-Nayar diffuse shading
+   */
+  createSkySunAndMoon() {
+    const textureLoader = new THREE.TextureLoader();
+    const moonTexture = textureLoader.load(this.texturePaths.MOON_TEXTURE_PATH);
+
+    // Sky sun - glowing disc with corona effect
+    const sunRadius = this.CE_RADIUS * 0.15;
+
+    const skySunMaterial = new THREE.ShaderMaterial({
+      uniforms: {
+        glowColor: { value: new THREE.Color(1.0, 0.95, 0.8) },
+        intensity: { value: 1.5 }
+      },
+      vertexShader: `
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform vec3 glowColor;
+        uniform float intensity;
+        varying vec2 vUv;
+
+        void main() {
+          vec2 center = vec2(0.5, 0.5);
+          float dist = distance(vUv, center) * 2.0;
+
+          // Core disc (sharp edge)
+          float core = 1.0 - smoothstep(0.0, 0.7, dist);
+
+          // Inner glow
+          float innerGlow = exp(-dist * 3.0) * 0.8;
+
+          // Outer corona
+          float corona = exp(-dist * 1.5) * 0.4;
+
+          float totalGlow = core + innerGlow + corona;
+
+          // Limb darkening effect for the core
+          float limbDarkening = 1.0 - pow(dist * 0.7, 2.0) * 0.3;
+          vec3 color = glowColor * totalGlow * limbDarkening * intensity;
+
+          float alpha = clamp(totalGlow, 0.0, 1.0);
+          gl_FragColor = vec4(color, alpha);
+        }
+      `,
+      transparent: true,
+      depthWrite: false,
+      depthTest: false,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide
+    });
+
+    this.skySunMesh = new THREE.Mesh(
+      new THREE.PlaneGeometry(sunRadius * 2, sunRadius * 2),
+      skySunMaterial
+    );
+    this.skySunMesh.renderOrder = 101;
+    this.skySunMesh.visible = false; // Hidden until zenith view
+
+    // Add to ecliptic sun group so it follows sun position
+    this.eclipticSunGroup.add(this.skySunMesh);
+
+    // Sky moon - disc with Oren-Nayar-like phase shading
+    const moonRadius = this.CE_RADIUS * 0.12;
+
+    this.skyMoonMaterial = new THREE.ShaderMaterial({
+      uniforms: {
+        moonTexture: { value: moonTexture },
+        sunDirection: { value: new THREE.Vector3(1, 0, 0) },
+        roughness: { value: 0.8 } // Moon surface roughness for Oren-Nayar
+      },
+      vertexShader: `
+        varying vec2 vUv;
+        varying vec3 vNormal;
+        void main() {
+          vUv = uv;
+          // Create normal for a sphere mapped onto a plane
+          // Center of disc is (0,0,1), edges curve away
+          vec2 centered = (uv - 0.5) * 2.0;
+          float r2 = dot(centered, centered);
+          if (r2 < 1.0) {
+            float z = sqrt(1.0 - r2);
+            vNormal = normalize(vec3(centered.x, centered.y, z));
+          } else {
+            vNormal = vec3(0.0, 0.0, 1.0);
+          }
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform sampler2D moonTexture;
+        uniform vec3 sunDirection;
+        uniform float roughness;
+
+        varying vec2 vUv;
+        varying vec3 vNormal;
+
+        // Simplified Oren-Nayar diffuse (from Stellarium)
+        float orenNayarDiffuse(vec3 lightDir, vec3 viewDir, vec3 normal, float rough) {
+          float LdotN = max(dot(lightDir, normal), 0.0);
+          float VdotN = max(dot(viewDir, normal), 0.0);
+
+          float sigma2 = rough * rough;
+          float A = 1.0 - 0.5 * sigma2 / (sigma2 + 0.33);
+          float B = 0.45 * sigma2 / (sigma2 + 0.09);
+
+          float thetaI = acos(LdotN);
+          float thetaR = acos(VdotN);
+          float alpha = max(thetaI, thetaR);
+          float beta = min(thetaI, thetaR);
+
+          vec3 lightProj = normalize(lightDir - normal * LdotN);
+          vec3 viewProj = normalize(viewDir - normal * VdotN);
+          float cosPhiDiff = max(dot(lightProj, viewProj), 0.0);
+
+          return LdotN * (A + B * cosPhiDiff * sin(alpha) * tan(beta));
+        }
+
+        void main() {
+          vec2 centered = (vUv - 0.5) * 2.0;
+          float r2 = dot(centered, centered);
+
+          // Discard pixels outside the disc
+          if (r2 > 1.0) {
+            discard;
+          }
+
+          // Sample texture with spherical UV mapping
+          vec4 texColor = texture2D(moonTexture, vUv);
+
+          // Calculate illumination using Oren-Nayar
+          vec3 lightDir = normalize(sunDirection);
+          vec3 viewDir = vec3(0.0, 0.0, 1.0); // Viewing straight on
+
+          float diffuse = orenNayarDiffuse(lightDir, viewDir, vNormal, roughness);
+
+          // Apply illumination
+          vec3 litColor = texColor.rgb * diffuse * 1.2;
+          vec3 darkColor = texColor.rgb * 0.02; // Very dark shadow side
+
+          // Smooth terminator
+          float terminator = smoothstep(-0.05, 0.15, dot(vNormal, lightDir));
+          vec3 finalColor = mix(darkColor, litColor, terminator);
+
+          // Slight limb darkening
+          float limbDark = 1.0 - pow(sqrt(r2), 3.0) * 0.15;
+          finalColor *= limbDark;
+
+          // Soft edge for antialiasing
+          float edgeAlpha = 1.0 - smoothstep(0.95, 1.0, sqrt(r2));
+
+          gl_FragColor = vec4(finalColor, edgeAlpha);
+        }
+      `,
+      transparent: true,
+      depthWrite: false,
+      depthTest: false,
+      side: THREE.DoubleSide
+    });
+
+    this.skyMoonMesh = new THREE.Mesh(
+      new THREE.PlaneGeometry(moonRadius * 2, moonRadius * 2),
+      this.skyMoonMaterial
+    );
+    this.skyMoonMesh.renderOrder = 101;
+    this.skyMoonMesh.visible = false; // Hidden until zenith view
+
+    // Add to ecliptic moon group so it follows moon position
+    this.eclipticMoonGroup.add(this.skyMoonMesh);
   }
 
   createHeliocentricNodes() {

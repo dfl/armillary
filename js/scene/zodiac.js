@@ -12,9 +12,10 @@ import * as THREE from 'three';
  * - Outer ecliptic line in the star field
  */
 export default class ZodiacWheel {
-  constructor(zodiacGroup, CE_RADIUS, obliquity) {
+  constructor(zodiacGroup, CE_RADIUS, SPHERE_RADIUS, obliquity) {
     this.zodiacGroup = zodiacGroup;
     this.CE_RADIUS = CE_RADIUS;
+    this.SPHERE_RADIUS = SPHERE_RADIUS;
     this.obliquity = obliquity;
 
     // Reference that will be exposed as property
@@ -25,7 +26,7 @@ export default class ZodiacWheel {
   }
 
   createEclipticZodiacWheel() {
-    const sphereRadius = this.CE_RADIUS * 1.6;
+    const sphereRadius = this.SPHERE_RADIUS;
     const ecliptic = new THREE.Mesh(
       new THREE.CircleGeometry(sphereRadius, 128),
       new THREE.MeshBasicMaterial({ color: 0x888888, side: THREE.DoubleSide, transparent: true, opacity: 0.1, depthWrite: false })

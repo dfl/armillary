@@ -35,6 +35,7 @@ export class ArmillaryScene {
     this.PLANET_RADIUS_SCALE = 0.05; // Scale factor to make all bodies visible but not overwhelming
     this.EARTH_RADIUS = 100.0 * this.PLANET_RADIUS_SCALE; // Earth's radius scaled consistently with other planets
     this.CE_RADIUS = this.EARTH_RADIUS * 0.02; // Celestial sphere radius (local horizon visualization scale, 2% of Earth radius)
+    this.SPHERE_RADIUS = this.CE_RADIUS * 1.6; // Radius of horizon circle and sky dome
     this.PLANET_DISTANCE_SCALE = 2000; // Scale factor for planet orbital distances (1 AU = 2000 units)
     this.STAR_FIELD_RADIUS = this.PLANET_DISTANCE_SCALE * 200; // Star field radius (encompassing solar system)
 
@@ -179,7 +180,7 @@ export class ArmillaryScene {
     // Horizon view positions camera to face south (East/ASC on left, West/DSC on right)
     // Position camera at a comfortable viewing distance relative to the horizon (CE_RADIUS)
     this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 500000);
-    this.camera.position.set(0, this.CE_RADIUS * 1.6, this.CE_RADIUS * 3.0);
+    this.camera.position.set(0, this.SPHERE_RADIUS, this.CE_RADIUS * 3.0);
     this.camera.lookAt(0, 0, 0);
 
     // Create stereo cameras (left and right eye)
@@ -233,7 +234,8 @@ export class ArmillaryScene {
       this.scene,
       this.armillaryRoot,
       this.celestial,
-      this.CE_RADIUS
+      this.CE_RADIUS,
+      this.SPHERE_RADIUS
     );
     // Map properties for backward compatibility
     this.horizonPlane = this.references.horizonPlane;
@@ -247,6 +249,7 @@ export class ArmillaryScene {
     this.zodiacWheel = new ZodiacWheel(
       this.zodiacGroup,
       this.CE_RADIUS,
+      this.SPHERE_RADIUS,
       this.obliquity
     );
     // Map properties for backward compatibility
@@ -329,7 +332,8 @@ export class ArmillaryScene {
     // 4. Angle Markers (MC, IC, ASC, DSC, VTX, AVX)
     this.angleMarkers = new AngleMarkers(
       this.zodiacGroup,
-      this.CE_RADIUS
+      this.CE_RADIUS,
+      this.SPHERE_RADIUS
     );
     // Map properties for backward compatibility
     this.spheres = this.angleMarkers.spheres;
@@ -361,7 +365,7 @@ export class ArmillaryScene {
     // 6. Sky Atmosphere (physical sky rendering with Rayleigh/Mie scattering)
     this.skyAtmosphere = new SkyAtmosphere(
       this.armillaryRoot,
-      this.CE_RADIUS
+      this.SPHERE_RADIUS
     );
     // Initially hidden until toggle is checked
     this.skyAtmosphere.setVisible(false);
@@ -494,7 +498,7 @@ export class ArmillaryScene {
     // 5. Place Objects on the Zodiac Wheel
     // -----------------------------------------------------------
     // Helper to place points based on zodiac longitude
-    const sphereRadius = this.CE_RADIUS * 1.6;
+    const sphereRadius = this.SPHERE_RADIUS;
     const placeOnZodiac = (deg) => {
         const rad = THREE.MathUtils.degToRad(deg) - ayanamsha;
         // We map 0 degrees to +X, moving counter-clockwise towards +Y
@@ -1345,6 +1349,78 @@ export class ArmillaryScene {
     // Update sky atmosphere with sun position
     if (this.skyAtmosphere) {
       this.skyAtmosphere.updateSunPosition(sunLocalPos);
+
+      // Update moon position for sky glow effect
+      const moonWorldPos = new THREE.Vector3();
+      this.eclipticMoonGroup.getWorldPosition(moonWorldPos);
+      const moonLocalPos = this.armillaryRoot.worldToLocal(moonWorldPos.clone());
+      const sunAltitude = sunLocalPos.y / this.SPHERE_RADIUS;
+      this.skyAtmosphere.updateMoonPosition(moonLocalPos, sunAltitude);
+    }
+
+    // Update moon phase shaders with sun direction (relative to moon)
+    const moonWorldPosPhase = new THREE.Vector3();
+    this.eclipticMoonGroup.getWorldPosition(moonWorldPosPhase);
+
+    // Sun direction from moon (in world space)
+    const sunDirWorld = sunWorldPos.clone().sub(moonWorldPosPhase).normalize();
+
+    if (this.celestialObjects.moonPhaseMaterial) {
+      // Transform to moon's local space (accounting for zodiacGroup rotation)
+      const moonWorldQuat = new THREE.Quaternion();
+      this.eclipticMoonGroup.getWorldQuaternion(moonWorldQuat);
+      const invQuat = moonWorldQuat.clone().invert();
+      const sunDirLocal = sunDirWorld.clone().applyQuaternion(invQuat);
+      this.celestialObjects.moonPhaseMaterial.uniforms.sunDirection.value.copy(sunDirLocal);
+    }
+
+    // Update sky moon shader with sun direction
+    if (this.celestialObjects.skyMoonMaterial) {
+      // For the sky moon (billboard), we need the sun direction in the plane's local space
+      // The plane always faces the camera, so we project sun direction onto the view plane
+      const cameraPos = this.camera.position.clone();
+      const viewDir = moonWorldPosPhase.clone().sub(cameraPos).normalize();
+
+      // Project sun direction onto the plane perpendicular to view direction
+      const sunProj = sunDirWorld.clone();
+      sunProj.sub(viewDir.clone().multiplyScalar(sunDirWorld.dot(viewDir)));
+      sunProj.normalize();
+
+      // Convert to 2D coordinates on the billboard (right = x, up = y, forward = z)
+      const right = new THREE.Vector3();
+      const up = new THREE.Vector3(0, 1, 0);
+      right.crossVectors(up, viewDir).normalize();
+      up.crossVectors(viewDir, right).normalize();
+
+      const sunDir2D = new THREE.Vector3(
+        sunProj.dot(right),
+        sunProj.dot(up),
+        sunDirWorld.dot(viewDir.negate())
+      );
+
+      this.celestialObjects.skyMoonMaterial.uniforms.sunDirection.value.copy(sunDir2D);
+    }
+
+    // Adjust moon glow based on night/day (brighter at night)
+    if (this.moonGlowMeshes && this.moonGlowMeshes.length > 0) {
+      const sunAltitude = sunLocalPos.y / this.SPHERE_RADIUS; // Normalized altitude
+      // Glow multiplier: 1.0 during day, up to 2.5 at night
+      let glowMultiplier = 1.0;
+      if (sunAltitude < 0) {
+        // Night time - increase glow
+        glowMultiplier = 1.0 + Math.min(2.5, Math.abs(sunAltitude) * 5);
+      } else if (sunAltitude < 0.2) {
+        // Twilight - slight increase
+        glowMultiplier = 1.0 + (0.2 - sunAltitude) * 2;
+      }
+
+      const baseOpacities = [0.25, 0.15, 0.08];
+      this.moonGlowMeshes.forEach((glowMesh, index) => {
+        if (glowMesh.material) {
+          const baseOpacity = baseOpacities[index] || 0.1;
+          glowMesh.material.opacity = Math.min(0.8, baseOpacity * glowMultiplier);
+        }
+      });
     }
   }
 
@@ -1586,6 +1662,159 @@ export class ArmillaryScene {
   toggleSkyAtmosphere(visible) {
     if (this.skyAtmosphere) {
       this.skyAtmosphere.setVisible(visible);
+    }
+  }
+
+  /**
+   * Set opacity of horizon view elements (for zenith view fade effect)
+   * @param {number} opacity - Opacity value between 0 and 1
+   */
+  setHorizonElementsOpacity(opacity) {
+    const setMaterialOpacity = (obj, baseOpacity = 1.0) => {
+      if (!obj) return;
+      if (obj.material) {
+        obj.material.opacity = opacity * baseOpacity;
+        obj.material.transparent = true;
+        obj.material.needsUpdate = true;
+      }
+    };
+
+    // Horizon plane and outline
+    setMaterialOpacity(this.horizonPlane, 0.1);
+    setMaterialOpacity(this.horizonOutline, 0.5);
+
+    // Meridian and prime vertical
+    setMaterialOpacity(this.meridianOutline, 0.5);
+    setMaterialOpacity(this.primeVerticalOutline, 0.5);
+
+    // Celestial equator
+    setMaterialOpacity(this.celestialEquatorOutline, 0.6);
+
+    // Pole labels
+    if (this.poleLabels) {
+      if (this.poleLabels.NP && this.poleLabels.NP.material) {
+        this.poleLabels.NP.material.opacity = opacity;
+      }
+      if (this.poleLabels.SP && this.poleLabels.SP.material) {
+        this.poleLabels.SP.material.opacity = opacity;
+      }
+    }
+
+    // Zodiac wheel elements (but not sun/moon/planets)
+    // Helper to check if object is descendant of a group
+    const isDescendantOf = (obj, group) => {
+      if (!group) return false;
+      let parent = obj.parent;
+      while (parent) {
+        if (parent === group) return true;
+        parent = parent.parent;
+      }
+      return false;
+    };
+
+    if (this.zodiacGroup) {
+      this.zodiacGroup.traverse((child) => {
+        // Skip sun and moon groups and all their descendants
+        if (child === this.eclipticSunGroup || isDescendantOf(child, this.eclipticSunGroup)) return;
+        if (child === this.eclipticMoonGroup || isDescendantOf(child, this.eclipticMoonGroup)) return;
+
+        // Skip ecliptic planet groups and their descendants
+        if (this.eclipticPlanetGroups) {
+          for (const name in this.eclipticPlanetGroups) {
+            const planetGroup = this.eclipticPlanetGroups[name].group;
+            if (child === planetGroup || isDescendantOf(child, planetGroup)) return;
+          }
+        }
+
+        if (child.material) {
+          const baseOpacity = child.material.userData?.baseOpacity ?? child.material.opacity;
+          if (!child.material.userData) child.material.userData = {};
+          child.material.userData.baseOpacity = baseOpacity;
+          child.material.opacity = opacity * Math.min(baseOpacity, 1.0);
+          child.material.transparent = true;
+        }
+      });
+    }
+
+    // Angle markers (MC, IC, ASC, DSC, VTX, AVX)
+    if (this.spheres) {
+      for (const name in this.spheres) {
+        const sphere = this.spheres[name];
+        if (sphere) {
+          sphere.visible = opacity > 0;
+        }
+      }
+    }
+
+    // Angle labels
+    if (this.angleLabels) {
+      for (const name in this.angleLabels) {
+        const label = this.angleLabels[name];
+        if (label) {
+          label.visible = opacity > 0;
+        }
+      }
+    }
+
+    // Compass rose and other armillaryRoot children (but not celestial objects)
+    if (this.armillaryRoot) {
+      this.armillaryRoot.children.forEach(child => {
+        // Skip sky atmosphere
+        if (this.skyAtmosphere && child === this.skyAtmosphere.skyMesh) return;
+        // Skip celestial group (contains stars, zodiac with sun/moon)
+        if (child === this.celestial) return;
+        if (child === this.tiltGroup) return;
+
+        // Hide/show based on opacity
+        if (child.material) {
+          const baseOpacity = child.material.userData?.baseOpacity ?? child.material.opacity;
+          if (!child.material.userData) child.material.userData = {};
+          child.material.userData.baseOpacity = baseOpacity;
+          child.material.opacity = opacity * Math.min(baseOpacity, 1.0);
+          child.material.transparent = true;
+        }
+        // Also set visibility for objects without materials (groups)
+        if (opacity === 0) {
+          child.visible = false;
+        } else {
+          child.visible = true;
+        }
+      });
+    }
+
+    // Make sure sun and moon groups stay visible
+    if (this.eclipticSunGroup) this.eclipticSunGroup.visible = true;
+    if (this.eclipticMoonGroup) this.eclipticMoonGroup.visible = true;
+
+    // Toggle between ecliptic spheres and sky view discs based on zenith view
+    const isZenithView = opacity === 0;
+
+    // Ecliptic sun/moon spheres - hide in zenith view
+    if (this.eclipticSunMesh) this.eclipticSunMesh.visible = !isZenithView;
+    if (this.eclipticMoonMesh) this.eclipticMoonMesh.visible = !isZenithView;
+
+    // Sun/moon glow meshes - hide in zenith view
+    if (this.eclipticSunGlowMeshes) {
+      this.eclipticSunGlowMeshes.forEach(glow => glow.visible = !isZenithView);
+    }
+    if (this.moonGlowMeshes) {
+      this.moonGlowMeshes.forEach(glow => glow.visible = !isZenithView);
+    }
+
+    // Sky sun/moon discs - show only in zenith view
+    if (this.celestialObjects.skySunMesh) {
+      this.celestialObjects.skySunMesh.visible = isZenithView;
+      if (isZenithView) {
+        // Make billboard face camera
+        this.celestialObjects.skySunMesh.quaternion.copy(this.camera.quaternion);
+      }
+    }
+    if (this.celestialObjects.skyMoonMesh) {
+      this.celestialObjects.skyMoonMesh.visible = isZenithView;
+      if (isZenithView) {
+        // Make billboard face camera
+        this.celestialObjects.skyMoonMesh.quaternion.copy(this.camera.quaternion);
+      }
     }
   }
 

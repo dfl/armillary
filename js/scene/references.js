@@ -15,11 +15,12 @@ import * as THREE from 'three';
  * - Celestial pole labels (NP/SP)
  */
 export default class ReferenceGeometry {
-  constructor(scene, armillaryRoot, celestial, CE_RADIUS) {
+  constructor(scene, armillaryRoot, celestial, CE_RADIUS, SPHERE_RADIUS) {
     this.scene = scene;
     this.armillaryRoot = armillaryRoot;
     this.celestial = celestial;
     this.CE_RADIUS = CE_RADIUS;
+    this.SPHERE_RADIUS = SPHERE_RADIUS;
 
     // References that will be exposed as properties
     this.horizonPlane = null;
@@ -36,7 +37,7 @@ export default class ReferenceGeometry {
 
   createFixedReferences() {
     const planeOpts = { side: THREE.DoubleSide, transparent: true, opacity: 0.1 };
-    const sphereRadius = this.CE_RADIUS * 1.6;
+    const sphereRadius = this.SPHERE_RADIUS;
 
     // Horizon plane
     this.horizonPlane = new THREE.Mesh(
@@ -151,7 +152,7 @@ export default class ReferenceGeometry {
   }
 
   createCelestialEquator() {
-    const sphereRadius = this.CE_RADIUS * 1.6;
+    const sphereRadius = this.SPHERE_RADIUS;
     const ceqPoints = [];
     for (let i = 0; i <= 128; i++) {
       const a = (i / 128) * Math.PI * 2;
