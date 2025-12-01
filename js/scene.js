@@ -2,7 +2,7 @@
 
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { starData, constellationLines } from './stardata.js';
+import { starData } from './stardata.js';
 
 // Import scene modules
 import ReferenceGeometry from './scene/references.js';

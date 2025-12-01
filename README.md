@@ -243,6 +243,7 @@ This project is provided as-is for educational and astronomical purposes.
 - Astronomical algorithms based on Jean Meeus's "Astronomical Algorithms"
 - Ephemeris calculations powered by Moshier Ephemeris
 - Star data from [HYG Database](https://www.astronexus.com/projects/hyg)
+- Constellation data from [Stellarium](https://stellarium.org)
 - Constellation art by [Johan Meuris](https://johanmeuris.eu/work/stellarium-constellation-art/)
 
 ## Support

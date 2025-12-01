@@ -1,8 +1,10 @@
 // celestialObjects.js - Stars, sun, moon, planets, and Earth
 
 import * as THREE from 'three';
-import { starData, constellationLines } from '../stardata.js';
+import { starData } from '../stardata.js';
 import { createConstellationFigures } from '../constellationFigures.js';
+import { stellariumConstellations } from '../stellariumData.js';
+import { hipparcosCatalog } from '../hipparcosCatalog.js';
 
 /**
  * CelestialObjects class manages all celestial bodies in the visualization.
@@ -172,7 +174,7 @@ export default class CelestialObjects {
       });
     });
 
-    // Add constellation lines
+    // Add constellation lines using Stellarium data
     const lineMaterial = new THREE.LineBasicMaterial({
       color: 0x5555cc,
       transparent: true,
@@ -180,16 +182,38 @@ export default class CelestialObjects {
       linewidth: 1
     });
 
-    constellationLines.forEach(([star1, star2]) => {
-      if (this.starMeshes[star1] && this.starMeshes[star2]) {
-        const points = [
-          this.starMeshes[star1].position.clone(),
-          this.starMeshes[star2].position.clone()
-        ];
-        const lineGeometry = new THREE.BufferGeometry().setFromPoints(points);
-        const line = new THREE.Line(lineGeometry, lineMaterial);
-        this.constellationLineGroup.add(line);
-      }
+    // Helper function to get star position from Hipparcos catalog
+    const getHipStarPosition = (hipId, radius) => {
+      const star = hipparcosCatalog[hipId.toString()];
+      if (!star) return null;
+      return raDecToVector3(star.ra, star.dec, radius);
+    };
+
+    // Iterate through all Stellarium constellations
+    Object.values(stellariumConstellations).forEach(constellation => {
+      if (!constellation.lines) return;
+
+      // Each constellation has an array of line segments
+      // Each line segment is an array of Hipparcos IDs
+      constellation.lines.forEach(lineSegment => {
+        if (lineSegment.length < 2) return;
+
+        // Create line connecting consecutive stars in this segment
+        for (let i = 0; i < lineSegment.length - 1; i++) {
+          const hipId1 = lineSegment[i];
+          const hipId2 = lineSegment[i + 1];
+
+          const pos1 = getHipStarPosition(hipId1, this.STAR_FIELD_RADIUS);
+          const pos2 = getHipStarPosition(hipId2, this.STAR_FIELD_RADIUS);
+
+          if (pos1 && pos2) {
+            const points = [pos1, pos2];
+            const lineGeometry = new THREE.BufferGeometry().setFromPoints(points);
+            const line = new THREE.Line(lineGeometry, lineMaterial);
+            this.constellationLineGroup.add(line);
+          }
+        }
+      });
     });
 
     // Add stars to inertial sphere (stationary reference frame)
