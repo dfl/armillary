@@ -887,7 +887,7 @@ export class ArmillaryScene {
 
         // Apply same distance compression as planets
         const compressedPerihelionDist = Math.pow(perihelionDist, distanceExponent);
-        const scaledPerihelionDist = compressedPerihelionDist * this.PLANET_DISTANCE_SCALE;
+        const scaledPerihelionDist = compressedPerihelionDist * this.PLANET_DISTANCE_SCALE * zoomScale;
 
         const perihelionX = scaledPerihelionDist * Math.cos(perihelionRad);
         const perihelionY = scaledPerihelionDist * Math.sin(perihelionRad);
@@ -898,7 +898,7 @@ export class ArmillaryScene {
         const aphelionRad = THREE.MathUtils.degToRad(apsides.aphelion);
 
         const compressedAphelionDist = Math.pow(aphelionDist, distanceExponent);
-        const scaledAphelionDist = compressedAphelionDist * this.PLANET_DISTANCE_SCALE;
+        const scaledAphelionDist = compressedAphelionDist * this.PLANET_DISTANCE_SCALE * zoomScale;
 
         const aphelionX = scaledAphelionDist * Math.cos(aphelionRad);
         const aphelionY = scaledAphelionDist * Math.sin(aphelionRad);
