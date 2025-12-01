@@ -100,7 +100,6 @@ export class ArmillaryScene {
     // ===================================================================
     this.starGroup = null;
     this.constellationLineGroup = null;
-    this.bgStarField = null;
     this.starMeshes = {}; // Store star meshes for hover detection
     this.horizonPlane = null;
     this.horizonOutline = null;
@@ -303,7 +302,6 @@ export class ArmillaryScene {
     this.starGroup = this.celestialObjects.starGroup;
     this.starMeshes = this.celestialObjects.starMeshes;
     this.constellationLineGroup = this.celestialObjects.constellationLineGroup;
-    this.bgStarField = this.celestialObjects.bgStarField;
     this.eclipticSunGroup = this.celestialObjects.eclipticSunGroup;
     this.realisticSunGroup = this.celestialObjects.realisticSunGroup;
     this.sunTexture = this.celestialObjects.sunTexture;

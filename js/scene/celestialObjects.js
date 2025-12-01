@@ -54,7 +54,6 @@ export default class CelestialObjects {
     this.starMeshes = {};
     this.constellationLineGroup = null;
     this.constellationFigureGroup = null;
-    this.bgStarField = null;
     this.eclipticSunGroup = null;
     this.realisticSunGroup = null;
     this.sunTexture = null;
@@ -196,40 +195,6 @@ export default class CelestialObjects {
     // Add stars to inertial sphere (stationary reference frame)
     this.inertialStarSphere.add(this.starGroup);
     this.inertialStarSphere.add(this.constellationLineGroup);
-
-    // Background stars
-    const bgStarCount = 1000;
-    const bgStarGeometry = new THREE.BufferGeometry();
-    const bgStarPositions = [];
-    const bgStarColors = [];
-
-    for (let i = 0; i < bgStarCount; i++) {
-      const theta = Math.random() * Math.PI * 2;
-      const phi = Math.acos(2 * Math.random() - 1);
-      const r = this.STAR_FIELD_RADIUS * 1.2;
-
-      const x = r * Math.sin(phi) * Math.cos(theta);
-      const y = r * Math.sin(phi) * Math.sin(theta);
-      const z = r * Math.cos(phi);
-
-      bgStarPositions.push(x, y, z);
-
-      const brightness = 0.1 + Math.random() * 0.3;
-      bgStarColors.push(brightness, brightness, brightness * 0.98);
-    }
-
-    bgStarGeometry.setAttribute('position', new THREE.Float32BufferAttribute(bgStarPositions, 3));
-    bgStarGeometry.setAttribute('color', new THREE.Float32BufferAttribute(bgStarColors, 3));
-
-    const bgStarMaterial = new THREE.PointsMaterial({
-      size: 15.0,
-      vertexColors: true,
-      transparent: true,
-      opacity: 0.4
-    });
-
-    this.bgStarField = new THREE.Points(bgStarGeometry, bgStarMaterial);
-    this.inertialStarSphere.add(this.bgStarField);
   }
 
   async loadConstellationFigures() {

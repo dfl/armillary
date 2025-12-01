@@ -227,9 +227,6 @@ export default class CameraController {
   toggleStarfield(visible) {
     this.sceneRef.starGroup.visible = visible;
     this.sceneRef.constellationLineGroup.visible = visible;
-    if (this.sceneRef.bgStarField) {
-      this.sceneRef.bgStarField.visible = visible;
-    }
   }
 
   updateEarthVisibility() {

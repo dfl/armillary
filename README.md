@@ -242,8 +242,7 @@ This project is provided as-is for educational and astronomical purposes.
 - Celestial texture maps from [Planet Pixel Emporium](https://planetpixelemporium.com/)
 - Astronomical algorithms based on Jean Meeus's "Astronomical Algorithms"
 - Ephemeris calculations powered by Moshier Ephemeris
-- Geocoding by [Nominatim](https://nominatim.org/)
-- Timezone data from [Geoapify](https://www.geoapify.com/)
+- Star data from [HYG Database](https://www.astronexus.com/projects/hyg)
 - Constellation art by [Johan Meuris](https://johanmeuris.eu/work/stellarium-constellation-art/)
 
 ## Support
