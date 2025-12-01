@@ -41,6 +41,9 @@ export default class CameraController {
     if (targetName === 'horizon') {
       this.sceneRef.armillaryRoot.getWorldPosition(targetWorldPos);
       targetRadius = this.sceneRef.CE_RADIUS;
+    } else if (targetName === 'zenith') {
+      this.sceneRef.armillaryRoot.getWorldPosition(targetWorldPos);
+      targetRadius = this.sceneRef.CE_RADIUS;
     } else if (targetName === 'earth') {
       this.sceneRef.earthGroup.getWorldPosition(targetWorldPos);
       // Account for Earth's current scale from planet zoom
@@ -93,6 +96,24 @@ export default class CameraController {
 
       // Camera up aligns with horizon's current up direction
       const localUp = new THREE.Vector3(0, 1, 0);
+      newUp = localUp.applyQuaternion(this.sceneRef.armillaryRoot.quaternion);
+    } else if (targetName === 'zenith') {
+      // Position camera at the observer's location (center of horizon) looking straight up
+      // Tiny offset above horizon plane so it's just behind/invisible
+      // In local space: camera at origin (tiny +Y), looking up at zenith
+      const armillaryPos = new THREE.Vector3();
+      this.sceneRef.armillaryRoot.getWorldPosition(armillaryPos);
+
+      const localCameraOffset = new THREE.Vector3(0, targetRadius * 0.01, 0);
+      const worldCameraOffset = localCameraOffset.applyQuaternion(this.sceneRef.armillaryRoot.quaternion);
+      newCameraPos = armillaryPos.clone().add(worldCameraOffset);
+
+      // Target is at the horizon center (observer position) so camera rotates in place
+      // This allows the user to look around the sky from a fixed viewpoint
+      targetWorldPos.copy(armillaryPos);
+
+      // Camera up aligns with North (local +Z) so North is at the top of the view
+      const localUp = new THREE.Vector3(0, 0, 1);
       newUp = localUp.applyQuaternion(this.sceneRef.armillaryRoot.quaternion);
     } else if (targetName === 'ecliptic-north') {
       // Position camera directly above ecliptic north pole, looking straight down at the ecliptic plane
@@ -152,7 +173,7 @@ export default class CameraController {
           ? 2 * progress * progress
           : 1 - Math.pow(-2 * progress + 2, 2) / 2;
 
-        // For horizon zoom, dynamically track armillaryRoot position and orientation during animation
+        // For horizon/zenith zoom, dynamically track armillaryRoot position and orientation during animation
         // to handle cases where Earth moves while zooming
         let currentTargetPos = targetWorldPos;
         let currentCameraPos = newCameraPos;
@@ -164,6 +185,17 @@ export default class CameraController {
           const localOffset = new THREE.Vector3(0, targetRadius * 2.0, targetRadius * 6.0);
           const worldOffset = localOffset.clone().applyQuaternion(this.sceneRef.armillaryRoot.quaternion);
           currentCameraPos = currentTargetPos.clone().add(worldOffset);
+        } else if (targetName === 'zenith') {
+          const armillaryPos = new THREE.Vector3();
+          this.sceneRef.armillaryRoot.getWorldPosition(armillaryPos);
+
+          // Recalculate camera position based on current armillary orientation
+          const localCameraOffset = new THREE.Vector3(0, targetRadius * 0.01, 0);
+          const worldCameraOffset = localCameraOffset.clone().applyQuaternion(this.sceneRef.armillaryRoot.quaternion);
+          currentCameraPos = armillaryPos.clone().add(worldCameraOffset);
+
+          // Target is at the horizon center (observer position)
+          currentTargetPos = armillaryPos.clone();
         }
 
         // Interpolate position
