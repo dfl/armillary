@@ -25,7 +25,9 @@ export default class CameraController {
 
     // Properties
     this.stereoEnabled = false;
-    this.eyeSeparation = 0.3;
+    // Read default from HTML element, fallback to 0.05 if not available
+    const eyeSeparationSlider = typeof document !== 'undefined' ? document.getElementById('eyeSeparationSlider') : null;
+    this.eyeSeparation = eyeSeparationSlider ? parseFloat(eyeSeparationSlider.value) : 0.05;
     this.currentZoomTarget = null; // Track current zoom target for dynamic updates
   }
 

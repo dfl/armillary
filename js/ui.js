@@ -197,7 +197,10 @@ export class UIManager {
       stereo: document.getElementById('stereoToggle')?.checked ?? false,
       sidereal: false
     };
-    this.eyeSeparation = 0.3;
+
+    // Read defaults from HTML elements
+    const eyeSeparationSlider = document.getElementById('eyeSeparationSlider');
+    this.eyeSeparation = eyeSeparationSlider ? parseFloat(eyeSeparationSlider.value) : 0.05;
     this.planetZoom = 1.0; // Default to max zoom
 
     this.elements = {};
@@ -553,8 +556,9 @@ export class UIManager {
       params.set('sidereal', this.toggleStates.sidereal ? '1' : '0');
     }
 
-    // Save eye separation if not default
-    if (this.eyeSeparation !== 0.3) {
+    // Save eye separation if not default (read default from HTML)
+    const defaultEyeSeparation = parseFloat(document.getElementById('eyeSeparationSlider')?.getAttribute('value') || '0.05');
+    if (this.eyeSeparation !== defaultEyeSeparation) {
       params.set('eyeSep', this.eyeSeparation.toFixed(2));
     }
 
