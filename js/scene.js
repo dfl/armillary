@@ -1467,18 +1467,11 @@ export class ArmillaryScene {
   }
 
   togglePlanets(visible) {
-    // Toggle planets (Mercury through Pluto) and the realistic sun
-    // Keep Earth, Moon, and ecliptic sun/moon visible
-    Object.keys(this.celestialObjects.planetGroups).forEach(planetName => {
-      this.celestialObjects.planetGroups[planetName].group.visible = visible;
-    });
-    // Toggle ecliptic planets (on zodiac wheel) except sun and moon
+    // Toggle only the ecliptic planets on the zodiac wheel (horizon view markers)
+    // The realistic solar system planets are always visible
     Object.keys(this.celestialObjects.eclipticPlanetGroups).forEach(planetName => {
       this.celestialObjects.eclipticPlanetGroups[planetName].group.visible = visible;
     });
-    // Hide the realistic sun and moon
-    this.celestialObjects.realisticSunGroup.visible = visible;
-    this.celestialObjects.realisticMoonGroup.visible = visible;
   }
 
   toggleEarthReferences(visible) {

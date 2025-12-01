@@ -956,35 +956,10 @@ export default class InteractionManager {
 
     const menuItems = contextMenu.querySelectorAll('.context-menu-item');
 
-    // Function to update menu items visibility based on planets toggle
-    const updateMenuVisibility = () => {
-      const planetsToggle = document.getElementById('planetsToggle');
-      const planetsVisible = planetsToggle ? planetsToggle.checked : true;
-
-      // List of planet-related targets (sun, moon, and planets)
-      const planetTargets = ['sun', 'moon', 'mercury', 'venus', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune', 'pluto', 'ecliptic-north'];
-
-      menuItems.forEach(item => {
-        const target = item.getAttribute('data-target');
-        if (planetTargets.includes(target)) {
-          item.style.display = planetsVisible ? 'block' : 'none';
-        }
-      });
-    };
-
-    // Listen for planets toggle changes
-    const planetsToggle = document.getElementById('planetsToggle');
-    if (planetsToggle) {
-      planetsToggle.addEventListener('change', updateMenuVisibility);
-    }
-
     // Show context menu on right-click
     this.renderer.domElement.addEventListener('contextmenu', (event) => {
       event.preventDefault();
       event.stopPropagation(); // Prevent browser extensions from interfering
-
-      // Update menu visibility before showing
-      updateMenuVisibility();
 
       // Position menu at mouse location with boundary checking
       contextMenu.classList.add('visible');
