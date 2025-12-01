@@ -141,7 +141,7 @@ export default class CelestialObjects {
       const star = new THREE.Mesh(starGeometry, starMaterial);
       const position = raDecToVector3(ra, dec, this.STAR_FIELD_RADIUS);
       star.position.copy(position);
-      star.userData = { name, constellation };
+      star.userData = { name, constellation, magnitude: mag };
 
       this.starGroup.add(star);
       this.starMeshes[name] = star;
@@ -166,7 +166,7 @@ export default class CelestialObjects {
 
         const glow = new THREE.Mesh(glowGeometry, glowMaterial);
         glow.position.copy(position);
-        glow.userData = { name, constellation };
+        glow.userData = { name, constellation, magnitude: mag };
 
         this.starGroup.add(glow);
       });

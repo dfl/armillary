@@ -6,6 +6,9 @@ import { showConstellationFigure, hideConstellationFigure } from '../constellati
 // Opacity for constellation art in always-on mode (subtle background)
 export const CONSTELLATION_ART_OPACITY = 0.1;
 
+// Maximum magnitude for star tooltips (lower = brighter, ~3.5 covers all traditionally notable stars)
+const STAR_TOOLTIP_MAG_LIMIT = 3.5;
+
 /**
  * InteractionManager class handles all user interactions with the 3D scene.
  *
@@ -416,11 +419,10 @@ export default class InteractionManager {
         });
       }
 
-      // Constellation figures (for direct hover on artwork)
-      if (this.sceneRef.constellationFigureGroup) {
+      // Constellation figures (for direct hover on artwork) - only when toggle is enabled
+      if (this.sceneRef.constellationFigureGroup && this.sceneRef.constellationArtAlwaysOn) {
         this.sceneRef.constellationFigureGroup.children.forEach(mesh => {
-          // Only raycast against visible meshes or in always-on mode
-          if (mesh.visible || this.sceneRef.constellationArtAlwaysOn) {
+          if (mesh.visible) {
             allTargets.push({ obj: mesh, type: 'constellation-figure', meta: mesh });
           }
         });
@@ -476,8 +478,12 @@ export default class InteractionManager {
         // Skip earth if not visible enough (only show at Earth zoom level, not at horizon zoom)
         if (type === 'earth' && earthOpacity < 0.5) return;
 
-        // Skip stars without proper metadata
-        if (type === 'star' && (!meta.userData.name || !meta.userData.constellation)) return;
+        // Skip stars without proper metadata or that are too dim
+        if (type === 'star') {
+          if (!meta.userData.name || !meta.userData.constellation) return;
+          // Only show tooltips for brighter stars (magnitude limit)
+          if (meta.userData.magnitude > STAR_TOOLTIP_MAG_LIMIT) return;
+        }
 
         const candidate = {
           type,
@@ -699,8 +705,8 @@ export default class InteractionManager {
           this.setTooltipContent(closest.starData.name, closest.starData.constellation);
           this.positionTooltip(this.starInfoElement, event);
           this.renderer.domElement.style.cursor = 'pointer';
-          // Highlight the star's constellation
-          if (closest.starData.constellation) {
+          // Highlight the star's constellation (only if constellation art is enabled)
+          if (closest.starData.constellation && this.sceneRef.constellationArtAlwaysOn) {
             this.highlightConstellation(closest.starData.constellation);
           }
         }
