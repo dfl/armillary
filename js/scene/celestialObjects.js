@@ -202,7 +202,7 @@ export default class CelestialObjects {
     try {
       this.constellationFigureGroup = await createConstellationFigures(
         this.STAR_FIELD_RADIUS * 0.98, // Slightly inside star field
-        'textures/constellations/'
+        'images/constellations/'
       );
 
       // Add to inertial star sphere (same as stars)

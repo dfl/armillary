@@ -286,7 +286,7 @@ function createConstellationMesh(constellation, texture, radius) {
  * @param {string} texturePath - Base path to constellation textures
  * @returns {Promise<THREE.Group>}
  */
-export async function createConstellationFigures(radius, texturePath = 'textures/constellations/') {
+export async function createConstellationFigures(radius, texturePath = 'images/constellations/') {
   const group = new THREE.Group();
   const textureLoader = new THREE.TextureLoader();
 
