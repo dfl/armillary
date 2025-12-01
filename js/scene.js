@@ -13,6 +13,7 @@ import LunarNodes from './scene/lunarNodes.js';
 import InteractionManager, { CONSTELLATION_ART_OPACITY } from './scene/interactions.js';
 import CameraController from './scene/camera.js';
 import PlanetaryReferences from './scene/planetaryReferences.js';
+import SkyAtmosphere from './scene/skyAtmosphere.js';
 
 export class ArmillaryScene {
   constructor() {
@@ -94,6 +95,7 @@ export class ArmillaryScene {
     this.interactions = null;
     this.cameraController = null;
     this.planetaryReferences = null;
+    this.skyAtmosphere = null;
 
     // ===================================================================
     // Properties for backward compatibility (mapped from modules)
@@ -356,7 +358,15 @@ export class ArmillaryScene {
     this.eclipticDots = this.planetaryReferences.eclipticDots;
     this.lunarApsisSprites = this.planetaryReferences.lunarApsisSprites;
 
-    // 6. Camera Controller (zoom, stereo, starfield toggle)
+    // 6. Sky Atmosphere (physical sky rendering with Rayleigh/Mie scattering)
+    this.skyAtmosphere = new SkyAtmosphere(
+      this.armillaryRoot,
+      this.CE_RADIUS
+    );
+    // Initially hidden until toggle is checked
+    this.skyAtmosphere.setVisible(false);
+
+    // 7. Camera Controller (zoom, stereo, starfield toggle)
     this.cameraController = new CameraController(
       this.camera,
       this.leftCamera,
@@ -1331,6 +1341,11 @@ export class ArmillaryScene {
       this.eclipticSunMesh.material.color.setHex(0xA04C28);
     }
     this.eclipticSunMesh.material.needsUpdate = true;
+
+    // Update sky atmosphere with sun position
+    if (this.skyAtmosphere) {
+      this.skyAtmosphere.updateSunPosition(sunLocalPos);
+    }
   }
 
   // ===================================================================
@@ -1573,6 +1588,12 @@ export class ArmillaryScene {
     this.planetaryReferences.togglePlanetOrbits(visible);
     this.planetaryReferences.togglePlanetaryNodes(visible);
     this.planetaryReferences.togglePlanetaryApsides(visible);
+  }
+
+  toggleSkyAtmosphere(visible) {
+    if (this.skyAtmosphere) {
+      this.skyAtmosphere.setVisible(visible);
+    }
   }
 
   // ===================================================================

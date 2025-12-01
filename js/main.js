@@ -186,6 +186,14 @@ starfieldToggle.addEventListener('change', () => {
   uiManager.saveStateToURL();
 });
 
+// Sky atmosphere toggle
+const skyAtmosphereToggle = document.getElementById('skyAtmosphereToggle');
+skyAtmosphereToggle.addEventListener('change', () => {
+  scene.toggleSkyAtmosphere(skyAtmosphereToggle.checked);
+  uiManager.setToggleState('skyAtmosphere', skyAtmosphereToggle.checked);
+  uiManager.saveStateToURL();
+});
+
 // Constellation art toggle
 const constellationArtToggle = document.getElementById('constellationArtToggle');
 constellationArtToggle.addEventListener('change', () => {
@@ -603,6 +611,7 @@ const hasURLState = uiManager.loadStateFromURL(parser);
 // Apply toggle states from URL
 const toggleStates = uiManager.getToggleStates();
 starfieldToggle.checked = toggleStates.starfield;
+skyAtmosphereToggle.checked = toggleStates.skyAtmosphere;
 constellationArtToggle.checked = toggleStates.constellationArt;
 planetsToggle.checked = toggleStates.planets;
 earthReferencesToggle.checked = toggleStates.earthReferences;
@@ -628,6 +637,7 @@ scene.setPlanetZoom(planetZoom);
 
 // Apply toggle states to scene
 scene.toggleStarfield(toggleStates.starfield);
+scene.toggleSkyAtmosphere(toggleStates.skyAtmosphere);
 scene.toggleConstellationArt(toggleStates.constellationArt);
 scene.togglePlanets(toggleStates.planets);
 scene.toggleEarthReferences(toggleStates.earthReferences);

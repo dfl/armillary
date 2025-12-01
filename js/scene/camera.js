@@ -294,6 +294,36 @@ export default class CameraController {
     }
 
     this.sceneRef.earthGroup.visible = true;
+
+    // Update sky atmosphere opacity (inverse of Earth - visible when close, fades when far)
+    this.updateSkyAtmosphereVisibility();
+  }
+
+  updateSkyAtmosphereVisibility() {
+    if (!this.sceneRef.skyAtmosphere || !this.sceneRef.armillaryRoot) return;
+
+    const distToObserver = this.camera.position.distanceTo(this.sceneRef.armillaryRoot.position);
+
+    // Sky atmosphere should be visible in horizon view (close to observer)
+    // and fade out as we zoom out to Earth view
+    // Inverse of Earth visibility: opaque when close, transparent when far
+    const minVal = 0.0;
+    const maxVal = 1.0;
+    // Use VIEW_MODE_THRESHOLD as the transition point
+    const minRange = this.sceneRef.VIEW_MODE_THRESHOLD * 0.3; // Start fading at 30% of threshold
+    const maxRange = this.sceneRef.VIEW_MODE_THRESHOLD * 0.8; // Fully faded at 80% of threshold
+
+    let opacity = 1.0;
+    if (distToObserver < minRange) {
+      opacity = maxVal; // Fully visible when very close (horizon view)
+    } else if (distToObserver > maxRange) {
+      opacity = minVal; // Fully transparent when far (Earth view)
+    } else {
+      const t = (distToObserver - minRange) / (maxRange - minRange);
+      opacity = maxVal - t * (maxVal - minVal); // Fade out as distance increases
+    }
+
+    this.sceneRef.skyAtmosphere.setOpacity(opacity);
   }
 
   onWindowResize() {

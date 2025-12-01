@@ -188,6 +188,7 @@ export class UIManager {
     // Initialize toggle states from HTML checkbox defaults
     this.toggleStates = {
       starfield: document.getElementById('starfieldToggle')?.checked ?? true,
+      skyAtmosphere: document.getElementById('skyAtmosphereToggle')?.checked ?? false,
       constellationArt: document.getElementById('constellationArtToggle')?.checked ?? false,
       planets: document.getElementById('planetsToggle')?.checked ?? true,
       earthReferences: document.getElementById('earthReferencesToggle')?.checked ?? false,
@@ -531,6 +532,9 @@ export class UIManager {
     if (this.toggleStates.starfield !== true) {
       params.set('starfield', this.toggleStates.starfield ? '1' : '0');
     }
+    if (this.toggleStates.skyAtmosphere !== false) {
+      params.set('skyAtmo', this.toggleStates.skyAtmosphere ? '1' : '0');
+    }
     if (this.toggleStates.constellationArt !== false) {
       params.set('constArt', this.toggleStates.constellationArt ? '1' : '0');
     }
@@ -797,6 +801,10 @@ export class UIManager {
     // Load toggle states if present
     if (params.has('starfield')) {
       this.toggleStates.starfield = params.get('starfield') === '1';
+      hasState = true;
+    }
+    if (params.has('skyAtmo')) {
+      this.toggleStates.skyAtmosphere = params.get('skyAtmo') === '1';
       hasState = true;
     }
     if (params.has('constArt')) {
