@@ -189,6 +189,9 @@ export default class CelestialObjects {
       return raDecToVector3(star.ra, star.dec, radius);
     };
 
+    // Track which Hipparcos IDs we've created markers for
+    const hipStarMarkers = new Map();
+
     // Iterate through all Stellarium constellations
     Object.values(stellariumConstellations).forEach(constellation => {
       if (!constellation.lines) return;
@@ -211,6 +214,45 @@ export default class CelestialObjects {
             const lineGeometry = new THREE.BufferGeometry().setFromPoints(points);
             const line = new THREE.Line(lineGeometry, lineMaterial);
             this.constellationLineGroup.add(line);
+
+            // Create invisible clickable markers for constellation line stars
+            // This enables tooltips for all stars in constellation lines
+            [hipId1, hipId2].forEach((hipId, idx) => {
+              const position = idx === 0 ? pos1 : pos2;
+              const hipKey = `${hipId}_${constellation.native}`;
+
+              // Only create marker if we haven't already created one for this star
+              if (!hipStarMarkers.has(hipKey)) {
+                const markerSize = k * 2.0; // Larger hit target than visual stars
+                const markerGeometry = new THREE.SphereGeometry(markerSize, 8, 8);
+                const markerMaterial = new THREE.MeshBasicMaterial({
+                  transparent: true,
+                  opacity: 0.001, // Nearly invisible but still raycastable
+                  depthTest: true, // Need depth test for raycasting
+                  depthWrite: false // Don't write to depth buffer to avoid occlusion
+                });
+
+                const marker = new THREE.Mesh(markerGeometry, markerMaterial);
+                marker.position.copy(position);
+                marker.renderOrder = -1; // Render behind everything
+
+                // Store metadata for tooltips
+                // Try to find a common name for this star, otherwise use HIP designation
+                const hipStar = hipparcosCatalog[hipId.toString()];
+                const starName = `HIP ${hipId}`;
+
+                marker.userData = {
+                  name: starName,
+                  constellation: constellation.native,
+                  magnitude: 5.0, // Default magnitude for constellation line stars
+                  hipId: hipId,
+                  isConstellationLineStar: true
+                };
+
+                this.starGroup.add(marker);
+                hipStarMarkers.set(hipKey, marker);
+              }
+            });
           }
         }
       });

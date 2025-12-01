@@ -481,8 +481,10 @@ export default class InteractionManager {
         // Skip stars without proper metadata or that are too dim
         if (type === 'star') {
           if (!meta.userData.name || !meta.userData.constellation) return;
-          // Only show tooltips for brighter stars (magnitude limit)
-          if (meta.userData.magnitude > STAR_TOOLTIP_MAG_LIMIT) return;
+          // Show tooltips for constellation line stars regardless of magnitude
+          // For other stars, only show tooltips if brighter than magnitude limit
+          const isConstellationLineStar = meta.userData.isConstellationLineStar || false;
+          if (!isConstellationLineStar && meta.userData.magnitude > STAR_TOOLTIP_MAG_LIMIT) return;
         }
 
         const candidate = {
