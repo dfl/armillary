@@ -354,6 +354,8 @@ export default class PlanetaryReferences {
       canvas.width = 128;
       canvas.height = 128;
       const ctx = canvas.getContext('2d');
+
+      // Draw symbol on transparent background
       ctx.fillStyle = '#aaaaff'; // Match moon orbit color
       ctx.font = 'bold 80px Arial';
       ctx.textAlign = 'center';
@@ -489,7 +491,7 @@ export default class PlanetaryReferences {
       canvas.height = 256;
       const ctx = canvas.getContext('2d');
 
-      // Use the planet's orbit color
+      // Draw symbol on transparent background
       ctx.fillStyle = `#${color.toString(16).padStart(6, '0')}`;
       ctx.font = 'bold 180px Arial';
       ctx.textAlign = 'center';
@@ -501,6 +503,7 @@ export default class PlanetaryReferences {
       const material = new THREE.SpriteMaterial({
         map: texture,
         depthTest: true,
+        depthWrite: false,
         transparent: true,
         opacity: 1.0
       });
@@ -567,7 +570,7 @@ export default class PlanetaryReferences {
       canvas.height = 256;
       const ctx = canvas.getContext('2d');
 
-      // Use the planet's orbit color
+      // Draw symbol on transparent background
       ctx.fillStyle = `#${color.toString(16).padStart(6, '0')}`;
       ctx.font = 'bold 180px Arial';
       ctx.textAlign = 'center';
@@ -579,6 +582,7 @@ export default class PlanetaryReferences {
       const material = new THREE.SpriteMaterial({
         map: texture,
         depthTest: true,
+        depthWrite: false,
         transparent: true,
         opacity: 1.0
       });
