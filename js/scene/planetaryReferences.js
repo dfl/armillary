@@ -365,6 +365,7 @@ export default class PlanetaryReferences {
       const material = new THREE.SpriteMaterial({
         map: texture,
         depthTest: true,
+        depthWrite: false, // Allow clipping by Earth
         transparent: true,
         opacity: 1.0
       });

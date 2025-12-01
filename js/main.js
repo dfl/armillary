@@ -660,6 +660,12 @@ setTimeout(() => {
     const targetTarget = new THREE.Vector3(cameraState.target.x, cameraState.target.y, cameraState.target.z);
     const targetUp = new THREE.Vector3(cameraState.up.x, cameraState.up.y, cameraState.up.z);
 
+    // If we have a saved distance, adjust the target position to maintain that exact distance
+    if (cameraState.distance !== undefined) {
+      const direction = new THREE.Vector3().subVectors(targetPos, targetTarget).normalize();
+      targetPos.copy(targetTarget).add(direction.multiplyScalar(cameraState.distance));
+    }
+
     const duration = 1000; // 1 second
     const startTime = performance.now();
 
@@ -689,8 +695,16 @@ setTimeout(() => {
         // Animation complete
         scene.controls.enabled = true;
         scene.controls.update();
-        // Now that camera animation is done, start listening for camera changes
-        scene.controls.addEventListener('change', saveCameraStateToURL);
+
+        // Apply saved zoom distance - set it on scene and let updateSphere enforce it
+        if (cameraState.distance !== undefined) {
+          scene.targetCameraDistance = cameraState.distance;
+        }
+
+        // Start listening for camera changes after a short delay
+        setTimeout(() => {
+          scene.controls.addEventListener('change', saveCameraStateToURL);
+        }, 200);
       }
     };
 

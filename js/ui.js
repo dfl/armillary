@@ -509,6 +509,10 @@ export class UIManager {
       params.set('cam_pos', posStr);
       params.set('cam_target', targetStr);
       params.set('cam_up', upStr);
+      // Also save zoom distance for reliable restoration
+      if (this.cameraState.distance !== undefined) {
+        params.set('cam_dist', this.cameraState.distance.toFixed(5));
+      }
     }
 
     // Save animation state
@@ -695,10 +699,13 @@ export class UIManager {
 
   setCameraState(camera, controls) {
     // Store camera position, target, and up vector for URL persistence
+    // Also store the distance (zoom level) explicitly for reliable restoration
+    const distance = camera.position.distanceTo(controls.target);
     this.cameraState = {
       position: { x: camera.position.x, y: camera.position.y, z: camera.position.z },
       target: { x: controls.target.x, y: controls.target.y, z: controls.target.z },
-      up: { x: camera.up.x, y: camera.up.y, z: camera.up.z }
+      up: { x: camera.up.x, y: camera.up.y, z: camera.up.z },
+      distance: distance
     };
   }
 
@@ -761,6 +768,10 @@ export class UIManager {
         target: { x: targetStr[0], y: targetStr[1], z: targetStr[2] },
         up: { x: upStr[0], y: upStr[1], z: upStr[2] }
       };
+      // Load zoom distance if present
+      if (params.has('cam_dist')) {
+        this.cameraState.distance = parseFloat(params.get('cam_dist'));
+      }
       debugLog.log('Loading camera state from URL:', this.cameraState);
       hasState = true;
     }

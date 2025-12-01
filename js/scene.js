@@ -21,6 +21,7 @@ export class ArmillaryScene {
     // ===================================================================
     this.obliquity = 23.44 * Math.PI / 180;
     this.planetZoomFactor = 1.0; // 0 = accurate, 1.0 = max zoom (default)
+    this.targetCameraDistance = null; // When set, updateSphere will enforce this distance
 
     // Proportional scaling constants
     // Real radii: Earth 6371km, Moon 1737km, Sun 696000km
@@ -706,6 +707,14 @@ export class ArmillaryScene {
       offset.applyQuaternion(deltaQuat);
       this.camera.position.copy(this.controls.target).add(offset);
       this.camera.up.applyQuaternion(deltaQuat);
+
+      // Enforce target camera distance if set (for URL restoration)
+      if (this.targetCameraDistance !== null) {
+        const currentOffset = new THREE.Vector3().subVectors(this.camera.position, this.controls.target);
+        currentOffset.normalize().multiplyScalar(this.targetCameraDistance);
+        this.camera.position.copy(this.controls.target).add(currentOffset);
+        this.targetCameraDistance = null; // Clear after applying once
+      }
     } else {
       // Earth View: orbit around a celestial object
       // Update controls target based on current zoom target
