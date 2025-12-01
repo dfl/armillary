@@ -173,6 +173,71 @@ export default class SkyAtmosphere {
           uMieAnisotropy
         );
 
+        // Procedural sunset/sunrise colors (replaces broken physical scattering for twilight)
+        vec3 sunDir = normalize(uSunDirection);
+        float sunAltitude = sunDir.y;
+
+        // Apply sunset colors when sun is near or below horizon
+        if (sunAltitude < 0.3 && sunAltitude > -0.25) {
+          // Reduce base blue sky during sunset/sunrise
+          float skyDimming = smoothstep(0.3, -0.1, sunAltitude);
+          color *= (1.0 - skyDimming * 0.6);
+
+          // Angle between view direction and sun
+          float sunDot = dot(viewDir, sunDir);
+          float sunAngle = acos(clamp(sunDot, -1.0, 1.0));
+
+          // How close to the horizon plane (y=0)
+          float horizonDist = abs(viewDir.y);
+
+          // Calculate sunset influence based on sun altitude
+          // Fades out quickly after sun sets to avoid aurora effect
+          float sunsetStrength = 0.0;
+
+          if (sunAltitude > 0.0) {
+            // Sun above horizon: full strength golden hour
+            sunsetStrength = smoothstep(0.3, 0.0, sunAltitude);
+          } else if (sunAltitude > -0.1) {
+            // Just below horizon (0° to -6°): civil twilight, fading fast
+            sunsetStrength = smoothstep(-0.1, 0.0, sunAltitude) * 0.7;
+          } else {
+            // Below -6°: nautical twilight, very dim and fading out
+            sunsetStrength = smoothstep(-0.25, -0.1, sunAltitude) * 0.3;
+          }
+
+          // Create radial gradient from sun position with smooth falloff
+          float sunGlow = smoothstep(2.0, 0.0, sunAngle);
+
+          // Horizon band - only on sun's side of sky (not opposite)
+          float towardsSun = smoothstep(-0.3, 0.3, sunDot); // 0 when facing away, 1 toward sun
+          float horizonBand = smoothstep(0.5, 0.0, horizonDist) * smoothstep(0.0, 0.15, horizonDist) * towardsSun;
+
+          // Combine radial and horizon effects (increased influence)
+          float colorInfluence = max(sunGlow * 0.85, horizonBand * 0.65) * sunsetStrength;
+
+          // Multi-layer sunset colors based on angle from sun
+          vec3 sunsetColor;
+          if (sunAngle < 0.4) {
+            // Near sun: deep orange/red
+            sunsetColor = mix(vec3(1.0, 0.3, 0.05), vec3(1.0, 0.5, 0.1), sunAngle / 0.4);
+          } else if (sunAngle < 0.8) {
+            // Medium: orange to pink
+            float t = (sunAngle - 0.4) / 0.4;
+            sunsetColor = mix(vec3(1.0, 0.5, 0.1), vec3(1.0, 0.45, 0.25), t);
+          } else if (sunAngle < 1.4) {
+            // Far: pink to warm purple
+            float t = (sunAngle - 0.8) / 0.6;
+            sunsetColor = mix(vec3(1.0, 0.45, 0.25), vec3(0.7, 0.35, 0.5), t);
+          } else {
+            // Very far: purple to deep twilight blue
+            float t = (sunAngle - 1.4) / 0.6;
+            sunsetColor = mix(vec3(0.7, 0.35, 0.5), vec3(0.3, 0.35, 0.6), t);
+          }
+
+          // Smooth blend with base sky color
+          color = mix(color, sunsetColor, colorInfluence);
+        }
+
         // Add moon glow effect (soft radial glow around moon position)
         if (uMoonIntensity > 0.0) {
           vec3 moonDir = normalize(uMoonDirection);
@@ -198,15 +263,27 @@ export default class SkyAtmosphere {
         // Using standard luminance weights
         float luminance = dot(color, vec3(0.2126, 0.7152, 0.0722));
 
-        // Tone mapping (simple Reinhard)
-        color = color / (1.0 + color);
+        // Boost color intensity for sunset/sunrise visibility
+        color *= 1.5;
 
-        // Gamma correction
-        color = pow(color, vec3(1.0 / 2.2));
+        // Enhanced tone mapping for sunset/sunrise color preservation
+        // Use gentler filmic curve
+        vec3 x = max(vec3(0.0), color - 0.004);
+        color = (x * (6.2 * x + 0.5)) / (x * (6.2 * x + 1.7) + 0.06);
+
+        // Strong saturation boost during twilight for vivid colors
+        if (luminance < 0.8 && luminance > 0.005) {
+          vec3 luminanceVec = vec3(dot(color, vec3(0.2126, 0.7152, 0.0722)));
+          float saturationBoost = smoothstep(0.005, 0.5, luminance) * 0.5;
+          color = mix(luminanceVec, color, 1.0 + saturationBoost);
+        }
+
+        // Lighter gamma for more visible twilight colors
+        color = pow(color, vec3(0.85));
 
         // Calculate alpha based on sky brightness
         // Night sky should be transparent to let stars through
-        // Scale luminance to get appropriate alpha (tune these values)
+        // Scale luminance to get appropriate alpha
         float skyAlpha = clamp(luminance * 2.0, 0.0, 1.0);
 
         // Smooth the transition to avoid harsh edges
@@ -231,15 +308,19 @@ export default class SkyAtmosphere {
       uMoonIntensity: { value: 0.0 },
       uPlanetRadius: { value: planetRadius },
       uAtmosphereRadius: { value: atmosphereRadius },
-      // Rayleigh scattering coefficients (wavelength-dependent blue scattering)
-      uRayleighCoeff: { value: new THREE.Vector3(5.5e-6, 13.0e-6, 22.4e-6) },
-      // Mie scattering coefficient (wavelength-independent, creates sun glow)
-      uMieCoeff: { value: 21e-6 },
-      // Scale heights (how density falls off with altitude)
-      uRayleighScaleHeight: { value: 8000.0 },
-      uMieScaleHeight: { value: 1200.0 },
-      // Mie anisotropy (forward scattering preference, creates sun halo)
-      uMieAnisotropy: { value: 0.758 },
+      // Rayleigh scattering coefficients (wavelength-dependent scattering)
+      // Values in RGB order: red scatters least (shortest path), blue scatters most
+      // Based on β ∝ 1/λ⁴: λ_red=680nm, λ_green=550nm, λ_blue=440nm
+      // Increased significantly for dramatic sunset colors
+      uRayleighCoeff: { value: new THREE.Vector3(3.8e-6, 13.5e-6, 33.0e-6) },
+      // Mie scattering coefficient (aerosols: dust, pollution)
+      // Minimal to avoid sun halo
+      uMieCoeff: { value: 3e-6 },
+      // Scale heights (atmospheric density falloff with altitude)
+      uRayleighScaleHeight: { value: 8000.0 }, // Air molecules: 8km
+      uMieScaleHeight: { value: 1200.0 },      // Aerosols: 1.2km
+      // Mie anisotropy - reduced to minimize forward-scattering halo effect
+      uMieAnisotropy: { value: 0.65 },
       // Opacity for fading
       uOpacity: { value: 1.0 }
     };
@@ -274,28 +355,34 @@ export default class SkyAtmosphere {
     this.sunDirection.copy(sunLocalPos).normalize();
     this.uniforms.uSunDirection.value.copy(this.sunDirection);
 
-    // Adjust sun intensity based on altitude
-    // Below horizon: reduce intensity for twilight/night
+    // Adjust sun intensity based on altitude for realistic day/twilight/night transitions
+    // The sunAltitude is normalized direction, roughly maps to sin(altitude_angle)
     const sunAltitude = this.sunDirection.y; // y is "up" in local space
 
-    if (sunAltitude > 0) {
-      // Day time - full intensity
-      this.uniforms.uSunIntensity.value = 22.0;
-    } else if (sunAltitude > -0.1) {
-      // Civil twilight (-6°) - gradual fade
-      const t = (sunAltitude + 0.1) / 0.1;
-      this.uniforms.uSunIntensity.value = 2.0 + t * 20.0;
-    } else if (sunAltitude > -0.2) {
-      // Nautical twilight (-12°) - dim
-      const t = (sunAltitude + 0.2) / 0.1;
-      this.uniforms.uSunIntensity.value = 0.5 + t * 1.5;
-    } else if (sunAltitude > -0.3) {
-      // Astronomical twilight (-18°) - very dim
-      const t = (sunAltitude + 0.3) / 0.1;
-      this.uniforms.uSunIntensity.value = 0.1 + t * 0.4;
+    if (sunAltitude > 0.05) {
+      // Daytime - full intensity (sun more than ~3° above horizon)
+      this.uniforms.uSunIntensity.value = 25.0;
+    } else if (sunAltitude > -0.05) {
+      // Horizon crossing (-3° to +3°) - GOLDEN HOUR
+      // Very high intensity for dramatic sunset/sunrise colors
+      const t = (sunAltitude + 0.05) / 0.1; // 0 at -3°, 1 at +3°
+      // Use power curve for more dramatic transition
+      this.uniforms.uSunIntensity.value = 18.0 + Math.pow(t, 0.6) * 12.0;
+    } else if (sunAltitude > -0.15) {
+      // Civil twilight (-3° to -9°) - strong scattering for pink/orange sky
+      const t = (sunAltitude + 0.15) / 0.1;
+      this.uniforms.uSunIntensity.value = 8.0 + t * 10.0;
+    } else if (sunAltitude > -0.25) {
+      // Nautical twilight (-9° to -15°) - dimmer blue hour
+      const t = (sunAltitude + 0.25) / 0.1;
+      this.uniforms.uSunIntensity.value = 2.0 + t * 6.0;
+    } else if (sunAltitude > -0.35) {
+      // Astronomical twilight (-15° to -21°) - fading to night
+      const t = (sunAltitude + 0.35) / 0.1;
+      this.uniforms.uSunIntensity.value = 0.3 + t * 1.7;
     } else {
-      // Night - minimal glow
-      this.uniforms.uSunIntensity.value = 0.1;
+      // Night - minimal contribution for complete darkness
+      this.uniforms.uSunIntensity.value = 0.05;
     }
   }
 
