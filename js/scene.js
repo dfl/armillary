@@ -10,7 +10,7 @@ import ZodiacWheel from './scene/zodiac.js';
 import CelestialObjects from './scene/celestialObjects.js';
 import AngleMarkers from './scene/angles.js';
 import LunarNodes from './scene/lunarNodes.js';
-import InteractionManager from './scene/interactions.js';
+import InteractionManager, { CONSTELLATION_ART_OPACITY } from './scene/interactions.js';
 import CameraController from './scene/camera.js';
 import PlanetaryReferences from './scene/planetaryReferences.js';
 
@@ -1436,10 +1436,10 @@ export class ArmillaryScene {
     this.constellationArtAlwaysOn = visible;
     if (this.constellationFigureGroup) {
       if (visible) {
-        // Show all constellation figures
+        // Show all constellation figures with subtle transparency
         this.constellationFigureGroup.children.forEach(mesh => {
           mesh.visible = true;
-          mesh.material.opacity = 0.7;
+          mesh.material.opacity = CONSTELLATION_ART_OPACITY;
         });
       } else {
         // Hide all constellation figures

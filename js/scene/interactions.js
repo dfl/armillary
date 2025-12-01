@@ -3,6 +3,9 @@
 import * as THREE from 'three';
 import { showConstellationFigure, hideConstellationFigure } from '../constellationFigures.js';
 
+// Opacity for constellation art in always-on mode (subtle background)
+export const CONSTELLATION_ART_OPACITY = 0.1;
+
 /**
  * InteractionManager class handles all user interactions with the 3D scene.
  *
@@ -77,6 +80,30 @@ export default class InteractionManager {
     this.starInfoElement2.style.display = 'none';
   }
 
+  /**
+   * Dim a constellation figure back to subtle opacity (for always-on mode)
+   */
+  dimConstellationFigure(constellationName) {
+    if (!this.sceneRef.constellationFigureGroup) return;
+    this.sceneRef.constellationFigureGroup.children.forEach(mesh => {
+      if (mesh.userData.constellation === constellationName) {
+        mesh.material.opacity = CONSTELLATION_ART_OPACITY;
+      }
+    });
+  }
+
+  /**
+   * Dim all constellation figures back to subtle opacity
+   */
+  dimAllConstellationFigures() {
+    if (!this.sceneRef.constellationFigureGroup) return;
+    this.sceneRef.constellationFigureGroup.children.forEach(mesh => {
+      if (mesh.visible) {
+        mesh.material.opacity = CONSTELLATION_ART_OPACITY;
+      }
+    });
+  }
+
   setupStarHover() {
     const raycaster = new THREE.Raycaster();
     const mouse = new THREE.Vector2();
@@ -85,9 +112,13 @@ export default class InteractionManager {
       // Skip tooltips if dragging
       if (this.isDragging) {
         this.hideTooltips();
-        // Hide constellation figure when dragging (only if not always-on)
-        if (this.currentConstellationFigure && !this.sceneRef.constellationArtAlwaysOn) {
-          hideConstellationFigure(this.sceneRef.constellationFigureGroup, this.currentConstellationFigure);
+        // Dim or hide constellation figure when dragging
+        if (this.currentConstellationFigure) {
+          if (this.sceneRef.constellationArtAlwaysOn) {
+            this.dimConstellationFigure(this.currentConstellationFigure);
+          } else {
+            hideConstellationFigure(this.sceneRef.constellationFigureGroup, this.currentConstellationFigure);
+          }
           this.currentConstellationFigure = null;
         }
         return;
@@ -578,18 +609,21 @@ export default class InteractionManager {
           this.positionTooltip(this.starInfoElement, event);
           this.renderer.domElement.style.cursor = 'pointer';
 
-          // Show constellation figure on star hover (only if not always-on)
-          if (!this.sceneRef.constellationArtAlwaysOn) {
-            const constellation = closest.starData.constellation;
-            if (constellation !== this.currentConstellationFigure) {
-              // Hide previous constellation figure
-              if (this.currentConstellationFigure) {
+          // Highlight constellation figure on star hover
+          const constellation = closest.starData.constellation;
+          if (constellation !== this.currentConstellationFigure) {
+            // Dim previous constellation figure (or hide if not always-on)
+            if (this.currentConstellationFigure) {
+              if (this.sceneRef.constellationArtAlwaysOn) {
+                // Dim back to subtle opacity
+                this.dimConstellationFigure(this.currentConstellationFigure);
+              } else {
                 hideConstellationFigure(this.sceneRef.constellationFigureGroup, this.currentConstellationFigure);
               }
-              // Show new constellation figure
-              showConstellationFigure(this.sceneRef.constellationFigureGroup, constellation);
-              this.currentConstellationFigure = constellation;
             }
+            // Brighten the hovered constellation to full opacity
+            showConstellationFigure(this.sceneRef.constellationFigureGroup, constellation);
+            this.currentConstellationFigure = constellation;
           }
         }
         else if (closest.type === 'ecliptic-dot') {
@@ -625,15 +659,33 @@ export default class InteractionManager {
         this.hideTooltips();
         this.renderer.domElement.style.cursor = 'default';
 
-        // Hide constellation figure when not hovering over a star (only if not always-on)
-        if (this.currentConstellationFigure && !this.sceneRef.constellationArtAlwaysOn) {
-          hideConstellationFigure(this.sceneRef.constellationFigureGroup, this.currentConstellationFigure);
+        // Dim or hide constellation figure when not hovering over a star
+        if (this.currentConstellationFigure) {
+          if (this.sceneRef.constellationArtAlwaysOn) {
+            // Dim back to subtle opacity
+            this.dimConstellationFigure(this.currentConstellationFigure);
+          } else {
+            hideConstellationFigure(this.sceneRef.constellationFigureGroup, this.currentConstellationFigure);
+          }
           this.currentConstellationFigure = null;
         }
       }
     };
 
     this.renderer.domElement.addEventListener('mousemove', onStarHover);
+
+    // Handle mouse leaving the canvas - ensure constellations are dimmed
+    this.renderer.domElement.addEventListener('mouseleave', () => {
+      this.hideTooltips();
+      if (this.currentConstellationFigure) {
+        if (this.sceneRef.constellationArtAlwaysOn) {
+          this.dimConstellationFigure(this.currentConstellationFigure);
+        } else {
+          hideConstellationFigure(this.sceneRef.constellationFigureGroup, this.currentConstellationFigure);
+        }
+        this.currentConstellationFigure = null;
+      }
+    });
 
     // Hide tooltips when hovering over UI elements
     const uiElements = [
