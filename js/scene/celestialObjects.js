@@ -309,7 +309,7 @@ export default class CelestialObjects {
       map: milkyWayTexture,
       side: THREE.BackSide, // View from inside the sphere
       transparent: true,
-      opacity: 0.15, // Very subtle (was 0.25, originally 0.5)
+      opacity: 0.1,
       blending: THREE.NormalBlending, // Normal blending avoids green tint artifacts
       depthWrite: false, // Don't write to depth buffer
       fog: false // Not affected by fog
@@ -318,17 +318,45 @@ export default class CelestialObjects {
     this.milkyWayMesh = new THREE.Mesh(milkyWayGeometry, milkyWayMaterial);
     this.milkyWayMesh.name = 'milkyWay';
 
-    // Rotate to align with celestial coordinates (RA/Dec)
-    // The texture seam should align with RA 0h (Vernal Equinox)
-    // Adjust this rotation if the galactic center doesn't appear at RA ~17h 45m (Sagittarius)
-    // Note: Try different values if orientation is wrong: 0, π/2, π, -π/2
-    this.milkyWayMesh.rotation.y = 0; // No rotation initially - test and adjust
+    // Align Milky Way texture from galactic to celestial coordinates
+    // The texture is in galactic coordinates (galactic plane = horizontal band)
+    // We need to transform it to celestial coordinates (RA/Dec) by:
+    //   1. Rotating galactic north pole (+Z in texture) to its actual position in celestial coords
+    //   2. Rotating around galactic pole axis to position galactic center correctly
+    //
+    // Galactic north pole: RA 192.859508° (12h 51m), Dec 27.128336°
+    // Galactic center: RA 266.405100° (17h 45m), Dec -28.936175° (in Sagittarius)
+    // Convert galactic north pole to unit vector in celestial coordinates
+    const galacticNorthPole_RA = THREE.MathUtils.degToRad(192.859508);
+    const galacticNorthPole_Dec = THREE.MathUtils.degToRad(27.128336);
+    const galacticNorthVector = new THREE.Vector3(
+      Math.cos(galacticNorthPole_Dec) * Math.cos(galacticNorthPole_RA),
+      Math.cos(galacticNorthPole_Dec) * Math.sin(galacticNorthPole_RA),
+      Math.sin(galacticNorthPole_Dec)
+    );
 
-    // Debug: Log reference star positions to verify RA/Dec alignment
-    console.log('Star field orientation check:');
-    console.log('- Regulus (Leo): RA 10h = 150°, should appear in Leo on ecliptic');
-    console.log('- Spica (Virgo): RA 13h = 195°, should appear in Virgo on ecliptic');
-    console.log('- Antares (Scorpius): RA 16h = 240°, should appear in Scorpius on ecliptic');
+    // If texture is in galactic coords, its north pole is at +Z (0, 0, 1)
+    // Rotate to align with the actual galactic north pole in celestial coords
+    const textureNorthPole = new THREE.Vector3(0, 0, 1);
+    const alignmentQuaternion = new THREE.Quaternion().setFromUnitVectors(
+      textureNorthPole,
+      galacticNorthVector
+    );
+
+    // Apply the quaternion rotation
+    this.milkyWayMesh.quaternion.copy(alignmentQuaternion);
+
+    // Additional rotation around galactic pole axis to align galactic center
+    // The texture shows the galactic plane as a horizontal band (sine wave in celestial coords)
+    // Need to rotate around galactic pole to position galactic center at correct RA
+    // Galactic center should be at RA 266.405° (17h 45m), Dec -28.9° in Sagittarius
+    // Try 180° rotation to flip which side shows the galactic center
+    this.milkyWayMesh.rotateOnWorldAxis(galacticNorthVector, THREE.MathUtils.degToRad(180));
+
+    // Debug: Verify Milky Way alignment
+    console.log('Milky Way aligned: galactic → celestial coordinate transformation applied');
+    console.log('Expected path: Scorpius/Ophiuchus → Sagittarius → Aquila → Cygnus → Cassiopeia → Andromeda → Perseus → Auriga → Gemini → Canis Major → Puppis/Vela');
+    console.log('Galactic center at: RA 17h 45m (Sagittarius), Dec -29°');
 
     // Add to inertial star sphere so it rotates with stars in RA/Dec coordinates
     this.inertialStarSphere.add(this.milkyWayMesh);
