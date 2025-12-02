@@ -4,7 +4,12 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { starData } from './stardata.js';
 
-// Import scene modules
+// Import core management modules
+import SceneConfig from './scene/config.js';
+import SceneState from './scene/state.js';
+import ViewModeManager from './scene/viewMode.js';
+
+// Import scene component modules
 import ReferenceGeometry from './scene/references.js';
 import ZodiacWheel from './scene/zodiac.js';
 import CelestialObjects from './scene/celestialObjects.js';
@@ -18,53 +23,59 @@ import SkyAtmosphere from './scene/skyAtmosphere.js';
 export class ArmillaryScene {
   constructor() {
     // ===================================================================
-    // Constants and Configuration
+    // Core Management Modules
     // ===================================================================
-    this.obliquity = 23.44 * Math.PI / 180;
-    this.planetZoomFactor = 1.0; // 0 = accurate, 1.0 = max zoom (default)
-    this.targetCameraDistance = null; // When set, updateSphere will enforce this distance
+    this.config = new SceneConfig();
+    this.state = new SceneState();
+    this.viewMode = null; // Initialized after scene setup
 
-    // Proportional scaling constants
-    // Real radii: Earth 6371km, Moon 1737km, Sun 696000km
-    // Real distances: Moon ~384400km from Earth, Earth 1 AU from Sun
-    this.EARTH_RADIUS_KM = 6371;
-    this.MOON_RADIUS_KM = 1737;
-    this.SUN_RADIUS_KM = 696000;
-    this.MOON_DISTANCE_KM = 384400;
+    // Create convenience accessors for commonly used config values
+    // This maintains backward compatibility with existing code
+    Object.defineProperty(this, 'obliquity', {
+      get() { return this.config.obliquity; },
+      set(value) { this.config.obliquity = value; }
+    });
+    Object.defineProperty(this, 'planetZoomFactor', {
+      get() { return this.config.planetZoomFactor; },
+      set(value) { this.config.planetZoomFactor = value; }
+    });
+    Object.defineProperty(this, 'targetCameraDistance', {
+      get() { return this.config.targetCameraDistance; },
+      set(value) { this.config.targetCameraDistance = value; }
+    });
 
-    this.PLANET_RADIUS_SCALE = 0.05; // Scale factor to make all bodies visible but not overwhelming
-    this.EARTH_RADIUS = 100.0 * this.PLANET_RADIUS_SCALE; // Earth's radius scaled consistently with other planets
-    this.CE_RADIUS = this.EARTH_RADIUS * 0.02; // Celestial sphere radius (local horizon visualization scale, 2% of Earth radius)
-    this.SPHERE_RADIUS = this.CE_RADIUS * 1.6; // Radius of horizon circle and sky dome
-    this.PLANET_DISTANCE_SCALE = 2000; // Scale factor for planet orbital distances (1 AU = 2000 units)
-    this.STAR_FIELD_RADIUS = this.PLANET_DISTANCE_SCALE * 200; // Star field radius (encompassing solar system)
+    // Expose all config constants as properties for backward compatibility
+    const configProps = [
+      'EARTH_RADIUS_KM', 'MOON_RADIUS_KM', 'SUN_RADIUS_KM', 'MOON_DISTANCE_KM',
+      'PLANET_RADIUS_SCALE', 'EARTH_RADIUS', 'CE_RADIUS', 'SPHERE_RADIUS',
+      'PLANET_DISTANCE_SCALE', 'STAR_FIELD_RADIUS', 'VIEW_MODE_THRESHOLD',
+      'SUN_RADIUS', 'MOON_RADIUS', 'MOON_DISTANCE',
+      'EARTH_TEXTURE_PATH', 'EARTH_NIGHT_TEXTURE_PATH', 'SUN_TEXTURE_PATH',
+      'REALISTIC_SUN_TEXTURE_PATH', 'MOON_TEXTURE_PATH', 'MOON_BUMP_TEXTURE_PATH',
+      'MERCURY_TEXTURE_PATH', 'VENUS_TEXTURE_PATH', 'MARS_TEXTURE_PATH',
+      'JUPITER_TEXTURE_PATH', 'SATURN_TEXTURE_PATH', 'SATURN_RINGS_TEXTURE_PATH',
+      'SATURN_RINGS_ALPHA_PATH', 'URANUS_TEXTURE_PATH', 'NEPTUNE_TEXTURE_PATH',
+      'PLUTO_TEXTURE_PATH'
+    ];
+    configProps.forEach(prop => {
+      Object.defineProperty(this, prop, {
+        get() { return this.config[prop]; }
+      });
+    });
 
-    // View mode threshold: distance at which we switch from Horizon View to Earth View
-    // Threshold: 50 units (Earth radius is 5.0, Horizon view camera is ~15 units away)
-    this.VIEW_MODE_THRESHOLD = 50.0;
-
-    // Calculate proportional radii (scaled down for visibility)
-    this.SUN_RADIUS = this.EARTH_RADIUS * (this.SUN_RADIUS_KM / this.EARTH_RADIUS_KM) * 0.05; // ~109x Earth, scaled
-    this.MOON_RADIUS = this.EARTH_RADIUS * (this.MOON_RADIUS_KM / this.EARTH_RADIUS_KM); // ~27.3% Earth
-    this.MOON_DISTANCE = 300; // Moon distance from Earth (scaled for visibility, not to scale with radii)
-
-    // Texture paths
-    this.EARTH_TEXTURE_PATH = '/armillary/images/earth_texture.jpg';
-    this.EARTH_NIGHT_TEXTURE_PATH = '/armillary/images/earth_texture_night.jpg';
-    this.SUN_TEXTURE_PATH = '/armillary/images/sun_texture.jpg';
-    this.REALISTIC_SUN_TEXTURE_PATH = '/armillary/images/sun_texture_orange.jpg';
-    this.MOON_TEXTURE_PATH = '/armillary/images/moon_texture.jpg';
-    this.MOON_BUMP_TEXTURE_PATH = '/armillary/images/moon_texture_bump.jpg';
-    this.MERCURY_TEXTURE_PATH = '/armillary/images/mercury_texture.jpg';
-    this.VENUS_TEXTURE_PATH = '/armillary/images/venus_texture.jpg';
-    this.MARS_TEXTURE_PATH = '/armillary/images/mars_texture.jpg';
-    this.JUPITER_TEXTURE_PATH = '/armillary/images/jupiter_texture.jpg';
-    this.SATURN_TEXTURE_PATH = '/armillary/images/saturn_texture.jpg';
-    this.SATURN_RINGS_TEXTURE_PATH = '/armillary/images/saturn_ring_color.jpg';
-    this.SATURN_RINGS_ALPHA_PATH = '/armillary/images/saturn_ring_alpha.gif';
-    this.URANUS_TEXTURE_PATH = '/armillary/images/uranus_texture.jpg';
-    this.NEPTUNE_TEXTURE_PATH = '/armillary/images/neptune_texture.jpg';
-    this.PLUTO_TEXTURE_PATH = '/armillary/images/pluto_texture.jpg';
+    // Expose state properties for backward compatibility
+    const stateProps = [
+      'prevArmillaryPos', 'prevArmillaryQuat', 'lunarPhase', 'lunarPhaseAngle',
+      'sunZodiacPosition', 'moonZodiacPosition', 'nodePositions',
+      'lunarApsisPositions', 'anglePositions', 'planetZodiacPositions',
+      'zenithViewUpVector', 'constellationArtAlwaysOn'
+    ];
+    stateProps.forEach(prop => {
+      Object.defineProperty(this, prop, {
+        get() { return this.state[prop]; },
+        set(value) { this.state[prop] = value; }
+      });
+    });
 
     // ===================================================================
     // Core Three.js Objects
@@ -127,35 +138,7 @@ export class ArmillaryScene {
     this.realisticSunMesh = null;
     this.realisticSunGlowMeshes = [];
     this.planetGroups = {}; // Store planet groups
-    this.planetZodiacPositions = {}; // Store planet zodiac positions for tooltips
     this.eclipticDots = []; // Store ecliptic rim dots for hover detection
-
-    // ===================================================================
-    // State Management
-    // ===================================================================
-    // Track previous armillary state for camera synchronization
-    this.prevArmillaryPos = null;
-    this.prevArmillaryQuat = null;
-
-    // Store lunar phase info for tooltip
-    this.lunarPhase = { phase: "", illumination: 0 };
-
-    // Store sun/moon positions for tooltips
-    this.sunZodiacPosition = "";
-    this.moonZodiacPosition = "";
-
-    // Store lunar apsis positions for tooltips
-    this.lunarApsisPositions = {};
-
-    // Store angle positions for tooltips
-    this.anglePositions = {
-      MC: "",
-      IC: "",
-      ASC: "",
-      DSC: "",
-      VTX: "",
-      AVX: ""
-    };
 
     // ===================================================================
     // Initialization
@@ -163,6 +146,9 @@ export class ArmillaryScene {
     this.initScene();
     this.initGroups();
     this.initModules();
+
+    // Initialize ViewModeManager after scene setup
+    this.viewMode = new ViewModeManager(this);
   }
 
   // ===================================================================
@@ -1694,301 +1680,11 @@ export class ArmillaryScene {
   /**
    * Set opacity of horizon view elements (for zenith view fade effect)
    * @param {number} opacity - Opacity value between 0 and 1
+   *
+   * Delegated to ViewModeManager for better maintainability
    */
   setHorizonElementsOpacity(opacity) {
-    const setMaterialOpacity = (obj, baseOpacity = 1.0) => {
-      if (!obj) return;
-      if (obj.material) {
-        obj.material.opacity = opacity * baseOpacity;
-        obj.material.transparent = true;
-        obj.material.needsUpdate = true;
-      }
-    };
-
-    // Detect zenith view - use threshold to catch transition
-    const isZenithView = opacity < 0.5; // Entering zenith view when opacity drops below 50%
-
-    // Horizon plane and outline
-    // Keep horizon outline visible when approaching/in zenith view
-    if (isZenithView) {
-      // Approaching or in zenith view - keep horizon outline at full visibility
-      if (this.horizonOutline) {
-        this.horizonOutline.visible = true;
-        if (this.horizonOutline.material) {
-          this.horizonOutline.material.opacity = 1.0; // Always full brightness
-          this.horizonOutline.material.transparent = true;
-          this.horizonOutline.material.depthTest = false; // Always visible, no depth clipping
-          this.horizonOutline.material.needsUpdate = true;
-        }
-        this.horizonOutline.renderOrder = 1000; // Render on top of everything
-      }
-      // Fade out horizon plane as approaching zenith
-      if (this.horizonPlane) {
-        if (opacity === 0) {
-          this.horizonPlane.visible = false;
-        } else {
-          this.horizonPlane.visible = true;
-          setMaterialOpacity(this.horizonPlane, 0.1);
-        }
-      }
-    } else {
-      // Normal view - fade with opacity and reset depth settings
-      if (this.horizonPlane) {
-        this.horizonPlane.visible = true;
-        setMaterialOpacity(this.horizonPlane, 0.1);
-      }
-      if (this.horizonOutline) {
-        this.horizonOutline.visible = true;
-        this.horizonOutline.renderOrder = 0; // Reset render order
-        if (this.horizonOutline.material) {
-          this.horizonOutline.material.depthTest = true; // Re-enable depth testing
-        }
-        setMaterialOpacity(this.horizonOutline, 0.5);
-      }
-    }
-
-    // Meridian and prime vertical
-    setMaterialOpacity(this.meridianOutline, 0.5);
-    setMaterialOpacity(this.primeVerticalOutline, 0.5);
-
-    // Celestial equator
-    setMaterialOpacity(this.celestialEquatorOutline, 0.6);
-
-    // Pole labels
-    if (this.poleLabels) {
-      if (this.poleLabels.NP && this.poleLabels.NP.material) {
-        this.poleLabels.NP.material.opacity = opacity;
-      }
-      if (this.poleLabels.SP && this.poleLabels.SP.material) {
-        this.poleLabels.SP.material.opacity = opacity;
-      }
-    }
-
-    // Zodiac wheel elements (but not sun/moon/planets)
-    // Helper to check if object is descendant of a group
-    const isDescendantOf = (obj, group) => {
-      if (!group) return false;
-      let parent = obj.parent;
-      while (parent) {
-        if (parent === group) return true;
-        parent = parent.parent;
-      }
-      return false;
-    };
-
-    if (this.zodiacGroup) {
-      this.zodiacGroup.traverse((child) => {
-        // Skip sun and moon groups and all their descendants
-        if (child === this.eclipticSunGroup || isDescendantOf(child, this.eclipticSunGroup)) return;
-        if (child === this.eclipticMoonGroup || isDescendantOf(child, this.eclipticMoonGroup)) return;
-
-        // Skip ecliptic planet groups and their descendants
-        if (this.eclipticPlanetGroups) {
-          for (const name in this.eclipticPlanetGroups) {
-            const planetGroup = this.eclipticPlanetGroups[name].group;
-            if (child === planetGroup || isDescendantOf(child, planetGroup)) return;
-          }
-        }
-
-        // Skip angle markers - their visibility is controlled explicitly below
-        if (child.userData?.angleName) {
-          return;
-        }
-
-        if (child.material) {
-          const baseOpacity = child.material.userData?.baseOpacity ?? child.material.opacity;
-          if (!child.material.userData) child.material.userData = {};
-          child.material.userData.baseOpacity = baseOpacity;
-          child.material.opacity = opacity * Math.min(baseOpacity, 1.0);
-          child.material.transparent = true;
-        }
-      });
-    }
-
-    // Angle markers (MC, IC, ASC, DSC, VTX, AVX)
-    // IMPORTANT: Angle spheres should NEVER show in zenith view
-    if (this.spheres) {
-      for (const name in this.spheres) {
-        const sphere = this.spheres[name];
-        if (sphere) {
-          // Force hidden in zenith view, regardless of other toggle states
-          sphere.visible = !isZenithView && opacity > 0;
-        }
-      }
-    }
-
-    // Angle labels
-    if (this.angleLabels) {
-      for (const name in this.angleLabels) {
-        const label = this.angleLabels[name];
-        if (label) {
-          // Force hidden in zenith view, regardless of other toggle states
-          label.visible = !isZenithView && opacity > 0;
-        }
-      }
-    }
-
-    // Ecliptic planet markers (on the zodiac wheel)
-    // IMPORTANT: Should NEVER show in zenith view, regardless of planets toggle
-    if (this.eclipticPlanetGroups) {
-      for (const planetName in this.eclipticPlanetGroups) {
-        const planetGroup = this.eclipticPlanetGroups[planetName].group;
-        if (planetGroup) {
-          // In zenith view, always hide. Otherwise, respect the planets toggle state
-          if (isZenithView) {
-            planetGroup.visible = false;
-          } else {
-            // Restore visibility based on planets toggle when not in zenith view
-            const planetsToggle = document.getElementById('planetsToggle');
-            const planetsVisible = planetsToggle ? planetsToggle.checked : true;
-            planetGroup.visible = planetsVisible;
-          }
-        }
-      }
-    }
-
-    // Compass rose and other armillaryRoot children (but not celestial objects)
-    if (this.armillaryRoot) {
-      this.armillaryRoot.children.forEach(child => {
-        // Skip sky atmosphere
-        if (this.skyAtmosphere && child === this.skyAtmosphere.skyMesh) return;
-        // Skip celestial group (contains stars, zodiac with sun/moon)
-        if (child === this.celestial) return;
-        if (child === this.tiltGroup) return;
-
-        // Hide/show based on opacity
-        if (child.material) {
-          const baseOpacity = child.material.userData?.baseOpacity ?? child.material.opacity;
-          if (!child.material.userData) child.material.userData = {};
-          child.material.userData.baseOpacity = baseOpacity;
-          child.material.opacity = opacity * Math.min(baseOpacity, 1.0);
-          child.material.transparent = true;
-        }
-        // Also set visibility for objects without materials (groups)
-        if (opacity === 0) {
-          child.visible = false;
-        } else {
-          child.visible = true;
-        }
-      });
-    }
-
-    // Make sure sun and moon groups stay visible
-    if (this.eclipticSunGroup) this.eclipticSunGroup.visible = true;
-    if (this.eclipticMoonGroup) this.eclipticMoonGroup.visible = true;
-
-    // Toggle between ecliptic spheres and sky view discs based on zenith view
-    // (isZenithView already defined above at line 1744)
-
-    // Ecliptic sun/moon spheres - fade out as approaching zenith view
-    if (this.eclipticSunMesh) {
-      // Fade out ecliptic sun sphere based on opacity (0 = zenith, 1 = normal)
-      this.eclipticSunMesh.visible = opacity > 0;
-      if (this.eclipticSunMesh.material && opacity < 1) {
-        this.eclipticSunMesh.material.opacity = opacity;
-        this.eclipticSunMesh.material.transparent = true;
-      }
-    }
-    if (this.eclipticMoonMesh) {
-      // Fade out ecliptic moon sphere based on opacity
-      this.eclipticMoonMesh.visible = opacity > 0;
-      if (this.eclipticMoonMesh.material && opacity < 1) {
-        this.eclipticMoonMesh.material.opacity = opacity;
-        this.eclipticMoonMesh.material.transparent = true;
-      }
-    }
-
-    // Sun/moon glow meshes - fade out with their parent spheres
-    if (this.eclipticSunGlowMeshes) {
-      this.eclipticSunGlowMeshes.forEach(glow => {
-        glow.visible = opacity > 0;
-        if (glow.material && opacity < 1) {
-          glow.material.opacity = opacity * (glow.material.userData?.baseOpacity ?? 1.0);
-        }
-      });
-    }
-    if (this.moonGlowMeshes) {
-      this.moonGlowMeshes.forEach(glow => {
-        glow.visible = opacity > 0;
-        if (glow.material && opacity < 1) {
-          glow.material.opacity = opacity * (glow.material.userData?.baseOpacity ?? 1.0);
-        }
-      });
-    }
-
-    // Sky sun/moon discs - fade in as ecliptic spheres fade out
-    if (this.celestialObjects.skySunMesh) {
-      // Start showing billboard when opacity < 0.5, fully visible at opacity = 0
-      const billboardOpacity = opacity < 0.5 ? (1.0 - opacity * 2.0) : 0.0;
-      this.celestialObjects.skySunMesh.visible = billboardOpacity > 0;
-      if (this.celestialObjects.skySunMesh.material && billboardOpacity > 0) {
-        this.celestialObjects.skySunMesh.material.opacity = billboardOpacity;
-        this.celestialObjects.skySunMesh.material.transparent = true;
-      }
-      if (billboardOpacity > 0) {
-        // Make billboard face camera
-        this.celestialObjects.skySunMesh.quaternion.copy(this.camera.quaternion);
-      }
-    }
-    if (this.celestialObjects.skyMoonMesh) {
-      // Start showing billboard when opacity < 0.5, fully visible at opacity = 0
-      const billboardOpacity = opacity < 0.5 ? (1.0 - opacity * 2.0) : 0.0;
-      this.celestialObjects.skyMoonMesh.visible = billboardOpacity > 0;
-      if (this.celestialObjects.skyMoonMesh.material && billboardOpacity > 0) {
-        this.celestialObjects.skyMoonMesh.material.opacity = billboardOpacity;
-        this.celestialObjects.skyMoonMesh.material.transparent = true;
-      }
-      if (billboardOpacity > 0) {
-        // Make billboard face camera
-        this.celestialObjects.skyMoonMesh.quaternion.copy(this.camera.quaternion);
-      }
-    }
-
-    // Realistic heliocentric sun and moon (planetary system bodies)
-    // Fade these out in zenith view so they don't distract from the sky view
-    if (this.realisticSunMesh) {
-      this.realisticSunMesh.visible = opacity > 0;
-      if (this.realisticSunMesh.material && opacity < 1) {
-        this.realisticSunMesh.material.opacity = opacity;
-        this.realisticSunMesh.material.transparent = true;
-      }
-    }
-    if (this.realisticSunGlowMeshes) {
-      this.realisticSunGlowMeshes.forEach(glow => {
-        glow.visible = opacity > 0;
-        if (glow.material && opacity < 1) {
-          glow.material.opacity = opacity * (glow.material.userData?.baseOpacity ?? 1.0);
-        }
-      });
-    }
-    if (this.realisticMoonMesh) {
-      this.realisticMoonMesh.visible = opacity > 0;
-      if (this.realisticMoonMesh.material && opacity < 1) {
-        this.realisticMoonMesh.material.opacity = opacity;
-        this.realisticMoonMesh.material.transparent = true;
-      }
-    }
-    if (this.realisticMoonGlowMeshes) {
-      this.realisticMoonGlowMeshes.forEach(glow => {
-        glow.visible = opacity > 0;
-        if (glow.material && opacity < 1) {
-          glow.material.opacity = opacity * (glow.material.userData?.baseOpacity ?? 1.0);
-        }
-      });
-    }
-
-    // FINAL OVERRIDE: Force horizon outline to stay visible in zenith view
-    // This runs last to override any other opacity settings
-    if (isZenithView && this.horizonOutline) {
-      this.horizonOutline.visible = true;
-      this.horizonOutline.renderOrder = 1000;
-      if (this.horizonOutline.material) {
-        this.horizonOutline.material.opacity = 1.0;
-        this.horizonOutline.material.transparent = true;
-        this.horizonOutline.material.depthTest = false;
-        this.horizonOutline.material.needsUpdate = true;
-      }
-    }
+    this.viewMode.setHorizonElementsOpacity(opacity);
   }
 
   // ===================================================================
