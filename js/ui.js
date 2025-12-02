@@ -189,7 +189,6 @@ export class UIManager {
     this.toggleStates = {
       starfield: document.getElementById('starfieldToggle')?.checked ?? true,
       skyAtmosphere: document.getElementById('skyAtmosphereToggle')?.checked ?? false,
-      constellationArt: document.getElementById('constellationArtToggle')?.checked ?? false,
       planets: document.getElementById('planetsToggle')?.checked ?? true,
       earthReferences: document.getElementById('earthReferencesToggle')?.checked ?? false,
       sunReferences: document.getElementById('sunReferencesToggle')?.checked ?? false,
@@ -198,6 +197,10 @@ export class UIManager {
       stereo: document.getElementById('stereoToggle')?.checked ?? false,
       sidereal: false
     };
+
+    // Constellation mode: 'none', 'lines', 'both'
+    const checkedRadio = document.querySelector('input[name="constellationMode"]:checked');
+    this.constellationMode = checkedRadio ? checkedRadio.value : 'both';
 
     // Read defaults from HTML elements
     const eyeSeparationSlider = document.getElementById('eyeSeparationSlider');
@@ -535,8 +538,9 @@ export class UIManager {
     if (this.toggleStates.skyAtmosphere !== false) {
       params.set('skyAtmo', this.toggleStates.skyAtmosphere ? '1' : '0');
     }
-    if (this.toggleStates.constellationArt !== false) {
-      params.set('constArt', this.toggleStates.constellationArt ? '1' : '0');
+    // Save constellation mode if not default (default is 'both')
+    if (this.constellationMode !== 'both') {
+      params.set('constMode', this.constellationMode);
     }
     if (this.toggleStates.planets !== true) {
       params.set('planets', this.toggleStates.planets ? '1' : '0');
@@ -751,6 +755,14 @@ export class UIManager {
     return this.planetZoom;
   }
 
+  setConstellationMode(mode) {
+    this.constellationMode = mode;
+  }
+
+  getConstellationMode() {
+    return this.constellationMode;
+  }
+
   loadStateFromURL(parser) {
     // First check for Rails calc_params in query string
     const queryParams = new URLSearchParams(window.location.search);
@@ -807,9 +819,13 @@ export class UIManager {
       this.toggleStates.skyAtmosphere = params.get('skyAtmo') === '1';
       hasState = true;
     }
-    if (params.has('constArt')) {
-      this.toggleStates.constellationArt = params.get('constArt') === '1';
-      hasState = true;
+    // Load constellation mode if present
+    if (params.has('constMode')) {
+      const mode = params.get('constMode');
+      if (['none', 'lines', 'both'].includes(mode)) {
+        this.constellationMode = mode;
+        hasState = true;
+      }
     }
     if (params.has('planets')) {
       this.toggleStates.planets = params.get('planets') === '1';

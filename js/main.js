@@ -194,12 +194,16 @@ skyAtmosphereToggle.addEventListener('change', () => {
   uiManager.saveStateToURL();
 });
 
-// Constellation art toggle
-const constellationArtToggle = document.getElementById('constellationArtToggle');
-constellationArtToggle.addEventListener('change', () => {
-  scene.toggleConstellationArt(constellationArtToggle.checked);
-  uiManager.setToggleState('constellationArt', constellationArtToggle.checked);
-  uiManager.saveStateToURL();
+// Constellation mode radio buttons
+const constellationModeRadios = document.querySelectorAll('input[name="constellationMode"]');
+constellationModeRadios.forEach(radio => {
+  radio.addEventListener('change', () => {
+    if (radio.checked) {
+      scene.setConstellationMode(radio.value);
+      uiManager.setConstellationMode(radio.value);
+      uiManager.saveStateToURL();
+    }
+  });
 });
 
 // Planets toggle
@@ -612,7 +616,12 @@ const hasURLState = uiManager.loadStateFromURL(parser);
 const toggleStates = uiManager.getToggleStates();
 starfieldToggle.checked = toggleStates.starfield;
 skyAtmosphereToggle.checked = toggleStates.skyAtmosphere;
-constellationArtToggle.checked = toggleStates.constellationArt;
+// Set constellation mode radio button
+const constellationMode = uiManager.getConstellationMode();
+const constellationRadio = document.querySelector(`input[name="constellationMode"][value="${constellationMode}"]`);
+if (constellationRadio) {
+  constellationRadio.checked = true;
+}
 planetsToggle.checked = toggleStates.planets;
 earthReferencesToggle.checked = toggleStates.earthReferences;
 sunReferencesToggle.checked = toggleStates.sunReferences;
@@ -638,7 +647,7 @@ scene.setPlanetZoom(planetZoom);
 // Apply toggle states to scene
 scene.toggleStarfield(toggleStates.starfield);
 scene.toggleSkyAtmosphere(toggleStates.skyAtmosphere);
-scene.toggleConstellationArt(toggleStates.constellationArt);
+scene.setConstellationMode(constellationMode);
 scene.togglePlanets(toggleStates.planets);
 scene.toggleEarthReferences(toggleStates.earthReferences);
 scene.toggleSunReferences(toggleStates.sunReferences);

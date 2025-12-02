@@ -296,7 +296,7 @@ export default class CameraController {
 
   toggleStarfield(visible) {
     this.sceneRef.starGroup.visible = visible;
-    this.sceneRef.constellationLineGroup.visible = visible;
+    // Don't control constellation lines here - they're controlled by constellation mode
     if (this.sceneRef.milkyWayMesh) {
       this.sceneRef.milkyWayMesh.visible = visible;
     }

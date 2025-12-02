@@ -1576,6 +1576,23 @@ export class ArmillaryScene {
     }
   }
 
+  setConstellationMode(mode) {
+    // mode: 'none', 'lines', 'both'
+    debugLog.log('Setting constellation mode:', mode);
+
+    // Control constellation lines visibility
+    if (this.constellationLineGroup) {
+      this.constellationLineGroup.visible = (mode === 'lines' || mode === 'both');
+    }
+
+    // Control constellation artwork visibility
+    if (mode === 'both') {
+      this.toggleConstellationArt(true);
+    } else {
+      this.toggleConstellationArt(false);
+    }
+  }
+
   togglePlanets(visible) {
     // Toggle only the ecliptic planets on the zodiac wheel (horizon view markers)
     // The realistic solar system planets are always visible

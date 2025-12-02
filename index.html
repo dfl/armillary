@@ -109,11 +109,23 @@
         Sky Atmosphere
       </label>
       <br>
-      <label>
-        <input type="checkbox" id="constellationArtToggle" checked>
-        Constellation Art
-      </label>
-      <br>
+      <div style="margin-bottom: 8px;">
+        <div style="font-weight: bold; margin-bottom: 4px;">Constellations:</div>
+        <div style="display: flex; gap: 10px; margin-left: 10px;">
+          <label>
+            <input type="radio" name="constellationMode" value="none">
+            None
+          </label>
+          <label>
+            <input type="radio" name="constellationMode" value="lines">
+            Lines
+          </label>
+          <label>
+            <input type="radio" name="constellationMode" value="both" checked>
+            Lines + Artwork
+          </label>
+        </div>
+      </div>
       <label>
         <input type="checkbox" id="planetsToggle">
         Planets on Armillary Ecliptic
