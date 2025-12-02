@@ -852,26 +852,44 @@ export class ArmillaryScene {
         const nodeGroups = this.planetaryReferences.planetaryNodeGroups[planetName];
         if (!nodeGroups) return;
 
-        // Get the planet's semi-major axis for proper scaling
+        // Get the planet's orbital elements
         const orbitalElements = this.planetaryReferences.orbitalElements[planetName];
         if (!orbitalElements) return;
 
-        const semiMajorAxis = orbitalElements.a; // in AU
+        const a = orbitalElements.a;   // Semi-major axis in AU
+        const e = orbitalElements.e;   // Eccentricity
+        const ω = orbitalElements.ω;   // Argument of perihelion (degrees)
 
-        // Apply same distance compression as planets
-        const compressedDistance = Math.pow(semiMajorAxis, distanceExponent);
-        const scaledDistance = compressedDistance * this.PLANET_DISTANCE_SCALE;
+        // Calculate the distance from Sun at the nodes
+        // At ascending node (true anomaly ν = -ω), the orbit crosses ecliptic northward
+        // At descending node (true anomaly ν = 180° - ω), the orbit crosses southward
+        // Using orbital equation: r = a(1-e²)/(1+e·cos(ν))
+
+        const ωRad = THREE.MathUtils.degToRad(ω);
+
+        // Ascending node distance
+        const r_asc = a * (1 - e * e) / (1 + e * Math.cos(ωRad));
+
+        // Descending node distance
+        const r_desc = a * (1 - e * e) / (1 - e * Math.cos(ωRad));
+
+        // Apply same distance compression as planetary orbits
+        const compressedDistAsc = Math.pow(r_asc, distanceExponent);
+        const scaledDistAsc = compressedDistAsc * this.PLANET_DISTANCE_SCALE * zoomScale;
+
+        const compressedDistDesc = Math.pow(r_desc, distanceExponent);
+        const scaledDistDesc = compressedDistDesc * this.PLANET_DISTANCE_SCALE * zoomScale;
 
         // Position ascending node
         const ascendingRad = THREE.MathUtils.degToRad(nodes.ascending);
-        const ascendingX = scaledDistance * Math.cos(ascendingRad);
-        const ascendingY = scaledDistance * Math.sin(ascendingRad);
+        const ascendingX = scaledDistAsc * Math.cos(ascendingRad);
+        const ascendingY = scaledDistAsc * Math.sin(ascendingRad);
         nodeGroups.ascending.position.set(ascendingX, ascendingY, 0);
 
         // Position descending node
         const descendingRad = THREE.MathUtils.degToRad(nodes.descending);
-        const descendingX = scaledDistance * Math.cos(descendingRad);
-        const descendingY = scaledDistance * Math.sin(descendingRad);
+        const descendingX = scaledDistDesc * Math.cos(descendingRad);
+        const descendingY = scaledDistDesc * Math.sin(descendingRad);
         nodeGroups.descending.position.set(descendingX, descendingY, 0);
 
         // Scale nodes with zoom
