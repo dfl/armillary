@@ -331,8 +331,8 @@ export default class SkyAtmosphere {
       uniforms: this.uniforms,
       side: THREE.BackSide, // Render inside of sphere
       transparent: true,
-      depthWrite: false,
-      depthTest: false // Don't occlude other objects
+      depthWrite: true, // Write to depth buffer to clip realistic sun/moon
+      depthTest: true // Test depth to properly layer with other objects
     });
 
     // Create hemisphere (upper half only - sky is above horizon)
@@ -340,7 +340,7 @@ export default class SkyAtmosphere {
     // Default orientation: dome at +Y (up), open at Y=0 (horizon plane)
     const geometry = new THREE.SphereGeometry(this.SKY_RADIUS, 64, 32, 0, Math.PI * 2, 0, Math.PI / 2);
     this.skyMesh = new THREE.Mesh(geometry, material);
-    this.skyMesh.renderOrder = -100; // Render first (background)
+    this.skyMesh.renderOrder = -1; // Render before realistic sun/moon for proper clipping
 
     // Add to armillary root so it moves with observer
     this.armillaryRoot.add(this.skyMesh);

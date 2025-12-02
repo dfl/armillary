@@ -444,7 +444,8 @@ export default class CelestialObjects {
         color: 0xffffff,
         transparent: true,
         opacity: 1.0,
-        depthWrite: false
+        depthWrite: false,
+        depthTest: true // Enable depth testing for sky dome clipping
       })
     );
 
@@ -462,6 +463,8 @@ export default class CelestialObjects {
 
     // Store reference to the realistic sun mesh for color updates
     this.realisticSunMesh = realisticSun;
+    // Set render order to ensure it renders after sky dome for proper clipping
+    this.realisticSunMesh.renderOrder = 0;
     this.realisticSunGlowMeshes = [];
 
     sunGlowLayers.forEach(layer => {
@@ -472,10 +475,12 @@ export default class CelestialObjects {
           transparent: true,
           opacity: layer.opacity,
           blending: THREE.AdditiveBlending,
-          depthWrite: false
+          depthWrite: false,
+          depthTest: true // Enable depth testing for sky dome clipping
         })
       );
       glowMesh.raycast = () => {}; // Exclude from raycasting
+      glowMesh.renderOrder = 0; // Render after sky dome
       this.realisticSunGroup.add(glowMesh);
       this.realisticSunGlowMeshes.push(glowMesh);
     });
@@ -600,7 +605,8 @@ export default class CelestialObjects {
         bumpScale: 0.05,
         color: 0xffffff,
         roughness: 0.9,
-        metalness: 0.0
+        metalness: 0.0,
+        depthTest: true // Enable depth testing for sky dome clipping
       })
     );
 
@@ -616,6 +622,8 @@ export default class CelestialObjects {
     this.realisticMoonGroup.add(realisticMoon);
 
     this.realisticMoonMesh = realisticMoon;
+    // Set render order to ensure it renders after sky dome for proper clipping
+    this.realisticMoonMesh.renderOrder = 0;
     this.realisticMoonGlowMeshes = [];
 
     realisticMoonGlowLayers.forEach(layer => {
@@ -626,9 +634,11 @@ export default class CelestialObjects {
           transparent: true,
           opacity: layer.opacity,
           blending: THREE.AdditiveBlending,
-          depthWrite: false
+          depthWrite: false,
+          depthTest: true // Enable depth testing for sky dome clipping
         })
       );
+      glowMesh.renderOrder = 0; // Render after sky dome
       this.realisticMoonGroup.add(glowMesh);
       this.realisticMoonGlowMeshes.push(glowMesh);
     });
