@@ -98,58 +98,18 @@
       <span id="dayValue">Jan 1</span>
       <br>
       <br>
-
-      <label>
-        <input type="checkbox" id="starfieldToggle" checked>
-        Starfield
-      </label>
+      Planet Zoom:
+      <input
+        autocomplete="off"
+        type="range"
+        id="planetZoomSlider"
+        min="0"
+        max="1"
+        value="1"
+        step="0.05"
+      >
+      <span id="planetZoomValue">1.0 (Max)</span>
       <br>
-      <label>
-        <input type="checkbox" id="skyAtmosphereToggle" checked>
-        Sky Atmosphere
-      </label>
-      <br>
-      <div style="margin-bottom: 8px;">
-        <div style="font-weight: bold; margin-bottom: 4px;">Constellations:</div>
-        <div style="display: flex; gap: 10px; margin-left: 10px;">
-          <label>
-            <input type="radio" name="constellationMode" value="none">
-            None
-          </label>
-          <label>
-            <input type="radio" name="constellationMode" value="lines">
-            Lines
-          </label>
-          <label>
-            <input type="radio" name="constellationMode" value="both" checked>
-            Lines + Artwork
-          </label>
-        </div>
-      </div>
-      <label>
-        <input type="checkbox" id="planetsToggle">
-        Planets on Armillary Ecliptic
-      </label>
-      <br>
-      <label>
-        <input type="checkbox" id="earthReferencesToggle">
-        Earth Equator & Poles
-      </label>
-      <br>
-      <label>
-        <input type="checkbox" id="sunReferencesToggle">
-        Ecliptic Plane
-      </label>
-      <br>
-      <label>
-        <input type="checkbox" id="lunarOrbitToggle" checked>
-        Lunar Orbit & Nodes
-      </label>
-      <br>
-      <label>
-        <input type="checkbox" id="planetOrbitsToggle">
-        Planetary Orbital Rings
-      </label>
       <br>
       <label>
         <input type="checkbox" id="stereoToggle">
@@ -170,17 +130,73 @@
         <span id="eyeSeparationValue">0.05</span>
         <br>
       </div>
-      Planet Zoom:
-      <input
-        autocomplete="off"
-        type="range"
-        id="planetZoomSlider"
-        min="0"
-        max="1"
-        value="1"
-        step="0.05"
-      >
-      <span id="planetZoomValue">1.0 (Max)</span>
+      <label>
+        <input type="checkbox" id="starfieldToggle" checked>
+        Starfield
+      </label>
+      <br>
+      <br>
+      <div style="margin-bottom: 8px;">
+        <div style="font-weight: bold; margin-bottom: 4px;">
+          Constellations:
+        </div>
+
+        <div style="display: flex; gap: 10px; margin-left: 10px;">
+          <label>
+            <input type="radio" name="constellationMode" value="none">
+            None
+          </label>
+
+          <label>
+            <input type="radio" name="constellationMode" value="lines">
+            Lines
+          </label>
+
+          <label>
+            <input
+              type="radio"
+              name="constellationMode"
+              value="both"
+              checked
+            >
+            Lines + Artwork
+          </label>
+        </div>
+      </div>
+      <label>
+        <input type="checkbox" id="sunReferencesToggle">
+        Ecliptic Plane
+      </label>
+      <br>
+      <label>
+        <input type="checkbox" id="planetOrbitsToggle">
+        Planetary Orbital Rings
+      </label>
+      <br>
+      <label>
+        <input type="checkbox" id="lunarOrbitToggle" checked>
+        Lunar Orbit & Nodes
+      </label>
+      <br>
+      <label>
+        <input type="checkbox" id="earthReferencesToggle">
+        Earth Equator & Poles
+      </label>
+      <br>
+      <label>
+        <input type="checkbox" id="skyAtmosphereToggle" checked>
+        Earth Sky
+      </label>
+      <br>
+      <label>
+        <input type="checkbox" id="planetsToggle">
+        Planets on Armillary Ecliptic
+      </label>
+      <br>
+      <label>
+        <input type="checkbox" id="siderealMode">
+        Sidereal Mode (Fagan-Bradley)
+      </label>
     </details>
 
     <details id="angles" open>
