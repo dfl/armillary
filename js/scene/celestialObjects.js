@@ -56,6 +56,7 @@ export default class CelestialObjects {
     this.starMeshes = {};
     this.constellationLineGroup = null;
     this.constellationFigureGroup = null;
+    this.milkyWayMesh = null;
     this.eclipticSunGroup = null;
     this.realisticSunGroup = null;
     this.sunTexture = null;
@@ -82,6 +83,7 @@ export default class CelestialObjects {
 
     // Initialize all celestial objects
     this.createStarField();
+    this.createMilkyWay();
     // Constellation figures loaded asynchronously - call loadConstellationFigures() after construction
     this.createSun();
     this.createMoon();
@@ -267,6 +269,69 @@ export default class CelestialObjects {
     // Add stars to inertial sphere (stationary reference frame)
     this.inertialStarSphere.add(this.starGroup);
     this.inertialStarSphere.add(this.constellationLineGroup);
+  }
+
+  createMilkyWay() {
+    // Create Milky Way background sphere with texture
+    // Uses the same approach as Stellarium - a textured sphere in celestial coordinates
+    // The texture should be an equirectangular map in RA/Dec coordinates
+
+    const textureLoader = new THREE.TextureLoader();
+
+    // Load Milky Way texture with error handling
+    // Use import.meta.env.BASE_URL for proper Vite path resolution
+    const milkyWayTexture = textureLoader.load(
+      import.meta.env.BASE_URL + 'images/milkyway.png',
+      () => {
+        console.log('Milky Way texture loaded successfully');
+      },
+      undefined,
+      (err) => {
+        console.warn('Milky Way texture not found. Add a texture at images/milkyway.png to enable.');
+        // Hide the mesh if texture fails to load
+        if (this.milkyWayMesh) {
+          this.milkyWayMesh.visible = false;
+        }
+      }
+    );
+
+    // Create sphere geometry slightly inside the star field
+    // This ensures stars render on top of the Milky Way
+    const milkyWayGeometry = new THREE.SphereGeometry(
+      this.STAR_FIELD_RADIUS * 0.92, // Behind constellation figures (0.98) and stars (1.0)
+      64, // Higher segment count for smooth appearance
+      64
+    );
+
+    // Create material with normal blending for natural appearance
+    // More transparent and without color artifacts
+    const milkyWayMaterial = new THREE.MeshBasicMaterial({
+      map: milkyWayTexture,
+      side: THREE.BackSide, // View from inside the sphere
+      transparent: true,
+      opacity: 0.15, // Very subtle (was 0.25, originally 0.5)
+      blending: THREE.NormalBlending, // Normal blending avoids green tint artifacts
+      depthWrite: false, // Don't write to depth buffer
+      fog: false // Not affected by fog
+    });
+
+    this.milkyWayMesh = new THREE.Mesh(milkyWayGeometry, milkyWayMaterial);
+    this.milkyWayMesh.name = 'milkyWay';
+
+    // Rotate to align with celestial coordinates (RA/Dec)
+    // The texture seam should align with RA 0h (Vernal Equinox)
+    // Adjust this rotation if the galactic center doesn't appear at RA ~17h 45m (Sagittarius)
+    // Note: Try different values if orientation is wrong: 0, π/2, π, -π/2
+    this.milkyWayMesh.rotation.y = 0; // No rotation initially - test and adjust
+
+    // Debug: Log reference star positions to verify RA/Dec alignment
+    console.log('Star field orientation check:');
+    console.log('- Regulus (Leo): RA 10h = 150°, should appear in Leo on ecliptic');
+    console.log('- Spica (Virgo): RA 13h = 195°, should appear in Virgo on ecliptic');
+    console.log('- Antares (Scorpius): RA 16h = 240°, should appear in Scorpius on ecliptic');
+
+    // Add to inertial star sphere so it rotates with stars in RA/Dec coordinates
+    this.inertialStarSphere.add(this.milkyWayMesh);
   }
 
   async loadConstellationFigures() {

@@ -297,6 +297,9 @@ export default class CameraController {
   toggleStarfield(visible) {
     this.sceneRef.starGroup.visible = visible;
     this.sceneRef.constellationLineGroup.visible = visible;
+    if (this.sceneRef.milkyWayMesh) {
+      this.sceneRef.milkyWayMesh.visible = visible;
+    }
   }
 
   updateEarthVisibility() {

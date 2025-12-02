@@ -67,6 +67,7 @@ export class SceneConfig {
     this.URANUS_TEXTURE_PATH = '/armillary/images/uranus_texture.jpg';
     this.NEPTUNE_TEXTURE_PATH = '/armillary/images/neptune_texture.jpg';
     this.PLUTO_TEXTURE_PATH = '/armillary/images/pluto_texture.jpg';
+    this.MILKY_WAY_TEXTURE_PATH = '/armillary/images/milkyway.png';
 
     // ===================================================================
     // Camera Configuration
@@ -112,7 +113,8 @@ export class SceneConfig {
       SATURN_RINGS_ALPHA_PATH: this.SATURN_RINGS_ALPHA_PATH,
       URANUS_TEXTURE_PATH: this.URANUS_TEXTURE_PATH,
       NEPTUNE_TEXTURE_PATH: this.NEPTUNE_TEXTURE_PATH,
-      PLUTO_TEXTURE_PATH: this.PLUTO_TEXTURE_PATH
+      PLUTO_TEXTURE_PATH: this.PLUTO_TEXTURE_PATH,
+      MILKY_WAY_TEXTURE_PATH: this.MILKY_WAY_TEXTURE_PATH
     };
   }
 }

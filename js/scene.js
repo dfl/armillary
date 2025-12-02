@@ -114,6 +114,7 @@ export class ArmillaryScene {
     // ===================================================================
     this.starGroup = null;
     this.constellationLineGroup = null;
+    this.milkyWayMesh = null;
     this.starMeshes = {}; // Store star meshes for hover detection
     this.horizonPlane = null;
     this.horizonOutline = null;
@@ -203,9 +204,11 @@ export class ArmillaryScene {
     this.inertialStarSphere = new THREE.Group();
     this.scene.add(this.inertialStarSphere);
     // Orient to J2000 equatorial coordinate system (aligned with ecliptic at obliquity angle)
-    // Stars are in RA/Dec, which is tilted relative to ecliptic by obliquity
-    this.inertialStarSphere.rotation.order = 'XYZ';
-    this.inertialStarSphere.rotation.x = this.obliquity;
+    // Stars are in RA/Dec (equatorial), rotate by -obliquity to align with ecliptic
+    // At summer solstice (RA 6h), celestial equator is south of ecliptic → negative rotation
+    this.inertialStarSphere.rotation.order = 'ZXY';  // Z first (phase), then X (obliquity), then Y
+    this.inertialStarSphere.rotation.x = -this.obliquity;  // Tilt to ecliptic
+    this.inertialStarSphere.rotation.z = -Math.PI / 2;  // Phase offset (try negative)
 
     // Hide celestial objects until first updateSphere() call
     this.celestial.visible = false;
@@ -293,6 +296,7 @@ export class ArmillaryScene {
     this.starGroup = this.celestialObjects.starGroup;
     this.starMeshes = this.celestialObjects.starMeshes;
     this.constellationLineGroup = this.celestialObjects.constellationLineGroup;
+    this.milkyWayMesh = this.celestialObjects.milkyWayMesh;
     this.eclipticSunGroup = this.celestialObjects.eclipticSunGroup;
     this.realisticSunGroup = this.celestialObjects.realisticSunGroup;
     this.sunTexture = this.celestialObjects.sunTexture;
@@ -674,10 +678,10 @@ export class ArmillaryScene {
     // Update inertial star sphere - keep in pure inertial frame
     // Stars stay stationary with only obliquity tilt (J2000 equatorial → ecliptic alignment)
     // Camera staying fixed in horizon view makes stars and celestial sphere move naturally
-    this.inertialStarSphere.rotation.order = 'XYZ';
-    this.inertialStarSphere.rotation.x = this.obliquity;
+    this.inertialStarSphere.rotation.order = 'ZXY';  // Z first (phase), then X (obliquity), then Y
+    this.inertialStarSphere.rotation.x = -this.obliquity;  // Tilt to align equatorial with ecliptic
     this.inertialStarSphere.rotation.y = 0;
-    this.inertialStarSphere.rotation.z = 0;
+    this.inertialStarSphere.rotation.z = -Math.PI / 2;  // Phase offset to align RA with ecliptic longitude
 
     // Only show Earth references (equator/poles) in Earth view
     // In horizon view, they're not visible/relevant anyway
