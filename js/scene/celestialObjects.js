@@ -416,12 +416,11 @@ export default class CelestialObjects {
       vertexShader: `
         varying vec2 vUv;
         varying vec3 vNormal;
-        varying vec3 vPosition;
 
         void main() {
           vUv = uv;
-          vNormal = normalize(normalMatrix * normal);
-          vPosition = (modelMatrix * vec4(position, 1.0)).xyz;
+          // Keep normal in object space to match sunDirection (also in object space)
+          vNormal = normalize(normal);
           gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
         }
       `,
@@ -431,7 +430,6 @@ export default class CelestialObjects {
 
         varying vec2 vUv;
         varying vec3 vNormal;
-        varying vec3 vPosition;
 
         void main() {
           vec4 texColor = texture2D(moonTexture, vUv);
@@ -623,55 +621,20 @@ export default class CelestialObjects {
     this.skyMoonMaterial = new THREE.ShaderMaterial({
       uniforms: {
         moonTexture: { value: moonTexture },
-        sunDirection: { value: new THREE.Vector3(1, 0, 0) },
-        roughness: { value: 0.8 } // Moon surface roughness for Oren-Nayar
+        phaseAngle: { value: 0.0 } // Phase angle in radians (0 = new, PI = full)
       },
       vertexShader: `
         varying vec2 vUv;
-        varying vec3 vNormal;
         void main() {
           vUv = uv;
-          // Create normal for a sphere mapped onto a plane
-          // Center of disc is (0,0,1), edges curve away
-          vec2 centered = (uv - 0.5) * 2.0;
-          float r2 = dot(centered, centered);
-          if (r2 < 1.0) {
-            float z = sqrt(1.0 - r2);
-            vNormal = normalize(vec3(centered.x, centered.y, z));
-          } else {
-            vNormal = vec3(0.0, 0.0, 1.0);
-          }
           gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
         }
       `,
       fragmentShader: `
         uniform sampler2D moonTexture;
-        uniform vec3 sunDirection;
-        uniform float roughness;
+        uniform float phaseAngle;
 
         varying vec2 vUv;
-        varying vec3 vNormal;
-
-        // Simplified Oren-Nayar diffuse (from Stellarium)
-        float orenNayarDiffuse(vec3 lightDir, vec3 viewDir, vec3 normal, float rough) {
-          float LdotN = max(dot(lightDir, normal), 0.0);
-          float VdotN = max(dot(viewDir, normal), 0.0);
-
-          float sigma2 = rough * rough;
-          float A = 1.0 - 0.5 * sigma2 / (sigma2 + 0.33);
-          float B = 0.45 * sigma2 / (sigma2 + 0.09);
-
-          float thetaI = acos(LdotN);
-          float thetaR = acos(VdotN);
-          float alpha = max(thetaI, thetaR);
-          float beta = min(thetaI, thetaR);
-
-          vec3 lightProj = normalize(lightDir - normal * LdotN);
-          vec3 viewProj = normalize(viewDir - normal * VdotN);
-          float cosPhiDiff = max(dot(lightProj, viewProj), 0.0);
-
-          return LdotN * (A + B * cosPhiDiff * sin(alpha) * tan(beta));
-        }
 
         void main() {
           vec2 centered = (vUv - 0.5) * 2.0;
@@ -682,21 +645,27 @@ export default class CelestialObjects {
             discard;
           }
 
-          // Sample texture with spherical UV mapping
+          // Sample texture
           vec4 texColor = texture2D(moonTexture, vUv);
 
-          // Calculate illumination using Oren-Nayar
-          vec3 lightDir = normalize(sunDirection);
-          vec3 viewDir = vec3(0.0, 0.0, 1.0); // Viewing straight on
+          // Generate spherical normal for this point on the disc
+          float z = sqrt(max(0.0, 1.0 - r2));
+          vec3 normal = vec3(centered.x, centered.y, z);
 
-          float diffuse = orenNayarDiffuse(lightDir, viewDir, vNormal, roughness);
+          // Light direction based on phase angle
+          // Phase 0 = new moon (light from behind, -Z)
+          // Phase PI = full moon (light from front, +Z)
+          vec3 lightDir = vec3(sin(phaseAngle), 0.0, -cos(phaseAngle));
 
-          // Apply illumination
-          vec3 litColor = texColor.rgb * diffuse * 1.2;
-          vec3 darkColor = texColor.rgb * 0.02; // Very dark shadow side
+          // Simple diffuse lighting
+          float diffuse = max(dot(normal, lightDir), 0.0);
 
           // Smooth terminator
-          float terminator = smoothstep(-0.05, 0.15, dot(vNormal, lightDir));
+          float terminator = smoothstep(-0.1, 0.2, dot(normal, lightDir));
+
+          // Apply illumination
+          vec3 litColor = texColor.rgb * 0.95;
+          vec3 darkColor = texColor.rgb * 0.03;
           vec3 finalColor = mix(darkColor, litColor, terminator);
 
           // Slight limb darkening

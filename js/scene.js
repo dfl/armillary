@@ -845,6 +845,8 @@ export class ArmillaryScene {
 
     // Calculate lunar phase
     this.lunarPhase = astroCalc.calculateLunarPhase(sunLonRad, moonLonRad);
+    // Store phase angle in radians for shader (moon longitude - sun longitude)
+    this.lunarPhaseAngle = moonLonRad - sunLonRad;
 
     // 2.5. Heliocentric Lunar Nodes are positioned after the orbit quaternion is set (section 2.6b)
     const northNodeRad = THREE.MathUtils.degToRad(northNodeDeg);
@@ -1374,32 +1376,8 @@ export class ArmillaryScene {
       this.celestialObjects.moonPhaseMaterial.uniforms.sunDirection.value.copy(sunDirLocal);
     }
 
-    // Update sky moon shader with sun direction
-    if (this.celestialObjects.skyMoonMaterial) {
-      // For the sky moon (billboard), we need the sun direction in the plane's local space
-      // The plane always faces the camera, so we project sun direction onto the view plane
-      const cameraPos = this.camera.position.clone();
-      const viewDir = moonWorldPosPhase.clone().sub(cameraPos).normalize();
-
-      // Project sun direction onto the plane perpendicular to view direction
-      const sunProj = sunDirWorld.clone();
-      sunProj.sub(viewDir.clone().multiplyScalar(sunDirWorld.dot(viewDir)));
-      sunProj.normalize();
-
-      // Convert to 2D coordinates on the billboard (right = x, up = y, forward = z)
-      const right = new THREE.Vector3();
-      const up = new THREE.Vector3(0, 1, 0);
-      right.crossVectors(up, viewDir).normalize();
-      up.crossVectors(viewDir, right).normalize();
-
-      const sunDir2D = new THREE.Vector3(
-        sunProj.dot(right),
-        sunProj.dot(up),
-        sunDirWorld.dot(viewDir.negate())
-      );
-
-      this.celestialObjects.skyMoonMaterial.uniforms.sunDirection.value.copy(sunDir2D);
-    }
+    // Sky moon shader sun direction is updated in the render loop (renderScene)
+    // when the billboard is rotated to face the camera
 
     // Adjust moon glow based on night/day (brighter at night)
     if (this.moonGlowMeshes && this.moonGlowMeshes.length > 0) {
@@ -1476,27 +1454,9 @@ export class ArmillaryScene {
       const moonLocalQuat = moonParentQuat.clone().invert().multiply(this.camera.quaternion);
       this.celestialObjects.skyMoonMesh.quaternion.copy(moonLocalQuat);
 
-      // Update sun direction in billboard's local space for correct phase rendering
-      if (this.eclipticSunGroup && this.eclipticMoonGroup && this.celestialObjects.skyMoonMaterial) {
-        // Get sun position in world space
-        const sunWorldPos = new THREE.Vector3();
-        this.eclipticSunGroup.getWorldPosition(sunWorldPos);
-
-        // Get moon position in world space
-        const moonWorldPos = new THREE.Vector3();
-        this.eclipticMoonGroup.getWorldPosition(moonWorldPos);
-
-        // Calculate sun direction from moon in world space
-        const sunDirWorld = sunWorldPos.clone().sub(moonWorldPos).normalize();
-
-        // Transform sun direction to billboard's local space
-        // Billboard's world quaternion should match camera, so inverse camera quat gives us billboard local space
-        const billboardWorldQuat = this.camera.quaternion.clone();
-        const billboardLocalSpace = billboardWorldQuat.clone().invert();
-        const sunDirBillboard = sunDirWorld.clone().applyQuaternion(billboardLocalSpace);
-
-        // Update shader uniform
-        this.celestialObjects.skyMoonMaterial.uniforms.sunDirection.value.copy(sunDirBillboard);
+      // Update phase angle for moon shader
+      if (this.celestialObjects.skyMoonMaterial && this.lunarPhaseAngle !== undefined) {
+        this.celestialObjects.skyMoonMaterial.uniforms.phaseAngle.value = this.lunarPhaseAngle;
       }
     }
 
