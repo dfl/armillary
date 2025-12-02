@@ -410,16 +410,13 @@ export class ArmillaryScene {
       this.armillaryRoot.visible = true;
       this.earthGroup.visible = true;
 
-      // Check planets toggle state
-      const planetsToggle = document.getElementById('planetsToggle');
-      const planetsVisible = planetsToggle ? planetsToggle.checked : true;
+      // Realistic solar system objects (sun, moon, planets) should always be visible
+      this.realisticSunGroup.visible = true;
+      this.realisticMoonGroup.visible = true;
 
-      this.realisticSunGroup.visible = planetsVisible;
-      this.realisticMoonGroup.visible = planetsVisible;
-
-      // Make all planets visible based on toggle state
+      // Make all realistic planets visible
       Object.values(this.planetGroups).forEach(planetData => {
-        planetData.group.visible = planetsVisible;
+        planetData.group.visible = true;
       });
     }
 
@@ -1221,6 +1218,9 @@ export class ArmillaryScene {
         const equalizationFactor = equalizedRatio / radiusRatio; // How much to adjust from original ratio
         const finalScale = planetScale * sizeMultiplier * equalizationFactor;
         this.planetGroups[planetName].group.scale.set(finalScale, finalScale, finalScale);
+
+        // Realistic solar system planets should always be visible
+        this.planetGroups[planetName].group.visible = true;
 
         // Store planet zodiac position for tooltip (using geocentric longitude)
         this.planetZodiacPositions[planetName] = astroCalc.toZodiacString(geocentricDeg - ayanamshaDeg);

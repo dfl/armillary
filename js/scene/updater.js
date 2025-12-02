@@ -125,14 +125,12 @@ export class SceneUpdater {
     this.scene.armillaryRoot.visible = true;
     this.scene.earthGroup.visible = true;
 
-    const planetsToggle = document.getElementById('planetsToggle');
-    const planetsVisible = planetsToggle ? planetsToggle.checked : true;
-
-    this.scene.realisticSunGroup.visible = planetsVisible;
-    this.scene.realisticMoonGroup.visible = planetsVisible;
+    // Realistic solar system objects (sun, moon, planets) should always be visible
+    this.scene.realisticSunGroup.visible = true;
+    this.scene.realisticMoonGroup.visible = true;
 
     Object.values(this.scene.planetGroups).forEach(planetData => {
-      planetData.group.visible = planetsVisible;
+      planetData.group.visible = true;
     });
   }
 
