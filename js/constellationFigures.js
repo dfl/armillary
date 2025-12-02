@@ -350,7 +350,7 @@ export function showConstellationFigure(figureGroup, constellationName) {
     if (mesh.userData.constellation === constellationName) {
       mesh.visible = true;
       // Animate opacity
-      const targetOpacity = 0.7;
+      const targetOpacity = 0.45; // Reduced from 0.7 for more subtle highlighting
       const startOpacity = mesh.material.opacity;
       const duration = 200; // ms
       const startTime = performance.now();
