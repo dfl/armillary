@@ -1553,6 +1553,34 @@ export class ArmillaryScene {
     }
   }
 
+  setCameraZoom(zoomFactor) {
+    // Adjust camera distance from controls target
+    // zoomFactor: 0 = far (zoomed out), 1 = close (zoomed in)
+
+    // Base reference distance (comfortable viewing distance for horizon view)
+    const baseDistance = this.CE_RADIUS * 3.5;
+
+    // Distance multipliers: 0=4x base (far), 1=0.3x base (close)
+    const minDistanceMult = 0.3;  // Maximum zoom in
+    const maxDistanceMult = 4.0;  // Maximum zoom out
+
+    // Exponential interpolation for natural zoom feel
+    const distanceMult = Math.pow(maxDistanceMult / minDistanceMult, 1 - zoomFactor) * minDistanceMult;
+    const targetDistance = baseDistance * distanceMult;
+
+    // Get current camera direction from controls target
+    const currentPos = this.camera.position.clone();
+    const target = this.controls.target.clone();
+    const direction = currentPos.sub(target).normalize();
+
+    // Set new camera position at target distance along same direction
+    const newPos = target.add(direction.multiplyScalar(targetDistance));
+    this.camera.position.copy(newPos);
+
+    // Update controls
+    this.controls.update();
+  }
+
   toggleStarfield(visible) {
     this.cameraController.toggleStarfield(visible);
   }

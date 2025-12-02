@@ -265,17 +265,16 @@ eyeSeparationSlider.addEventListener('input', () => {
   uiManager.saveStateToURL();
 });
 
-// Planet zoom slider
+// Camera zoom slider (formerly Planet zoom)
 const planetZoomSlider = document.getElementById('planetZoomSlider');
 const planetZoomValue = document.getElementById('planetZoomValue');
 planetZoomSlider.addEventListener('input', () => {
   const zoom = parseFloat(planetZoomSlider.value);
-  scene.setPlanetZoom(zoom);
-  const label = zoom === 0 ? '0 (Accurate)' : zoom === 1 ? '1.0 (Exaggerated)' : zoom.toFixed(2);
+  scene.setCameraZoom(zoom);
+  const label = zoom === 0 ? '0 (Far)' : zoom === 1 ? '1.0 (Close)' : zoom.toFixed(2);
   planetZoomValue.textContent = label;
   uiManager.setPlanetZoom(zoom);
   uiManager.saveStateToURL();
-  updateVisualization();
 });
 
 // Speed indicator display
@@ -637,12 +636,12 @@ const eyeSeparation = uiManager.getEyeSeparation();
 eyeSeparationSlider.value = eyeSeparation;
 eyeSeparationValue.textContent = eyeSeparation.toFixed(2);
 
-// Apply planet zoom from URL
+// Apply camera zoom from URL
 const planetZoom = uiManager.getPlanetZoom();
 planetZoomSlider.value = planetZoom;
-const zoomLabel = planetZoom === 0 ? '0 (Accurate)' : planetZoom === 1 ? '1.0 (Exaggerated)' : planetZoom.toFixed(2);
+const zoomLabel = planetZoom === 0 ? '0 (Far)' : planetZoom === 1 ? '1.0 (Close)' : planetZoom.toFixed(2);
 planetZoomValue.textContent = zoomLabel;
-scene.setPlanetZoom(planetZoom);
+scene.setCameraZoom(planetZoom);
 
 // Apply toggle states to scene
 scene.toggleStarfield(toggleStates.starfield);
