@@ -901,7 +901,7 @@ export class ArmillaryScene {
       });
     }
 
-    //  apo:  peri: 
+    //  apo:  peri:
     // 2.5b. Position Planetary Apsides (perihelion ⊕ and aphelion ⊖)
     // These show the closest and farthest points from the Sun in each orbit
     const planetaryApsides = astroCalc.calculatePlanetaryApsides(julianDate);
@@ -911,28 +911,79 @@ export class ArmillaryScene {
         const apsisGroups = this.planetaryReferences.planetaryApsisGroups[planetName];
         if (!apsisGroups) return;
 
-        // Perihelion: closest point to Sun (at distance a*(1-e))
-        const perihelionDist = apsides.perihelionDistance;
-        const perihelionRad = THREE.MathUtils.degToRad(apsides.perihelion);
+        // Get the planet's orbital elements for 3D positioning
+        const orbitalElements = this.planetaryReferences.orbitalElements[planetName];
+        if (!orbitalElements) return;
 
-        // Apply same distance compression as planets
-        const compressedPerihelionDist = Math.pow(perihelionDist, distanceExponent);
-        const scaledPerihelionDist = compressedPerihelionDist * this.PLANET_DISTANCE_SCALE * zoomScale;
+        const a = orbitalElements.a;   // Semi-major axis in AU
+        const e = orbitalElements.e;   // Eccentricity
+        const i = orbitalElements.i;   // Inclination (degrees)
+        const Ω = orbitalElements.Ω;   // Longitude of ascending node (degrees)
+        const ω = orbitalElements.ω;   // Argument of perihelion (degrees)
 
-        const perihelionX = scaledPerihelionDist * Math.cos(perihelionRad);
-        const perihelionY = scaledPerihelionDist * Math.sin(perihelionRad);
-        apsisGroups.perihelion.position.set(perihelionX, perihelionY, 0);
+        // Convert angles to radians
+        const iRad = i * Math.PI / 180;
+        const ΩRad = Ω * Math.PI / 180;
+        const ωRad = ω * Math.PI / 180;
 
-        // Aphelion: farthest point from Sun (at distance a*(1+e))
-        const aphelionDist = apsides.aphelionDistance;
-        const aphelionRad = THREE.MathUtils.degToRad(apsides.aphelion);
+        // Function to calculate 3D position on inclined orbit for a given true anomaly
+        const calculateOrbitPosition = (ν) => {
+          // Distance from Sun at this true anomaly
+          const r = a * (1 - e * e) / (1 + e * Math.cos(ν));
 
-        const compressedAphelionDist = Math.pow(aphelionDist, distanceExponent);
-        const scaledAphelionDist = compressedAphelionDist * this.PLANET_DISTANCE_SCALE * zoomScale;
+          // Position in orbital plane (perihelion at x-axis)
+          const xOrb = r * Math.cos(ν);
+          const yOrb = r * Math.sin(ν);
 
-        const aphelionX = scaledAphelionDist * Math.cos(aphelionRad);
-        const aphelionY = scaledAphelionDist * Math.sin(aphelionRad);
-        apsisGroups.aphelion.position.set(aphelionX, aphelionY, 0);
+          // Rotate to ecliptic plane:
+          // 1. Rotate by argument of perihelion (ω) around z-axis
+          const x1 = xOrb * Math.cos(ωRad) - yOrb * Math.sin(ωRad);
+          const y1 = xOrb * Math.sin(ωRad) + yOrb * Math.cos(ωRad);
+
+          // 2. Rotate by inclination (i) around x-axis
+          const x2 = x1;
+          const y2 = y1 * Math.cos(iRad);
+          const z2 = y1 * Math.sin(iRad);
+
+          // 3. Rotate by longitude of ascending node (Ω) around z-axis
+          const x3 = x2 * Math.cos(ΩRad) - y2 * Math.sin(ΩRad);
+          const y3 = x2 * Math.sin(ΩRad) + y2 * Math.cos(ΩRad);
+          const z3 = z2;
+
+          return { x: x3, y: y3, z: z3, distance: r };
+        };
+
+        // Perihelion: true anomaly = 0 (closest point to Sun)
+        const perihelionPos = calculateOrbitPosition(0);
+
+        // Apply distance compression matching the orbital ring
+        const compressedPerihelionDist = Math.pow(perihelionPos.distance, distanceExponent);
+        const compressionRatio = compressedPerihelionDist / perihelionPos.distance;
+
+        const perihelionX = perihelionPos.x * compressionRatio * this.PLANET_DISTANCE_SCALE * zoomScale;
+        const perihelionY = perihelionPos.y * compressionRatio * this.PLANET_DISTANCE_SCALE * zoomScale;
+        let perihelionZ = perihelionPos.z * compressionRatio * this.PLANET_DISTANCE_SCALE * zoomScale;
+
+        // Exaggerate latitude by sizeMultiplier (matching planet position calculation)
+        perihelionZ *= sizeMultiplier;
+
+        apsisGroups.perihelion.position.set(perihelionX, perihelionY, perihelionZ);
+
+        // Aphelion: true anomaly = π (farthest point from Sun)
+        const aphelionPos = calculateOrbitPosition(Math.PI);
+
+        // Apply distance compression matching the orbital ring
+        const compressedAphelionDist = Math.pow(aphelionPos.distance, distanceExponent);
+        const aphelionCompressionRatio = compressedAphelionDist / aphelionPos.distance;
+
+        const aphelionX = aphelionPos.x * aphelionCompressionRatio * this.PLANET_DISTANCE_SCALE * zoomScale;
+        const aphelionY = aphelionPos.y * aphelionCompressionRatio * this.PLANET_DISTANCE_SCALE * zoomScale;
+        let aphelionZ = aphelionPos.z * aphelionCompressionRatio * this.PLANET_DISTANCE_SCALE * zoomScale;
+
+        // Exaggerate latitude by sizeMultiplier (matching planet position calculation)
+        aphelionZ *= sizeMultiplier;
+
+        apsisGroups.aphelion.position.set(aphelionX, aphelionY, aphelionZ);
 
         // Scale apsides with zoom
         apsisGroups.perihelion.scale.set(zoomScale, zoomScale, zoomScale);
