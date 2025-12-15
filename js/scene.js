@@ -389,9 +389,12 @@ export class ArmillaryScene {
   // Main Update Method
   // ===================================================================
 
-  updateSphere(astroCalc, currentLatitude, currentLongitude, currentTime, currentDay, currentYear, timezone = null) {
+  updateSphere(astroCalc, currentLatitude, currentLongitude, currentTime, currentDay, currentYear, timezone = null, isAnimating = false) {
     debugLog.log('=== updateSphere called ===');
     debugLog.log('Planet groups available:', Object.keys(this.planetGroups));
+
+    // Store animation state for use in animate loop (Moon targeting)
+    this.isAnimating = isAnimating;
 
     // Recalculate planet orbits if year changed or first time
     // Note: createPlanetOrbits now uses Keplerian elements, doesn't need ephemeris
@@ -680,7 +683,7 @@ export class ArmillaryScene {
     this.inertialStarSphere.rotation.y = 0;
     this.inertialStarSphere.rotation.z = -Math.PI / 2;  // Phase offset to align RA with ecliptic longitude
 
-    // Only show Earth references (equator/poles) in Earth view
+    // Only show Earth references (equator/poles) and zodiac wheel in Earth view
     // In horizon view, they're not visible/relevant anyway
     if (this.planetaryReferences && this.planetaryReferences.earthReferencesGroup) {
       const shouldShowEarthRefs = isEarthView &&
@@ -699,6 +702,18 @@ export class ArmillaryScene {
         this.earthMaterial.depthWrite = shouldEnableEarthDepth;
         this.earthMaterial.needsUpdate = true;
       }
+    }
+
+    // Hide sun references (ecliptic plane with radial lines around Earth) in horizon view
+    if (this.planetaryReferences && this.planetaryReferences.sunReferencesGroup) {
+      const sunToggleChecked = document.getElementById('sunReferencesToggle')?.checked;
+      this.planetaryReferences.sunReferencesGroup.visible = isEarthView && sunToggleChecked;
+    }
+
+    // Hide geocentric ecliptic (radial lines and glyphs around Earth) in horizon view
+    if (this.planetaryReferences && this.planetaryReferences.geocentricEclipticGroup) {
+      const earthRefsChecked = document.getElementById('earthReferencesToggle')?.checked;
+      this.planetaryReferences.geocentricEclipticGroup.visible = isEarthView && earthRefsChecked;
     }
 
     // Adjust controls target and camera motion based on view distance
@@ -737,10 +752,17 @@ export class ArmillaryScene {
         this.controls.target.copy(sunWorldPos);
         // Don't update camera.up - it was set during initial zoom
       } else if (currentTarget === 'moon') {
-        // Follow the Moon
-        const moonWorldPos = new THREE.Vector3();
-        this.realisticMoonGroup.getWorldPosition(moonWorldPos);
-        this.controls.target.copy(moonWorldPos);
+        // When animating, orbit around Earth to avoid disorienting wobble from Moon's motion
+        // Otherwise follow the Moon directly
+        if (this.isAnimating) {
+          const earthWorldPos = new THREE.Vector3();
+          this.earthGroup.getWorldPosition(earthWorldPos);
+          this.controls.target.copy(earthWorldPos);
+        } else {
+          const moonWorldPos = new THREE.Vector3();
+          this.realisticMoonGroup.getWorldPosition(moonWorldPos);
+          this.controls.target.copy(moonWorldPos);
+        }
         // Don't update camera.up - it was set during initial zoom
       } else if (currentTarget && this.planetGroups[currentTarget]) {
         // Follow a specific planet
@@ -753,18 +775,8 @@ export class ArmillaryScene {
         const earthWorldPos = new THREE.Vector3();
         this.earthGroup.getWorldPosition(earthWorldPos);
         this.controls.target.copy(earthWorldPos);
-
-        // Align camera up vector with Earth's polar axis
-        // Earth's polar axis is the Y-axis in earthMesh's local space
-        if (this.earthMesh) {
-          const earthPolarAxis = new THREE.Vector3(0, 1, 0);
-          const earthWorldQuat = new THREE.Quaternion();
-          this.earthMesh.getWorldQuaternion(earthWorldQuat);
-          earthPolarAxis.applyQuaternion(earthWorldQuat).normalize();
-
-          // Update camera to use Earth's polar axis as "up"
-          this.camera.up.copy(earthPolarAxis);
-        }
+        // Note: camera.up is set only during explicit zoom actions (in zoomToTarget),
+        // not continuously here, to allow free user rotation
       }
     }
 
@@ -1471,6 +1483,53 @@ export class ArmillaryScene {
     // Constrain camera rotation based on view mode
     const distToArmillary = this.camera.position.distanceTo(this.armillaryRoot.position);
     const isInZenithView = distToArmillary < this.SPHERE_RADIUS * 1.5;
+    const isInEarthView = distToArmillary >= this.VIEW_MODE_THRESHOLD;
+
+    // Track view mode transitions for auto-upright
+    const wasInHorizonView = this._wasInHorizonView ?? false;
+    const isInHorizonView = !isInEarthView && !isInZenithView;
+    this._wasInHorizonView = isInHorizonView;
+
+    // Auto-upright camera when transitioning from horizon view to Earth view
+    if (isInEarthView && wasInHorizonView && !this.cameraController.isZoomAnimating) {
+      this._uprightStartUp = this.camera.up.clone();
+      this._uprightProgress = 0;
+      // Set zoom target to Earth when manually zooming out from horizon
+      this.cameraController.currentZoomTarget = 'earth';
+    }
+
+    // Continue upright animation if in progress
+    if (this._uprightProgress !== undefined && this._uprightProgress < 1 && isInEarthView) {
+      this._uprightProgress += 0.02; // ~50 frames to complete
+      if (this._uprightProgress >= 1) {
+        this._uprightProgress = 1;
+      }
+
+      // Target up: ecliptic north (+Z in zodiac group's local space)
+      const zodiacWorldQuaternion = new THREE.Quaternion();
+      this.zodiacGroup.getWorldQuaternion(zodiacWorldQuaternion);
+      const eclipticNorth = new THREE.Vector3(0, 0, 1).applyQuaternion(zodiacWorldQuaternion);
+
+      // Smoothly interpolate using slerp via quaternions
+      const startQuat = new THREE.Quaternion().setFromUnitVectors(
+        new THREE.Vector3(0, 1, 0),
+        this._uprightStartUp.clone().normalize()
+      );
+      const targetQuat = new THREE.Quaternion().setFromUnitVectors(
+        new THREE.Vector3(0, 1, 0),
+        eclipticNorth.normalize()
+      );
+      const eased = this._uprightProgress < 0.5
+        ? 2 * this._uprightProgress * this._uprightProgress
+        : 1 - Math.pow(-2 * this._uprightProgress + 2, 2) / 2;
+      const interpQuat = new THREE.Quaternion().slerpQuaternions(startQuat, targetQuat, eased);
+      this.camera.up.copy(new THREE.Vector3(0, 1, 0).applyQuaternion(interpQuat));
+
+      if (this._uprightProgress >= 1) {
+        delete this._uprightProgress;
+        delete this._uprightStartUp;
+      }
+    }
 
     if (isInZenithView) {
       // In zenith view (camera at observer position looking up at sky)
@@ -1497,6 +1556,7 @@ export class ArmillaryScene {
     this.controls.update();
     this.cameraController.updateEarthVisibility();
     this.updateOrbitVisibility();
+    this.updateMarkerProximityVisibility();
 
     // Update sky billboards to always face camera when visible
     if (this.celestialObjects.skySunMesh && this.celestialObjects.skySunMesh.visible) {
@@ -1572,6 +1632,49 @@ export class ArmillaryScene {
           this.togglePlanetOrbits(shouldShow);
         }
       }
+    }
+  }
+
+  updateMarkerProximityVisibility() {
+    // Hide perihelion, aphelion, and node markers when camera is too close
+    // Fade threshold is relative to the marker's visual scale, not a fixed distance
+
+    const updateMarkerOpacity = (marker) => {
+      if (!marker || !marker.material) return;
+
+      const markerWorldPos = new THREE.Vector3();
+      marker.getWorldPosition(markerWorldPos);
+      const dist = this.camera.position.distanceTo(markerWorldPos);
+
+      // Use marker's visual scale as reference for fade distance
+      // Sprites have scale.x = scale.y, so use x
+      const markerSize = marker.scale.x;
+      const fadeStartDist = markerSize * 8;  // Start fading at 8x marker size
+      const fadeEndDist = markerSize * 2;    // Fully hidden at 2x marker size
+
+      let opacity = 1.0;
+      if (dist < fadeEndDist) {
+        opacity = 0.0;
+      } else if (dist < fadeStartDist) {
+        opacity = (dist - fadeEndDist) / (fadeStartDist - fadeEndDist);
+      }
+
+      marker.material.opacity = opacity * 0.9; // 0.9 is the base opacity
+      marker.visible = opacity > 0.01;
+    };
+
+    // Update lunar node markers
+    if (this.lunarNodes?.spheres) {
+      updateMarkerOpacity(this.lunarNodes.spheres['NORTH_NODE']);
+      updateMarkerOpacity(this.lunarNodes.spheres['SOUTH_NODE']);
+    }
+
+    // Update planetary apsis markers (perihelion/aphelion)
+    if (this.planetaryReferences?.planetaryApsisGroups) {
+      Object.values(this.planetaryReferences.planetaryApsisGroups).forEach(apsisGroup => {
+        updateMarkerOpacity(apsisGroup.perihelion);
+        updateMarkerOpacity(apsisGroup.aphelion);
+      });
     }
   }
 

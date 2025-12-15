@@ -63,7 +63,8 @@ const updateVisualization = () => {
     utcTime,
     utcDay,
     utcYear,
-    uiManager.currentTimezone
+    uiManager.currentTimezone,
+    uiManager.isAnimating
   );
 };
 
