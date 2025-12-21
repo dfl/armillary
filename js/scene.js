@@ -19,6 +19,7 @@ import InteractionManager, { CONSTELLATION_ART_OPACITY } from './scene/interacti
 import CameraController from './scene/camera.js';
 import PlanetaryReferences from './scene/planetaryReferences.js';
 import SkyAtmosphere from './scene/skyAtmosphere.js';
+import DeviceOrientationController from './scene/deviceOrientation.js';
 
 export class ArmillaryScene {
   constructor() {
@@ -108,6 +109,7 @@ export class ArmillaryScene {
     this.cameraController = null;
     this.planetaryReferences = null;
     this.skyAtmosphere = null;
+    this.deviceOrientationController = null;
 
     // ===================================================================
     // Properties for backward compatibility (mapped from modules)
@@ -370,7 +372,14 @@ export class ArmillaryScene {
       this // Pass reference to main scene for accessing properties
     );
 
-    // 7. Interaction Manager (hover, double-click, context menu)
+    // 8. Device Orientation Controller (mobile compass mode)
+    this.deviceOrientationController = new DeviceOrientationController(
+      this.camera,
+      this.controls,
+      this.armillaryRoot
+    );
+
+    // 9. Interaction Manager (hover, double-click, context menu)
     this.interactions = new InteractionManager(
       this.camera,
       this.leftCamera,
@@ -1480,6 +1489,27 @@ export class ArmillaryScene {
   animate() {
     requestAnimationFrame(() => this.animate());
 
+    // Update device orientation if in compass mode
+    if (this.deviceOrientationController && this.deviceOrientationController.enabled) {
+      this.deviceOrientationController.update();
+
+      // Auto-detect objects at screen center and show tooltip
+      if (this.interactions && this.interactions.onStarHover) {
+        const centerEvent = {
+          clientX: window.innerWidth / 2,
+          clientY: window.innerHeight / 2,
+          target: this.renderer.domElement
+        };
+        this.interactions.onStarHover(centerEvent);
+      }
+
+      // Skip OrbitControls and other camera adjustments when in compass mode
+      this.renderer.setViewport(0, 0, window.innerWidth, window.innerHeight);
+      this.renderer.setScissor(0, 0, window.innerWidth, window.innerHeight);
+      this.renderer.render(this.scene, this.camera);
+      return;
+    }
+
     // Constrain camera rotation based on view mode
     const distToArmillary = this.camera.position.distanceTo(this.armillaryRoot.position);
     const isInZenithView = distToArmillary < this.SPHERE_RADIUS * 1.5;
@@ -1688,6 +1718,37 @@ export class ArmillaryScene {
 
   toggleStereo(enabled) {
     this.cameraController.toggleStereo(enabled);
+  }
+
+  // Compass Mode (Device Orientation)
+  async toggleCompassMode() {
+    if (!this.deviceOrientationController) return false;
+    return await this.deviceOrientationController.toggle();
+  }
+
+  async enableCompassMode() {
+    if (!this.deviceOrientationController) return false;
+    return await this.deviceOrientationController.enable();
+  }
+
+  disableCompassMode() {
+    if (this.deviceOrientationController) {
+      this.deviceOrientationController.disable();
+    }
+  }
+
+  isCompassModeEnabled() {
+    return this.deviceOrientationController?.enabled ?? false;
+  }
+
+  isCompassModeSupported() {
+    return DeviceOrientationController.isSupported() && DeviceOrientationController.isMobileDevice();
+  }
+
+  calibrateCompass() {
+    if (this.deviceOrientationController) {
+      this.deviceOrientationController.calibrate();
+    }
   }
 
   setEyeSeparation(separation) {

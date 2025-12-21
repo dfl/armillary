@@ -760,6 +760,9 @@ export default class InteractionManager {
 
     this.renderer.domElement.addEventListener('mousemove', onStarHover);
 
+    // Store the hover handler so it can be called from touch events
+    this.onStarHover = onStarHover;
+
     // Handle mouse leaving the canvas - schedule constellation dim
     this.renderer.domElement.addEventListener('mouseleave', () => {
       this.hideTooltips();

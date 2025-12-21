@@ -367,6 +367,14 @@ window.addEventListener('keydown', (e) => {
     controlsWidget.open = !stereoToggle.checked;
   }
 
+  // 'c' to calibrate compass (when in compass mode)
+  if (e.key === 'c') {
+    if (scene.isCompassModeEnabled()) {
+      scene.calibrateCompass();
+      console.log('Compass calibrated');
+    }
+  }
+
   // '[' to decrease speed (when animating) or move time back (when not)
   if (e.key === '[') {
     if (uiManager.isAnimating) {
@@ -589,8 +597,112 @@ animationControlBtns.forEach(btn => {
 
       // Reload the page to reset everything
       window.location.reload();
+    } else if (action === 'compass') {
+      // Toggle compass mode (device orientation)
+      handleCompassToggle();
     }
   });
+});
+
+// Compass mode handling
+const compassModeBtn = document.getElementById('compassModeBtn');
+const compassCrosshair = document.getElementById('compassCrosshair');
+
+async function handleCompassToggle() {
+  if (scene.isCompassModeEnabled()) {
+    // Already in compass mode - calibrate instead of toggling off
+    scene.calibrateCompass();
+    // Brief visual feedback
+    compassModeBtn.style.transform = 'scale(1.2)';
+    setTimeout(() => { compassModeBtn.style.transform = ''; }, 200);
+    console.log('Compass calibrated');
+  } else {
+    // Enable compass mode
+    const enabled = await scene.enableCompassMode();
+    if (enabled) {
+      compassModeBtn.classList.add('active');
+      // Update button text to show it's now a calibrate button
+      const btnSpan = compassModeBtn.querySelector('span');
+      if (btnSpan) btnSpan.textContent = 'Calibrate';
+      // Show crosshair
+      if (compassCrosshair) compassCrosshair.classList.add('visible');
+      // Close the animation control modal when entering compass mode
+      animationControlModal.classList.remove('visible');
+      // Hide the UI controls in compass mode
+      const controlsWidget = document.getElementById('ui');
+      if (controlsWidget) controlsWidget.open = false;
+    }
+  }
+}
+
+// Exit compass mode with Escape or tapping elsewhere
+function exitCompassMode() {
+  if (scene.isCompassModeEnabled()) {
+    scene.disableCompassMode();
+    compassModeBtn.classList.remove('active');
+    const btnSpan = compassModeBtn.querySelector('span');
+    if (btnSpan) btnSpan.textContent = 'Compass';
+    // Hide crosshair
+    if (compassCrosshair) compassCrosshair.classList.remove('visible');
+    // Hide any lingering tooltips
+    if (scene.interactions) scene.interactions.hideTooltips();
+  }
+}
+
+// Check if compass mode is supported and mark button accordingly
+if (!scene.isCompassModeSupported()) {
+  compassModeBtn.classList.add('unsupported');
+  compassModeBtn.title = 'Compass mode requires a mobile device with orientation sensors';
+}
+
+// Compass mode touch handling:
+// - Single tap: show object info (star/planet name)
+// - Double tap: exit compass mode
+let compassTouchStart = null;
+let lastTapTime = 0;
+const DOUBLE_TAP_DELAY = 300; // ms
+
+scene.renderer.domElement.addEventListener('touchstart', (e) => {
+  if (scene.isCompassModeEnabled()) {
+    compassTouchStart = { x: e.touches[0].clientX, y: e.touches[0].clientY, time: Date.now() };
+  }
+});
+
+scene.renderer.domElement.addEventListener('touchend', (e) => {
+  if (scene.isCompassModeEnabled() && compassTouchStart) {
+    const touch = e.changedTouches[0];
+    const dx = touch.clientX - compassTouchStart.x;
+    const dy = touch.clientY - compassTouchStart.y;
+    const dt = Date.now() - compassTouchStart.time;
+
+    // Check if it was a tap (not a drag)
+    if (Math.abs(dx) < 20 && Math.abs(dy) < 20 && dt < 300) {
+      const now = Date.now();
+
+      // Check for double tap
+      if (now - lastTapTime < DOUBLE_TAP_DELAY) {
+        // Double tap - exit compass mode
+        exitCompassMode();
+        lastTapTime = 0;
+      } else {
+        // Single tap - detect object and show info
+        lastTapTime = now;
+
+        // Create a synthetic mouse event for the hover detection
+        const syntheticEvent = {
+          clientX: touch.clientX,
+          clientY: touch.clientY,
+          target: scene.renderer.domElement
+        };
+
+        // Use the existing hover detection
+        if (scene.interactions && scene.interactions.onStarHover) {
+          scene.interactions.onStarHover(syntheticEvent);
+        }
+      }
+    }
+    compassTouchStart = null;
+  }
 });
 
 // Close animation control modal when clicking outside
@@ -602,10 +714,14 @@ document.addEventListener('click', (e) => {
   }
 });
 
-// Close animation control modal with Escape key
+// Close animation control modal with Escape key, also exit compass mode
 window.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && animationControlModal.classList.contains('visible')) {
-    animationControlModal.classList.remove('visible');
+  if (e.key === 'Escape') {
+    if (scene.isCompassModeEnabled()) {
+      exitCompassMode();
+    } else if (animationControlModal.classList.contains('visible')) {
+      animationControlModal.classList.remove('visible');
+    }
   }
 });
 

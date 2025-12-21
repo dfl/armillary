@@ -264,7 +264,7 @@ input[type="text"] {
   flex: 1;
 }
 
-.animation-control-btn:not([data-action="zoom-to"]):not([data-action="reset"]) {
+.animation-control-btn:not([data-action="zoom-to"]):not([data-action="reset"]):not([data-action="compass"]) {
   margin: 0 10px;
 }
 
@@ -275,7 +275,65 @@ input[type="text"] {
 
 .animation-control-btn[data-action="zoom-to"] {
   position: absolute;
+  right: 90px;
+}
+
+.animation-control-btn[data-action="compass"] {
+  position: absolute;
   right: 20px;
+}
+
+.animation-control-btn[data-action="compass"].active {
+  background: rgba(76, 175, 80, 0.4);
+  border-color: rgba(76, 175, 80, 0.8);
+  box-shadow: 0 0 15px rgba(76, 175, 80, 0.5);
+}
+
+.animation-control-btn[data-action="compass"].unsupported {
+  opacity: 0.3;
+  pointer-events: none;
+}
+
+/* Compass mode crosshair */
+#compassCrosshair {
+  display: none;
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 40px;
+  height: 40px;
+  pointer-events: none;
+  z-index: 100;
+}
+
+#compassCrosshair::before,
+#compassCrosshair::after {
+  content: '';
+  position: absolute;
+  background: rgba(255, 255, 255, 0.6);
+}
+
+#compassCrosshair::before {
+  /* Horizontal line */
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 2px;
+  transform: translateY(-50%);
+}
+
+#compassCrosshair::after {
+  /* Vertical line */
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  transform: translateX(-50%);
+}
+
+#compassCrosshair.visible {
+  display: block;
 }
 
 .animation-control-btn {
