@@ -433,16 +433,17 @@ export default class PlanetaryReferences {
     Object.entries(this.orbitalElements).forEach(([planetName, elements]) => {
       const { color, i, e } = elements;
 
+      // Use LineDashedMaterial - distance-based fading is handled via vertex colors
       const orbitLine = new THREE.Line(
         new THREE.BufferGeometry(),
         new THREE.LineDashedMaterial({
           color: color,
-          opacity: 0.4,
           transparent: true,
-          dashSize: 10.0,
-          gapSize: 10.0,
           depthTest: true,
-          depthWrite: false
+          depthWrite: false,
+          vertexColors: true,  // Enable per-vertex colors for distance fading
+          dashSize: 10.0,
+          gapSize: 10.0
         })
       );
 
@@ -713,6 +714,18 @@ export default class PlanetaryReferences {
       const orbitLine = this.planetOrbits[planetName];
       if (orbitLine) {
         orbitLine.geometry.setFromPoints(orbitPoints);
+
+        // Initialize vertex colors (full brightness, will be updated based on camera distance)
+        const baseColor = new THREE.Color(elements.color);
+        const colors = [];
+        for (let j = 0; j <= numPoints; j++) {
+          colors.push(baseColor.r, baseColor.g, baseColor.b);
+        }
+        orbitLine.geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+
+        // Store base color for later use in distance fading
+        orbitLine.userData.baseColor = baseColor;
+
         orbitLine.computeLineDistances();
       }
     });

@@ -1557,6 +1557,7 @@ export class ArmillaryScene {
     this.cameraController.updateEarthVisibility();
     this.updateOrbitVisibility();
     this.updateMarkerProximityVisibility();
+    this.updatePlanetOrbitOpacity();
 
     // Update sky billboards to always face camera when visible
     if (this.celestialObjects.skySunMesh && this.celestialObjects.skySunMesh.visible) {
@@ -1674,6 +1675,93 @@ export class ArmillaryScene {
       Object.values(this.planetaryReferences.planetaryApsisGroups).forEach(apsisGroup => {
         updateMarkerOpacity(apsisGroup.perihelion);
         updateMarkerOpacity(apsisGroup.aphelion);
+      });
+    }
+  }
+
+  updatePlanetOrbitOpacity() {
+    // Update planet orbital rings and markers with distance-based fading
+    // Parts closer to the camera are brighter, farther parts fade toward black
+    if (!this.planetaryReferences) return;
+
+    const cameraPos = this.camera.position;
+
+    // Fade parameters for distance-based brightness
+    // Aggressive fading so only nearby parts are visible when zoomed in
+    const fadeNear = 50.0;     // Distance where brightness is at maximum
+    const fadeFar = 1000.0;    // Distance where brightness reaches minimum
+    const maxBrightness = 1.0;
+    const minBrightness = 0.0;
+
+    // Helper function to calculate brightness multiplier based on distance
+    const calcBrightness = (dist) => {
+      const t = Math.max(0, Math.min(1, (dist - fadeNear) / (fadeFar - fadeNear)));
+      return maxBrightness * (1 - t) + minBrightness * t;
+    };
+
+    // Update orbit vertex colors based on camera distance
+    if (this.planetaryReferences.planetOrbits) {
+      Object.entries(this.planetaryReferences.planetOrbits).forEach(([planetName, orbitLine]) => {
+        if (!orbitLine || !orbitLine.visible || !orbitLine.geometry) return;
+
+        const positionAttr = orbitLine.geometry.getAttribute('position');
+        const colorAttr = orbitLine.geometry.getAttribute('color');
+        if (!positionAttr || !colorAttr) return;
+
+        const baseColor = orbitLine.userData.baseColor;
+        if (!baseColor) return;
+
+        const vertex = new THREE.Vector3();
+        for (let i = 0; i < positionAttr.count; i++) {
+          vertex.set(positionAttr.getX(i), positionAttr.getY(i), positionAttr.getZ(i));
+          const dist = cameraPos.distanceTo(vertex);
+          const brightness = calcBrightness(dist);
+
+          colorAttr.setXYZ(i, baseColor.r * brightness, baseColor.g * brightness, baseColor.b * brightness);
+        }
+        colorAttr.needsUpdate = true;
+      });
+    }
+
+    // Update node markers with distance-based opacity
+    if (this.planetaryReferences.planetaryNodeGroups) {
+      Object.values(this.planetaryReferences.planetaryNodeGroups).forEach(nodeGroup => {
+        ['ascending', 'descending'].forEach(nodeType => {
+          const node = nodeGroup[nodeType];
+          if (node && node.visible) {
+            const worldPos = new THREE.Vector3();
+            node.getWorldPosition(worldPos);
+            const dist = cameraPos.distanceTo(worldPos);
+            const brightness = calcBrightness(dist);
+            // Update sprite material opacity
+            node.children.forEach(child => {
+              if (child.material) {
+                child.material.opacity = brightness;
+              }
+            });
+          }
+        });
+      });
+    }
+
+    // Update apsis markers with distance-based opacity
+    if (this.planetaryReferences.planetaryApsisGroups) {
+      Object.values(this.planetaryReferences.planetaryApsisGroups).forEach(apsisGroup => {
+        ['perihelion', 'aphelion'].forEach(apsisType => {
+          const apsis = apsisGroup[apsisType];
+          if (apsis && apsis.visible) {
+            const worldPos = new THREE.Vector3();
+            apsis.getWorldPosition(worldPos);
+            const dist = cameraPos.distanceTo(worldPos);
+            const brightness = calcBrightness(dist);
+            // Update sprite material opacity
+            apsis.children.forEach(child => {
+              if (child.material) {
+                child.material.opacity = brightness;
+              }
+            });
+          }
+        });
       });
     }
   }
