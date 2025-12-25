@@ -730,6 +730,9 @@ setTimeout(() => {
           scene.targetCameraDistance = cameraState.distance;
         }
 
+        // Update sphere to apply view-mode-specific visibility and camera adjustments
+        updateVisualization();
+
         // Start listening for camera changes after a short delay
         setTimeout(() => {
           scene.controls.addEventListener('change', saveCameraStateToURL);
@@ -743,8 +746,11 @@ setTimeout(() => {
     // Set default camera zoom to horizon (slightly zoomed out)
     scene.zoomToTarget('horizon');
 
-    // Wait for zoom animation to complete, then start listening for camera changes
+    // Wait for zoom animation to complete, then update visibility and start listening for camera changes
     setTimeout(() => {
+      // Update sphere to apply horizon view visibility settings (hide Earth references, etc.)
+      // and apply horizon view camera adjustments
+      updateVisualization();
       scene.controls.addEventListener('change', saveCameraStateToURL);
     }, 1000); // Match zoom animation duration
   }
