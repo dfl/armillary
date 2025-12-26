@@ -1686,12 +1686,14 @@ export class ArmillaryScene {
 
     const cameraPos = this.camera.position;
 
-    // Fade parameters for distance-based brightness
-    // Aggressive fading so only nearby parts are visible when zoomed in
-    const fadeNear = 50.0;     // Distance where brightness is at maximum
-    const fadeFar = 1000.0;    // Distance where brightness reaches minimum
+    // Dynamic fade parameters based on camera distance from origin
+    // When zoomed in: aggressive fading (only nearby parts visible)
+    // When zoomed out: relaxed fading (more of the orbits visible)
+    const cameraDist = cameraPos.length();
+    const fadeNear = cameraDist * 0.005;  // 0.5% of camera distance
+    const fadeFar = cameraDist * 1.5;     // 150% of camera distance
     const maxBrightness = 1.0;
-    const minBrightness = 0.0;
+    const minBrightness = 0.05;
 
     // Helper function to calculate brightness multiplier based on distance
     const calcBrightness = (dist) => {
@@ -1711,9 +1713,14 @@ export class ArmillaryScene {
         const baseColor = orbitLine.userData.baseColor;
         if (!baseColor) return;
 
+        // Ensure world matrix is up to date
+        orbitLine.updateMatrixWorld();
+
         const vertex = new THREE.Vector3();
         for (let i = 0; i < positionAttr.count; i++) {
+          // Get vertex in local space, then transform to world space
           vertex.set(positionAttr.getX(i), positionAttr.getY(i), positionAttr.getZ(i));
+          vertex.applyMatrix4(orbitLine.matrixWorld);
           const dist = cameraPos.distanceTo(vertex);
           const brightness = calcBrightness(dist);
 

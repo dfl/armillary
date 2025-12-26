@@ -444,7 +444,7 @@ export default class CelestialObjects {
         color: 0xffffff,
         transparent: true,
         opacity: 1.0,
-        depthWrite: false,
+        depthWrite: true, // Write to depth buffer to occlude orbital lines behind sun
         depthTest: true // Enable depth testing for sky dome clipping
       })
     );
