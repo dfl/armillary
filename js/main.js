@@ -157,6 +157,25 @@ const saveCameraStateToURL = () => {
   }, 500); // Wait 500ms after camera movement stops
 };
 
+// Update view-mode-dependent visibility when camera distance changes
+// This ensures Earth references appear/disappear when manually zooming
+let lastViewMode = null;
+const onCameraChange = () => {
+  // Check if we crossed the view mode threshold
+  const distToObserver = scene.camera.position.distanceTo(scene.armillaryRoot.position);
+  const isEarthView = (distToObserver >= scene.VIEW_MODE_THRESHOLD);
+  
+  // Only update if view mode changed (crossed threshold)
+  if (lastViewMode !== isEarthView) {
+    lastViewMode = isEarthView;
+    // Call updateVisualization to refresh visibility states
+    updateVisualization();
+  }
+  
+  // Always save camera state to URL
+  saveCameraStateToURL();
+};
+
 // Don't listen for camera changes yet - will be set up after initial camera position is set
 
 // Initialize datetime parser with timezone callback
@@ -735,7 +754,10 @@ setTimeout(() => {
 
         // Start listening for camera changes after a short delay
         setTimeout(() => {
-          scene.controls.addEventListener('change', saveCameraStateToURL);
+          // Initialize lastViewMode to match current state
+          const distToObserver = scene.camera.position.distanceTo(scene.armillaryRoot.position);
+          lastViewMode = (distToObserver >= scene.VIEW_MODE_THRESHOLD);
+          scene.controls.addEventListener('change', onCameraChange);
         }, 200);
       }
     };
@@ -751,7 +773,10 @@ setTimeout(() => {
       // Update sphere to apply horizon view visibility settings (hide Earth references, etc.)
       // and apply horizon view camera adjustments
       updateVisualization();
-      scene.controls.addEventListener('change', saveCameraStateToURL);
+      // Initialize lastViewMode to match current state
+      const distToObserver = scene.camera.position.distanceTo(scene.armillaryRoot.position);
+      lastViewMode = (distToObserver >= scene.VIEW_MODE_THRESHOLD);
+      scene.controls.addEventListener('change', onCameraChange);
     }, 1000); // Match zoom animation duration
   }
 }, 1000);
